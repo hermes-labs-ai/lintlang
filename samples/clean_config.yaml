@@ -1,0 +1,58 @@
+# Sample: Well-structured agent config with minimal diagnostic issues.
+# This represents best practices for tool descriptions and system prompts.
+
+system_prompt: |
+  # Weather Assistant v2.1
+
+  You are a weather information assistant. Your sole purpose is to provide
+  weather data for specific locations.
+
+  ## Priority Rules
+  PRIORITY 1: Only report data from the weather API. Never estimate or guess.
+  PRIORITY 2: If the API returns an error, report the error to the user.
+  PRIORITY 3: Respond in 2-3 sentences maximum per query.
+
+  ## Task Boundaries
+  Each user message is an independent weather query. Do not reference
+  previous queries unless the user explicitly asks you to compare.
+
+  ## Constraints
+  - Maximum 3 tool calls per user query
+  - If the first lookup fails, retry once with a broader location name
+  - If both attempts fail, respond: "I couldn't find weather data for that location."
+
+  ## Output Format
+  Respond in plain text. Include: location name, current temperature,
+  conditions, and any active weather alerts.
+
+tools:
+  - name: get_current_weather
+    description: "Retrieve real-time weather conditions for a specific geographic location. Use this tool when the user asks about CURRENT weather, temperature, or conditions. Do NOT use for forecasts — use get_forecast instead."
+    parameters:
+      type: object
+      properties:
+        location:
+          type: string
+          description: "City name with optional state/country (e.g., 'San Francisco, CA' or 'London, UK')"
+        units:
+          type: string
+          enum: ["celsius", "fahrenheit"]
+          description: "Temperature unit — defaults to fahrenheit for US locations, celsius otherwise"
+      required: [location]
+
+  - name: get_forecast
+    description: "Retrieve a multi-day weather forecast for a specific location. Use this tool when the user asks about FUTURE weather, upcoming conditions, or weekly outlook. Do NOT use for current conditions — use get_current_weather instead."
+    parameters:
+      type: object
+      properties:
+        location:
+          type: string
+          description: "City name with optional state/country"
+        days:
+          type: integer
+          description: "Number of forecast days (1-7, default 3)"
+      required: [location]
+
+constraints:
+  max_iterations: 3
+  timeout_seconds: 30

@@ -1,0 +1,54 @@
+# Sample: Tool Description Ambiguity (H1) + Schema-Intent Mismatch (H3)
+# A customer support agent with vague, overlapping tool descriptions.
+
+system_prompt: |
+  You are a customer support agent. Help the user with their issues.
+  Use the available tools to look up information and resolve problems.
+
+tools:
+  - name: get_user_info
+    description: "Get user info"
+    parameters:
+      type: object
+      properties:
+        data:
+          type: string
+      required: [data]
+
+  - name: fetch_user_data
+    description: "Get user data from the system"
+    parameters:
+      type: object
+      properties:
+        input:
+          type: string
+
+  - name: handle_request
+    description: "Handle the user request"
+    parameters:
+      type: object
+      properties:
+        value:
+          type: string
+
+  - name: process_ticket
+    description: ""
+    parameters:
+      type: object
+      properties:
+        ticket_id:
+          type: string
+          description: "The ticket ID to process"
+
+  - name: search_knowledge_base
+    description: "Search the knowledge base to find relevant articles and documentation for customer issues and questions"
+    parameters:
+      type: object
+      properties:
+        query:
+          type: string
+          description: "Search query describing the customer's issue"
+        category:
+          type: string
+          description: "Category to filter results (billing, technical, account)"
+      required: [query]
