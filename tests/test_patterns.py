@@ -57,6 +57,31 @@ class TestH1:
         overlap_findings = [f for f in findings if "overlap" in f.description.lower()]
         assert len(overlap_findings) == 0
 
+    def test_vague_verb_with_punctuation(self):
+        """Vague verb followed by colon/punctuation should still be detected."""
+        config = AgentConfig(tools=[ToolDef(name="handler", description="Handle: the user request and process it")])
+        findings = detect_h1(config)
+        assert any("vague verb" in f.description for f in findings)
+
+    def test_duplicate_tool_names(self):
+        """Two tools with the same name should be flagged as CRITICAL."""
+        config = AgentConfig(tools=[
+            ToolDef(name="search", description="Search for users in the database by email"),
+            ToolDef(name="search", description="Search for products in the catalog by name"),
+        ])
+        findings = detect_h1(config)
+        assert any("duplicate" in f.description.lower() and f.severity == Severity.CRITICAL for f in findings)
+
+    def test_stopwords_dont_inflate_overlap(self):
+        """Common stopwords should not inflate overlap score."""
+        config = AgentConfig(tools=[
+            ToolDef(name="create_user", description="Create a new user in the system database"),
+            ToolDef(name="delete_user", description="Delete an existing user from the system database"),
+        ])
+        findings = detect_h1(config)
+        overlap_findings = [f for f in findings if "overlap" in f.description.lower()]
+        assert len(overlap_findings) == 0
+
 
 # ── H2: Missing Constraint Scaffolding ─────────────────────────────
 
@@ -103,6 +128,15 @@ class TestH2:
         findings = detect_h2(config)
         missing = [f for f in findings if "no termination" in f.description.lower()]
         assert len(missing) == 0
+
+    def test_substring_false_negative_limited(self):
+        """Word 'limited' should NOT suppress constraint warning (it's not 'limit')."""
+        config = AgentConfig(
+            system_prompt="You have limited knowledge. Use the tools to help.",
+            tools=[ToolDef(name="search", description="Search the database for records matching a query")],
+        )
+        findings = detect_h2(config)
+        assert any("no termination" in f.description.lower() for f in findings)
 
 
 # ── H3: Schema-Intent Mismatch ─────────────────────────────────────
@@ -155,6 +189,38 @@ class TestH3:
         findings = detect_h3(config)
         assert any("anyOf" in f.description and "undescribed" in f.description for f in findings)
 
+    def test_nested_object_properties_checked(self):
+        """Nested object properties should also be checked for missing descriptions."""
+        config = AgentConfig(tools=[
+            ToolDef(name="tool", description="A tool", parameters={
+                "type": "object",
+                "properties": {
+                    "filter": {
+                        "type": "object",
+                        "description": "Filter criteria",
+                        "properties": {
+                            "data": {"type": "string"},  # generic + no description
+                        },
+                    },
+                },
+            }),
+        ])
+        findings = detect_h3(config)
+        assert any("data" in f.description and "generic" in f.description for f in findings)
+        assert any("data" in f.description and "no description" in f.description for f in findings)
+
+    def test_phantom_required_field(self):
+        """Required field not in properties should be flagged."""
+        config = AgentConfig(tools=[
+            ToolDef(name="tool", description="A tool", parameters={
+                "type": "object",
+                "properties": {"name": {"type": "string", "description": "User name"}},
+                "required": ["name", "ghost_field"],
+            }),
+        ])
+        findings = detect_h3(config)
+        assert any("ghost_field" in f.description and "does not exist" in f.description for f in findings)
+
 
 # ── H4: Context Boundary Erosion ───────────────────────────────────
 
@@ -190,6 +256,12 @@ class TestH4:
         config = AgentConfig(messages=messages)
         findings = detect_h4(config)
         assert any("boundary marker" in f.description.lower() or "no task boundary" in f.description.lower() for f in findings)
+
+    def test_substring_false_negative_microscope(self):
+        """Word 'microscope' should NOT suppress boundary warning (it's not 'scope')."""
+        config = AgentConfig(system_prompt="Use the microscope to examine the sample carefully. " * 30)
+        findings = detect_h4(config)
+        assert any("no context boundary" in f.description.lower() for f in findings)
 
 
 # ── H5: Implicit Instruction Failure ───────────────────────────────

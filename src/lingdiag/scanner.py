@@ -65,14 +65,15 @@ def scan_directory(
     for ext in extensions:
         for filepath in directory.rglob(f"*{ext}"):
             try:
-                findings = scan_file(filepath, patterns=patterns)
-                if findings:
-                    results[str(filepath)] = findings
+                file_findings = scan_file(filepath, patterns=patterns)
+                if file_findings:
+                    results[str(filepath)] = file_findings
             except Exception as e:
+                from .patterns import Severity as _Severity
                 results[str(filepath)] = [Finding(
                     pattern_id="ERR",
                     pattern_name="Parse Error",
-                    severity=findings[0].severity if findings else __import__("lingdiag.patterns", fromlist=["Severity"]).Severity.INFO,
+                    severity=_Severity.INFO,
                     location=str(filepath),
                     description=f"Failed to parse: {e}",
                     suggestion="Check file format (YAML, JSON, or plain text).",

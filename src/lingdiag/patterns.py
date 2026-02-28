@@ -106,8 +106,9 @@ def detect_h1(config: AgentConfig) -> list[Finding]:
                 evidence=desc,
             ))
 
-        # Vague leading verbs
-        first_word = re.split(r"\s+", desc.lower())[0] if desc else ""
+        # Vague leading verbs (strip punctuation)
+        first_match = re.match(r"\w+", desc.lower()) if desc else None
+        first_word = first_match.group() if first_match else ""
         if first_word in VAGUE_WORDS:
             findings.append(Finding(
                 pattern_id="H1",
@@ -118,6 +119,22 @@ def detect_h1(config: AgentConfig) -> list[Finding]:
                 suggestion=f"Replace '{first_word}' with a specific action verb. Instead of 'Handle user data', use 'Validate and persist user profile updates to the database'.",
                 evidence=desc[:80],
             ))
+
+    # Duplicate tool names
+    seen_names: dict[str, int] = {}
+    for i, tool in enumerate(tools):
+        lower_name = tool.name.lower()
+        if lower_name in seen_names:
+            findings.append(Finding(
+                pattern_id="H1",
+                pattern_name="Tool Description Ambiguity",
+                severity=Severity.CRITICAL,
+                location=f"tool:{tool.name}",
+                description=f"Duplicate tool name '{tool.name}' (also at index {seen_names[lower_name]}). LLM cannot distinguish between identically-named tools.",
+                suggestion="Give each tool a unique, descriptive name.",
+            ))
+        else:
+            seen_names[lower_name] = i
 
     # Cross-tool overlap: check for similar descriptions
     for i, t1 in enumerate(tools):
@@ -139,10 +156,16 @@ def detect_h1(config: AgentConfig) -> list[Finding]:
     return findings
 
 
+_STOPWORDS = {
+    "a", "an", "the", "and", "or", "but", "in", "on", "at", "to", "for",
+    "of", "with", "by", "from", "is", "it", "this", "that", "be", "as",
+}
+
+
 def _word_overlap(a: str, b: str) -> float:
-    """Jaccard similarity of word sets."""
-    wa = set(re.findall(r"\w+", a.lower()))
-    wb = set(re.findall(r"\w+", b.lower()))
+    """Jaccard similarity of word sets (excluding stopwords)."""
+    wa = set(re.findall(r"\w+", a.lower())) - _STOPWORDS
+    wb = set(re.findall(r"\w+", b.lower())) - _STOPWORDS
     if not wa or not wb:
         return 0.0
     return len(wa & wb) / len(wa | wb)
@@ -175,8 +198,10 @@ def detect_h2(config: AgentConfig) -> list[Finding]:
     constraints = config.constraints
 
     has_any_constraint = False
+    constraints_str = str(constraints).lower()
     for signal in CONSTRAINT_SIGNALS:
-        if signal in prompt or signal in str(constraints).lower():
+        pattern = rf"\b{re.escape(signal)}\b"
+        if re.search(pattern, prompt) or re.search(pattern, constraints_str):
             has_any_constraint = True
             break
 
@@ -225,45 +250,22 @@ def detect_h3(config: AgentConfig) -> list[Finding]:
             continue
 
         properties = params.get("properties", {})
-        required = set(params.get("required", []))
+        required_list = params.get("required", [])
+        required = set(required_list)
 
-        for prop_name, prop_def in properties.items():
-            # Missing description on parameter
-            if "description" not in prop_def:
+        # Phantom required fields
+        for req_name in required_list:
+            if req_name not in properties:
                 findings.append(Finding(
                     pattern_id="H3",
                     pattern_name="Schema-Intent Mismatch",
-                    severity=Severity.MEDIUM,
-                    location=f"tool:{tool.name}.parameters.{prop_name}",
-                    description=f"Parameter '{prop_name}' in tool '{tool.name}' has no description.",
-                    suggestion="Add a description explaining what this parameter means semantically, not just its type.",
+                    severity=Severity.HIGH,
+                    location=f"tool:{tool.name}.parameters.required",
+                    description=f"Required field '{req_name}' in tool '{tool.name}' does not exist in properties.",
+                    suggestion=f"Either add '{req_name}' to properties or remove it from required.",
                 ))
 
-            # Generic property names
-            if prop_name.lower() in GENERIC_PROP_NAMES:
-                findings.append(Finding(
-                    pattern_id="H3",
-                    pattern_name="Schema-Intent Mismatch",
-                    severity=Severity.LOW,
-                    location=f"tool:{tool.name}.parameters.{prop_name}",
-                    description=f"Parameter '{prop_name}' in tool '{tool.name}' uses a generic name.",
-                    suggestion=f"Rename '{prop_name}' to something specific: e.g., 'user_email' instead of 'data', 'search_query' instead of 'input'.",
-                ))
-
-            # anyOf/oneOf without descriptions
-            for union_key in ("anyOf", "oneOf"):
-                if union_key in prop_def:
-                    variants = prop_def[union_key]
-                    undescribed = [v for v in variants if "description" not in v]
-                    if undescribed:
-                        findings.append(Finding(
-                            pattern_id="H3",
-                            pattern_name="Schema-Intent Mismatch",
-                            severity=Severity.HIGH,
-                            location=f"tool:{tool.name}.parameters.{prop_name}",
-                            description=f"Parameter '{prop_name}' has {union_key} with {len(undescribed)}/{len(variants)} undescribed variants.",
-                            suggestion=f"Add a description to each {union_key} variant explaining WHEN to use it. Without this, the LLM has no basis for choosing.",
-                        ))
+        _check_properties(findings, tool.name, properties, "parameters")
 
     # Check schemas list too
     for i, schema in enumerate(config.schemas):
@@ -280,6 +282,53 @@ def detect_h3(config: AgentConfig) -> list[Finding]:
                 ))
 
     return findings
+
+
+def _check_properties(findings: list[Finding], tool_name: str, properties: dict, path: str) -> None:
+    """Check properties for schema-intent issues, including nested objects."""
+    for prop_name, prop_def in properties.items():
+        full_path = f"{path}.{prop_name}"
+
+        # Missing description on parameter
+        if "description" not in prop_def:
+            findings.append(Finding(
+                pattern_id="H3",
+                pattern_name="Schema-Intent Mismatch",
+                severity=Severity.MEDIUM,
+                location=f"tool:{tool_name}.{full_path}",
+                description=f"Parameter '{prop_name}' in tool '{tool_name}' has no description.",
+                suggestion="Add a description explaining what this parameter means semantically, not just its type.",
+            ))
+
+        # Generic property names
+        if prop_name.lower() in GENERIC_PROP_NAMES:
+            findings.append(Finding(
+                pattern_id="H3",
+                pattern_name="Schema-Intent Mismatch",
+                severity=Severity.LOW,
+                location=f"tool:{tool_name}.{full_path}",
+                description=f"Parameter '{prop_name}' in tool '{tool_name}' uses a generic name.",
+                suggestion=f"Rename '{prop_name}' to something specific: e.g., 'user_email' instead of 'data', 'search_query' instead of 'input'.",
+            ))
+
+        # anyOf/oneOf without descriptions
+        for union_key in ("anyOf", "oneOf"):
+            if union_key in prop_def:
+                variants = prop_def[union_key]
+                undescribed = [v for v in variants if "description" not in v]
+                if undescribed:
+                    findings.append(Finding(
+                        pattern_id="H3",
+                        pattern_name="Schema-Intent Mismatch",
+                        severity=Severity.HIGH,
+                        location=f"tool:{tool_name}.{full_path}",
+                        description=f"Parameter '{prop_name}' has {union_key} with {len(undescribed)}/{len(variants)} undescribed variants.",
+                        suggestion=f"Add a description to each {union_key} variant explaining WHEN to use it. Without this, the LLM has no basis for choosing.",
+                    ))
+
+        # Recurse into nested object properties
+        if prop_def.get("type") == "object" and "properties" in prop_def:
+            _check_properties(findings, tool_name, prop_def["properties"], full_path)
 
 
 # ── H4: Context Boundary Erosion ───────────────────────────────────
@@ -307,8 +356,11 @@ def detect_h4(config: AgentConfig) -> list[Finding]:
     if prompt:
         prompt_lower = prompt.lower()
 
-        # Check for boundary markers
-        has_boundary = any(signal in prompt_lower for signal in BOUNDARY_SIGNALS)
+        # Check for boundary markers (word boundary matching)
+        has_boundary = any(
+            re.search(rf"\b{re.escape(signal)}\b", prompt_lower)
+            for signal in BOUNDARY_SIGNALS
+        )
 
         if len(prompt) > 500 and not has_boundary:
             findings.append(Finding(
@@ -419,7 +471,8 @@ def detect_h5(config: AgentConfig) -> list[Finding]:
         keyword in prompt.lower()
         for keyword in ["priority", "most important", "above all", "first and foremost", "override"]
     )
-    instruction_count = prompt.count(".") + prompt.count("\n-") + prompt.count("\n*")
+    # Count instructions more accurately (sentence-ending periods + list items)
+    instruction_count = len(re.findall(r"[.!?]\s+[A-Z]", prompt)) + prompt.count("\n-") + prompt.count("\n*") + prompt.count("\n1")
     if instruction_count > 10 and not has_priority:
         findings.append(Finding(
             pattern_id="H5",
@@ -443,15 +496,6 @@ def detect_h6(config: AgentConfig) -> list[Finding]:
 
     if not prompt:
         return findings
-
-    # Template variables without type hints
-    template_vars = re.findall(r"\{(\w+)\}", prompt)
-    if template_vars:
-        for var in set(template_vars):
-            # Check if there's a type hint or description near the variable
-            context_pattern = rf"(?:\w+\s+)?{re.escape('{' + var + '}')}"
-            if not re.search(rf"(?:string|int|number|bool|list|array|json)\s*[:\-]?\s*\{{{var}\}}", prompt, re.IGNORECASE):
-                pass  # Acceptable — not all template vars need type hints in prompts
 
     # Mixed format instructions
     has_json = bool(re.search(r"\bjson\b", prompt, re.IGNORECASE))
@@ -488,7 +532,7 @@ def detect_h6(config: AgentConfig) -> list[Finding]:
         ))
 
     # Check for versioning
-    has_version = bool(re.search(r"v\d|version\s*[:\d]|prompt\s*v", prompt, re.IGNORECASE))
+    has_version = bool(re.search(r"(?:^|\s)v\d+\.\d|version\s*[:\d]|prompt\s*v\d", prompt, re.IGNORECASE | re.MULTILINE))
     if len(prompt) > 500 and not has_version:
         findings.append(Finding(
             pattern_id="H6",

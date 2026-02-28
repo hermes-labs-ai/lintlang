@@ -8,6 +8,7 @@ from pathlib import Path
 
 from . import __version__
 from .parsers import parse_file
+from .patterns import PATTERNS as _PATTERNS
 from .scanner import scan_config, compute_health_score
 from .report import format_terminal, format_markdown
 
@@ -27,7 +28,7 @@ def main(argv: list[str] | None = None) -> int:
     scan_parser.add_argument(
         "--patterns", "-p",
         nargs="+",
-        choices=["H1", "H2", "H3", "H4", "H5", "H6", "H7"],
+        choices=sorted(_PATTERNS.keys()),
         help="Only check specific patterns (default: all)",
     )
     scan_parser.add_argument(
@@ -141,6 +142,11 @@ def _cmd_scan(args: argparse.Namespace) -> int:
                 ],
             })
         print(json_mod.dumps(output, indent=2))
+
+    # No files successfully scanned
+    if not file_findings:
+        print("Error: No files were successfully scanned.", file=sys.stderr)
+        return 1
 
     # Health score check
     overall_score = compute_health_score(all_findings)

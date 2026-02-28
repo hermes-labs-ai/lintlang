@@ -58,6 +58,16 @@ class TestCLI:
         ])
         assert exit_code == 0
 
+    def test_missing_file_returns_error(self):
+        """CLI should return 1 when no files are successfully scanned."""
+        exit_code = main(["scan", "/nonexistent/file.yaml"])
+        assert exit_code == 1
+
+    def test_fail_under_with_missing_file_doesnt_pass(self):
+        """CLI should not silently pass when all files are missing."""
+        exit_code = main(["scan", "/nonexistent/file.yaml", "--fail-under", "80"])
+        assert exit_code == 1
+
     def test_min_severity_filter(self, capsys):
         exit_code = main([
             "scan",

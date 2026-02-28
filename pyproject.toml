@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "lingdiag"
-version = "0.1.0"
+version = "0.2.0"
 description = "Linguistic diagnostics for AI agent systems — detect language-to-action boundary failures"
 readme = "README.md"
 license = "Apache-2.0"

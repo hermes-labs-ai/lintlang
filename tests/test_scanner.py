@@ -3,7 +3,7 @@
 import pytest
 from pathlib import Path
 
-from lingdiag.scanner import scan_config, scan_file, compute_health_score
+from lingdiag.scanner import scan_config, scan_file, scan_directory, compute_health_score
 from lingdiag.patterns import AgentConfig, Finding, Severity, ToolDef
 
 
@@ -55,6 +55,26 @@ class TestScanFile:
         findings = scan_file(SAMPLES_DIR / "clean_config.yaml")
         score = compute_health_score(findings)
         assert score == 100
+
+
+class TestScanDirectory:
+    def test_scan_samples_directory(self):
+        results = scan_directory(SAMPLES_DIR)
+        assert len(results) > 0
+        # Clean config should not appear (no findings)
+        assert not any("clean_config" in k for k in results)
+
+    def test_scan_nonexistent_directory(self):
+        results = scan_directory("/nonexistent/path/12345")
+        assert results == {}
+
+    def test_malformed_file_produces_error_finding(self, tmp_path):
+        bad_file = tmp_path / "broken.json"
+        bad_file.write_text("{invalid json content")
+        results = scan_directory(tmp_path)
+        assert len(results) > 0
+        for findings in results.values():
+            assert any(f.pattern_id == "ERR" for f in findings)
 
 
 class TestHealthScore:
