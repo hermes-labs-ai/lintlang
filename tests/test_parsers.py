@@ -1,11 +1,9 @@
 """Tests for input parsers."""
 
 import json
-import pytest
 from pathlib import Path
 
-from lintlang.parsers import parse_file, parse_yaml, parse_json, parse_text
-
+from lintlang.parsers import parse_file, parse_json, parse_text, parse_yaml
 
 SAMPLES_DIR = Path(__file__).parent.parent / "samples"
 

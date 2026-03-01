@@ -9,14 +9,14 @@ from pathlib import Path
 from . import __version__
 from .parsers import parse_file
 from .patterns import PATTERNS as _PATTERNS
-from .scanner import scan_config, compute_health_score
-from .report import format_terminal, format_markdown
+from .report import format_markdown, format_terminal
+from .scanner import ScanResult, scan_config, scan_directory
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="lintlang",
-        description="Linguistic linter for AI agent systems. Scans tool descriptions, system prompts, and agent configs for H1-H7 failure patterns.",
+        description="Linguistic linter for AI agent systems. HERM v1.1 hermeneutical scoring with H1-H7 structural detectors.",
     )
     parser.add_argument("--version", action="version", version=f"lintlang {__version__}")
 
@@ -29,7 +29,7 @@ def main(argv: list[str] | None = None) -> int:
         "--patterns", "-p",
         nargs="+",
         choices=sorted(_PATTERNS.keys()),
-        help="Only check specific patterns (default: all)",
+        help="Only check specific structural patterns (default: all)",
     )
     scan_parser.add_argument(
         "--format", "-f",
@@ -46,17 +46,17 @@ def main(argv: list[str] | None = None) -> int:
         "--min-severity",
         choices=["critical", "high", "medium", "low", "info"],
         default="info",
-        help="Minimum severity to show (default: info)",
+        help="Minimum severity for structural findings (default: info)",
     )
     scan_parser.add_argument(
         "--fail-under",
         type=float,
         default=0.0,
-        help="Exit with code 1 if health score is below this threshold (default: 0)",
+        help="Exit with code 1 if HERM score is below this threshold (default: 0)",
     )
 
     # ── patterns command ───────────────────────────────────────────
-    patterns_parser = subparsers.add_parser("patterns", help="List all diagnostic patterns")
+    subparsers.add_parser("patterns", help="List all diagnostic patterns")
 
     args = parser.parse_args(argv)
 
@@ -71,32 +71,35 @@ def main(argv: list[str] | None = None) -> int:
 
 def _cmd_patterns() -> int:
     """List all diagnostic patterns."""
+    from .herm import DIMENSIONS
     from .patterns import PATTERNS
 
     print()
-    print("  LINGUISTIC DIAGNOSTIC PATTERNS")
+    print("  HERMENEUTICAL DIMENSIONS (HERM v1.1)")
     print("  " + "─" * 50)
-    print()
+    for dim in DIMENSIONS:
+        print(f"  {dim}")
 
+    print()
+    print("  STRUCTURAL DETECTORS (H1-H7)")
+    print("  " + "─" * 50)
     for pid, info in sorted(PATTERNS.items()):
         print(f"  {pid}: {info['name']}")
 
     print()
-    print("  Use 'lintlang scan --patterns H1 H3' to check specific patterns.")
+    print("  Use 'lintlang scan --patterns H1 H3' to filter structural checks.")
     print()
     return 0
 
 
 def _cmd_scan(args: argparse.Namespace) -> int:
-    """Scan files for linguistic issues."""
+    """Scan files with HERM v1.1 + structural detectors."""
     import json as json_mod
-    from .patterns import Severity
 
     severity_order = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
     min_sev = severity_order.get(args.min_severity, 4)
 
-    all_findings = []
-    file_findings: dict[str, list] = {}
+    results: dict[str, ScanResult] = {}
 
     for filepath in args.files:
         path = Path(filepath)
@@ -104,31 +107,48 @@ def _cmd_scan(args: argparse.Namespace) -> int:
             print(f"Error: File not found: {filepath}", file=sys.stderr)
             continue
 
+        if path.is_dir():
+            dir_results = scan_directory(path, patterns=args.patterns)
+            for fpath, result in dir_results.items():
+                result.structural_findings = [
+                    f for f in result.structural_findings
+                    if severity_order.get(f.severity.value, 4) <= min_sev
+                ]
+                results[fpath] = result
+            continue
+
         try:
             config = parse_file(path)
-            findings = scan_config(config, patterns=args.patterns)
-            # Filter by severity
-            findings = [f for f in findings if severity_order.get(f.severity.value, 4) <= min_sev]
-            all_findings.extend(findings)
-            file_findings[str(path)] = findings
+            result = scan_config(config, patterns=args.patterns)
+            result.structural_findings = [
+                f for f in result.structural_findings
+                if severity_order.get(f.severity.value, 4) <= min_sev
+            ]
+            results[str(path)] = result
         except Exception as e:
             print(f"Error parsing {filepath}: {e}", file=sys.stderr)
             continue
 
     # Output
     if args.format == "terminal":
-        for filepath, findings in file_findings.items():
-            print(format_terminal(findings, source_file=filepath, show_suggestions=not args.no_suggestions))
+        for result in results.values():
+            print(format_terminal(result, show_suggestions=not args.no_suggestions))
     elif args.format == "markdown":
-        for filepath, findings in file_findings.items():
-            print(format_markdown(findings, source_file=filepath, show_suggestions=not args.no_suggestions))
+        for result in results.values():
+            print(format_markdown(result, show_suggestions=not args.no_suggestions))
     elif args.format == "json":
         output = []
-        for filepath, findings in file_findings.items():
+        for result in results.values():
             output.append({
-                "file": filepath,
-                "health_score": compute_health_score(findings),
-                "findings": [
+                "file": result.file,
+                "score": result.score,
+                "dimensions": result.herm.dimension_scores,
+                "signal_counts": result.herm.signal_counts,
+                "coverage": result.herm.coverage,
+                "confidence": result.herm.confidence,
+                "findings": result.herm.findings,
+                "context_flags": result.herm.context_flags,
+                "structural_findings": [
                     {
                         "pattern_id": f.pattern_id,
                         "pattern_name": f.pattern_name,
@@ -138,20 +158,19 @@ def _cmd_scan(args: argparse.Namespace) -> int:
                         "suggestion": f.suggestion,
                         "evidence": f.evidence,
                     }
-                    for f in findings
+                    for f in result.structural_findings
                 ],
             })
         print(json_mod.dumps(output, indent=2))
 
-    # No files successfully scanned
-    if not file_findings:
+    if not results:
         print("Error: No files were successfully scanned.", file=sys.stderr)
         return 1
 
-    # Health score check
-    overall_score = compute_health_score(all_findings)
-    if args.fail_under > 0 and overall_score < args.fail_under:
-        print(f"\nHealth score {overall_score:.0f} is below threshold {args.fail_under:.0f}", file=sys.stderr)
+    # HERM score check (lowest score across all files)
+    min_score = min(r.score for r in results.values())
+    if args.fail_under > 0 and min_score < args.fail_under:
+        print(f"\nHERM score {min_score:.1f} is below threshold {args.fail_under:.1f}", file=sys.stderr)
         return 1
 
     return 0

@@ -251,7 +251,6 @@ def detect_h3(config: AgentConfig) -> list[Finding]:
 
         properties = params.get("properties", {})
         required_list = params.get("required", [])
-        required = set(required_list)
 
         # Phantom required fields
         for req_name in required_list:

@@ -9,3 +9,13 @@ build/
 .coverage
 htmlcov/
 *.egg
+
+# Internal docs (not part of the public package)
+GTM-PLAN.md
+HERMENEUTICAL-TAXONOMY.md
+KNOWLEDGE-LEDGER.md
+RELEASE-NOTES.md
+TECHNICAL-ROADMAP.md
+TAXONOMY-EVOLUTION.md
+diagnostics/
+gtm/

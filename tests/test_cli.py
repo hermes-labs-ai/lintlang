@@ -1,10 +1,9 @@
 """Tests for the CLI interface."""
 
-import pytest
+import json
 from pathlib import Path
 
 from lintlang.cli import main
-
 
 SAMPLES_DIR = Path(__file__).parent.parent / "samples"
 
@@ -26,20 +25,27 @@ class TestCLI:
         exit_code = main(["scan", str(SAMPLES_DIR / "clean_config.yaml"), "--format", "json"])
         assert exit_code == 0
         captured = capsys.readouterr()
-        assert '"health_score": 100.0' in captured.out
+        data = json.loads(captured.out)
+        assert len(data) == 1
+        assert "score" in data[0]
+        assert "dimensions" in data[0]
+        assert "coverage" in data[0]
+        assert "confidence" in data[0]
 
     def test_scan_markdown_format(self, capsys):
         exit_code = main(["scan", str(SAMPLES_DIR / "clean_config.yaml"), "--format", "markdown"])
         assert exit_code == 0
         captured = capsys.readouterr()
-        assert "# Linguistic Diagnostics Report" in captured.out
+        assert "# Lintlang Report (HERM v1.1)" in captured.out
+        assert "HERM Score:" in captured.out
 
     def test_fail_under_passes(self):
         exit_code = main(["scan", str(SAMPLES_DIR / "clean_config.yaml"), "--fail-under", "80"])
         assert exit_code == 0
 
     def test_fail_under_fails(self):
-        exit_code = main(["scan", str(SAMPLES_DIR / "bad_agent_config.json"), "--fail-under", "80"])
+        # Use a threshold higher than any possible HERM score for bad configs
+        exit_code = main(["scan", str(SAMPLES_DIR / "bad_agent_config.json"), "--fail-under", "99"])
         assert exit_code == 1
 
     def test_patterns_command(self):
@@ -76,9 +82,23 @@ class TestCLI:
             "--format", "json",
         ])
         assert exit_code == 0
-        import json
         captured = capsys.readouterr()
         data = json.loads(captured.out)
         for result in data:
-            for finding in result["findings"]:
+            # Structural findings should only be high or critical
+            for finding in result["structural_findings"]:
                 assert finding["severity"] in ("critical", "high")
+
+    def test_json_output_has_herm_fields(self, capsys):
+        exit_code = main(["scan", str(SAMPLES_DIR / "bad_tool_descriptions.yaml"), "--format", "json"])
+        assert exit_code == 0
+        captured = capsys.readouterr()
+        data = json.loads(captured.out)
+        result = data[0]
+        assert "score" in result
+        assert "dimensions" in result
+        assert "signal_counts" in result
+        assert "coverage" in result
+        assert "confidence" in result
+        assert "findings" in result
+        assert "structural_findings" in result

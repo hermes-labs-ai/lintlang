@@ -1,49 +1,81 @@
-"""Core scanning engine — runs all pattern detectors against an AgentConfig."""
+"""Core scanning engine — HERM v1.1 hermeneutical scoring + structural detectors."""
 
 from __future__ import annotations
 
+from dataclasses import dataclass, field
 from pathlib import Path
 
+from .herm import HermResult, score_text
 from .parsers import parse_file
-from .patterns import AgentConfig, Finding, PATTERNS
+from .patterns import PATTERNS, AgentConfig, Finding
 
 
-def scan_config(config: AgentConfig, patterns: list[str] | None = None) -> list[Finding]:
-    """Run all (or selected) pattern detectors against a config.
+@dataclass
+class ScanResult:
+    """Combined HERM score + structural findings for a file."""
+    file: str
+    score: float                                    # HERM hermeneutical score (0-100)
+    herm: HermResult                                # Full HERM result
+    structural_findings: list[Finding] = field(default_factory=list)
+
+
+def _build_scoring_text(config: AgentConfig) -> str:
+    """Assemble text corpus for HERM scoring from parsed AgentConfig."""
+    parts: list[str] = []
+    if config.system_prompt:
+        parts.append(config.system_prompt)
+    for tool in config.tools:
+        if tool.description:
+            parts.append(tool.description)
+    for msg in config.messages:
+        content = msg.get("content", "")
+        if isinstance(content, str) and content:
+            parts.append(content)
+    return "\n\n".join(parts)
+
+
+def scan_config(
+    config: AgentConfig,
+    patterns: list[str] | None = None,
+) -> ScanResult:
+    """Score a config with HERM v1.1 + run structural detectors.
 
     Args:
-        config: The normalized agent configuration to scan.
-        patterns: Optional list of pattern IDs to run (e.g., ["H1", "H3"]).
-                  If None, runs all patterns.
+        config: Normalized agent configuration.
+        patterns: Optional list of structural pattern IDs (H1-H7).
 
     Returns:
-        List of findings sorted by severity (critical first).
+        ScanResult with HERM score and structural findings.
     """
-    findings: list[Finding] = []
-    pattern_ids = patterns or list(PATTERNS.keys())
+    # HERM scoring on assembled text
+    text = _build_scoring_text(config)
+    herm = score_text(text, source_path=config.source_file)
 
+    # Structural detectors (H1-H7) as supplementary findings
+    structural: list[Finding] = []
+    pattern_ids = patterns or list(PATTERNS.keys())
     for pid in pattern_ids:
         if pid not in PATTERNS:
             continue
         detector = PATTERNS[pid]["detect"]
-        findings.extend(detector(config))
+        structural.extend(detector(config))
 
-    # Sort: critical first, then high, medium, low, info
     severity_order = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
-    findings.sort(key=lambda f: severity_order.get(f.severity.value, 5))
+    structural.sort(key=lambda f: severity_order.get(f.severity.value, 5))
 
-    return findings
+    return ScanResult(
+        file=config.source_file,
+        score=herm.score,
+        herm=herm,
+        structural_findings=structural,
+    )
 
 
-def scan_file(path: str | Path, patterns: list[str] | None = None) -> list[Finding]:
-    """Parse a file and scan it for pattern violations.
+def scan_file(path: str | Path, patterns: list[str] | None = None) -> ScanResult:
+    """Parse a file and produce a full scan result.
 
-    Args:
-        path: Path to agent config file (YAML, JSON, or text).
-        patterns: Optional list of pattern IDs to check.
-
-    Returns:
-        List of findings.
+    Uses HERM v1.1 as the primary scorer with structural detectors
+    (H1-H7) providing supplementary findings.
     """
     config = parse_file(path)
     return scan_config(config, patterns=patterns)
@@ -53,44 +85,46 @@ def scan_directory(
     directory: str | Path,
     patterns: list[str] | None = None,
     extensions: tuple[str, ...] = (".yaml", ".yml", ".json", ".txt", ".prompt"),
-) -> dict[str, list[Finding]]:
+) -> dict[str, ScanResult]:
     """Scan all matching files in a directory.
 
     Returns:
-        Dict mapping file paths to their findings.
+        Dict mapping file paths to ScanResults.
     """
     directory = Path(directory)
-    results: dict[str, list[Finding]] = {}
+    results: dict[str, ScanResult] = {}
 
     for ext in extensions:
         for filepath in directory.rglob(f"*{ext}"):
             try:
-                file_findings = scan_file(filepath, patterns=patterns)
-                if file_findings:
-                    results[str(filepath)] = file_findings
+                results[str(filepath)] = scan_file(filepath, patterns=patterns)
             except Exception as e:
                 from .patterns import Severity as _Severity
-                results[str(filepath)] = [Finding(
-                    pattern_id="ERR",
-                    pattern_name="Parse Error",
-                    severity=_Severity.INFO,
-                    location=str(filepath),
-                    description=f"Failed to parse: {e}",
-                    suggestion="Check file format (YAML, JSON, or plain text).",
-                )]
+                herm = score_text("", source_path=str(filepath))
+                results[str(filepath)] = ScanResult(
+                    file=str(filepath),
+                    score=herm.score,
+                    herm=herm,
+                    structural_findings=[Finding(
+                        pattern_id="ERR",
+                        pattern_name="Parse Error",
+                        severity=_Severity.INFO,
+                        location=str(filepath),
+                        description=f"Failed to parse: {e}",
+                        suggestion="Check file format (YAML, JSON, or plain text).",
+                    )],
+                )
 
     return results
 
 
 def compute_health_score(findings: list[Finding]) -> float:
-    """Compute a 0-100 health score based on findings.
+    """Legacy penalty-based scorer. Kept for backward compatibility.
 
-    100 = no issues, 0 = maximum severity issues.
+    For new code, use scan_file().score (HERM v1.1) instead.
     """
     if not findings:
         return 100.0
-
     total_penalty = sum(f.severity.score for f in findings)
-    # Cap at 100 penalty points
     capped = min(total_penalty, 100)
     return max(0.0, 100.0 - capped)

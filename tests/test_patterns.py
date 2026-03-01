@@ -1,10 +1,8 @@
 """Tests for H1-H7 pattern detectors."""
 
-import pytest
 
 from lintlang.patterns import (
     AgentConfig,
-    Finding,
     Severity,
     ToolDef,
     detect_h1,
@@ -15,7 +13,6 @@ from lintlang.patterns import (
     detect_h6,
     detect_h7,
 )
-
 
 # ── H1: Tool Description Ambiguity ─────────────────────────────────
 

@@ -4,22 +4,27 @@ build-backend = "hatchling.build"
 
 [project]
 name = "lintlang"
-version = "0.2.0"
-description = "Linguistic diagnostics for AI agent systems — detect language-to-action boundary failures"
+version = "0.1.0"
+description = "Linter for AI agent tool descriptions, system prompts, and configs. Catches vague instructions, missing constraints, and schema mismatches."
 readme = "README.md"
 license = "Apache-2.0"
+license-files = ["LICENSE"]
 requires-python = ">=3.10"
 authors = [
     { name = "LPCI", email = "roli@hermes-labs.ai" },
 ]
 keywords = [
-    "ai", "agents", "diagnostics", "llm", "tool-calling",
-    "prompt-engineering", "context-engineering",
+    "linter", "ai-agents", "llm", "tool-calling", "function-calling",
+    "prompt-engineering", "context-engineering", "prompt-linter",
+    "agent-testing", "static-analysis", "agentic",
+    "structured-output", "prompt-validation",
 ]
 classifiers = [
     "Development Status :: 3 - Alpha",
+    "Environment :: Console",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
@@ -27,15 +32,25 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
     "Topic :: Software Development :: Quality Assurance",
     "Topic :: Software Development :: Testing",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Typing :: Typed",
 ]
 dependencies = [
     "pyyaml>=6.0",
 ]
 
+[project.urls]
+Homepage = "https://github.com/roli-lpci/lintlang"
+Documentation = "https://github.com/roli-lpci/lintlang#readme"
+Repository = "https://github.com/roli-lpci/lintlang"
+"Bug Tracker" = "https://github.com/roli-lpci/lintlang/issues"
+Changelog = "https://github.com/roli-lpci/lintlang/blob/main/CHANGELOG.md"
+
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0",
     "pytest-cov>=5.0",
+    "ruff>=0.9",
 ]
 
 [project.scripts]
@@ -47,3 +62,12 @@ packages = ["src/lintlang"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 120
+src = ["src"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+ignore = ["E501"]
