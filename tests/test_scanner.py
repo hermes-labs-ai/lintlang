@@ -3,8 +3,8 @@
 import pytest
 from pathlib import Path
 
-from lingdiag.scanner import scan_config, scan_file, scan_directory, compute_health_score
-from lingdiag.patterns import AgentConfig, Finding, Severity, ToolDef
+from lintlang.scanner import scan_config, scan_file, scan_directory, compute_health_score
+from lintlang.patterns import AgentConfig, Finding, Severity, ToolDef
 
 
 SAMPLES_DIR = Path(__file__).parent.parent / "samples"

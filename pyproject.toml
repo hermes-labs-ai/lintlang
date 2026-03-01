@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "lingdiag"
+name = "lintlang"
 version = "0.2.0"
 description = "Linguistic diagnostics for AI agent systems — detect language-to-action boundary failures"
 readme = "README.md"
@@ -39,10 +39,10 @@ dev = [
 ]
 
 [project.scripts]
-lingdiag = "lingdiag.cli:main"
+lintlang = "lintlang.cli:main"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/lingdiag"]
+packages = ["src/lintlang"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

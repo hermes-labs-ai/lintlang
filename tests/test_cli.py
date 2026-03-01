@@ -3,7 +3,7 @@
 import pytest
 from pathlib import Path
 
-from lingdiag.cli import main
+from lintlang.cli import main
 
 
 SAMPLES_DIR = Path(__file__).parent.parent / "samples"

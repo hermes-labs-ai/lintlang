@@ -2,7 +2,7 @@
 
 import pytest
 
-from lingdiag.patterns import (
+from lintlang.patterns import (
     AgentConfig,
     Finding,
     Severity,

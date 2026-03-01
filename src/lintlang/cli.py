@@ -1,4 +1,4 @@
-"""CLI entry point for lingdiag."""
+"""CLI entry point for lintlang."""
 
 from __future__ import annotations
 
@@ -15,10 +15,10 @@ from .report import format_terminal, format_markdown
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        prog="lingdiag",
-        description="Linguistic diagnostics for AI agent systems. Scans tool descriptions, system prompts, and agent configs for H1-H7 failure patterns.",
+        prog="lintlang",
+        description="Linguistic linter for AI agent systems. Scans tool descriptions, system prompts, and agent configs for H1-H7 failure patterns.",
     )
-    parser.add_argument("--version", action="version", version=f"lingdiag {__version__}")
+    parser.add_argument("--version", action="version", version=f"lintlang {__version__}")
 
     subparsers = parser.add_subparsers(dest="command")
 
@@ -82,7 +82,7 @@ def _cmd_patterns() -> int:
         print(f"  {pid}: {info['name']}")
 
     print()
-    print("  Use 'lingdiag scan --patterns H1 H3' to check specific patterns.")
+    print("  Use 'lintlang scan --patterns H1 H3' to check specific patterns.")
     print()
     return 0
 

@@ -1,8 +1,8 @@
-"""Shared test fixtures for lingdiag tests."""
+"""Shared test fixtures for lintlang tests."""
 
 import pytest
 
-from lingdiag.patterns import AgentConfig, ToolDef
+from lintlang.patterns import AgentConfig, ToolDef
 
 
 @pytest.fixture

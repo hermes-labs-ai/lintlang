@@ -1,12 +1,12 @@
-# lingdiag
+# lintlang
 
-Linguistic diagnostics for AI agent systems. Scans tool descriptions, system prompts, and agent configs for language-to-action boundary failures.
+Linguistic linter for AI agent systems. Scans tool descriptions, system prompts, and agent configs for language-to-action boundary failures.
 
 ## Quick Start
 
 ```bash
-pip install lingdiag
-lingdiag scan your_agent_config.yaml
+pip install lintlang
+lintlang scan your_agent_config.yaml
 ```
 
 ## What It Detects
@@ -25,25 +25,25 @@ lingdiag scan your_agent_config.yaml
 
 ```bash
 # Scan a single file
-lingdiag scan agent_config.yaml
+lintlang scan agent_config.yaml
 
 # Scan multiple files
-lingdiag scan config1.yaml config2.json prompt.txt
+lintlang scan config1.yaml config2.json prompt.txt
 
 # Check specific patterns only
-lingdiag scan config.yaml --patterns H1 H3
+lintlang scan config.yaml --patterns H1 H3
 
 # Output as markdown
-lingdiag scan config.yaml --format markdown
+lintlang scan config.yaml --format markdown
 
 # Output as JSON (for CI integration)
-lingdiag scan config.yaml --format json
+lintlang scan config.yaml --format json
 
 # Fail CI if health score drops below threshold
-lingdiag scan config.yaml --fail-under 80
+lintlang scan config.yaml --fail-under 80
 
 # List all patterns
-lingdiag patterns
+lintlang patterns
 ```
 
 ## License
