@@ -1,0 +1,104 @@
+"""Tests for the CLI interface."""
+
+import json
+from pathlib import Path
+
+from lintlang.cli import main
+
+SAMPLES_DIR = Path(__file__).parent.parent / "samples"
+
+
+class TestCLI:
+    def test_scan_clean_config(self):
+        exit_code = main(["scan", str(SAMPLES_DIR / "clean_config.yaml")])
+        assert exit_code == 0
+
+    def test_scan_bad_config(self):
+        exit_code = main(["scan", str(SAMPLES_DIR / "bad_tool_descriptions.yaml")])
+        assert exit_code == 0
+
+    def test_scan_with_pattern_filter(self):
+        exit_code = main(["scan", str(SAMPLES_DIR / "bad_tool_descriptions.yaml"), "--patterns", "H1"])
+        assert exit_code == 0
+
+    def test_scan_json_format(self, capsys):
+        exit_code = main(["scan", str(SAMPLES_DIR / "clean_config.yaml"), "--format", "json"])
+        assert exit_code == 0
+        captured = capsys.readouterr()
+        data = json.loads(captured.out)
+        assert len(data) == 1
+        assert "score" in data[0]
+        assert "dimensions" in data[0]
+        assert "coverage" in data[0]
+        assert "confidence" in data[0]
+
+    def test_scan_markdown_format(self, capsys):
+        exit_code = main(["scan", str(SAMPLES_DIR / "clean_config.yaml"), "--format", "markdown"])
+        assert exit_code == 0
+        captured = capsys.readouterr()
+        assert "# Lintlang Report (HERM v1.1)" in captured.out
+        assert "HERM Score:" in captured.out
+
+    def test_fail_under_passes(self):
+        exit_code = main(["scan", str(SAMPLES_DIR / "clean_config.yaml"), "--fail-under", "80"])
+        assert exit_code == 0
+
+    def test_fail_under_fails(self):
+        # Use a threshold higher than any possible HERM score for bad configs
+        exit_code = main(["scan", str(SAMPLES_DIR / "bad_agent_config.json"), "--fail-under", "99"])
+        assert exit_code == 1
+
+    def test_patterns_command(self):
+        exit_code = main(["patterns"])
+        assert exit_code == 0
+
+    def test_no_command_shows_help(self):
+        exit_code = main([])
+        assert exit_code == 0
+
+    def test_multiple_files(self):
+        exit_code = main([
+            "scan",
+            str(SAMPLES_DIR / "clean_config.yaml"),
+            str(SAMPLES_DIR / "bad_tool_descriptions.yaml"),
+        ])
+        assert exit_code == 0
+
+    def test_missing_file_returns_error(self):
+        """CLI should return 1 when no files are successfully scanned."""
+        exit_code = main(["scan", "/nonexistent/file.yaml"])
+        assert exit_code == 1
+
+    def test_fail_under_with_missing_file_doesnt_pass(self):
+        """CLI should not silently pass when all files are missing."""
+        exit_code = main(["scan", "/nonexistent/file.yaml", "--fail-under", "80"])
+        assert exit_code == 1
+
+    def test_min_severity_filter(self, capsys):
+        exit_code = main([
+            "scan",
+            str(SAMPLES_DIR / "bad_system_prompt.txt"),
+            "--min-severity", "high",
+            "--format", "json",
+        ])
+        assert exit_code == 0
+        captured = capsys.readouterr()
+        data = json.loads(captured.out)
+        for result in data:
+            # Structural findings should only be high or critical
+            for finding in result["structural_findings"]:
+                assert finding["severity"] in ("critical", "high")
+
+    def test_json_output_has_herm_fields(self, capsys):
+        exit_code = main(["scan", str(SAMPLES_DIR / "bad_tool_descriptions.yaml"), "--format", "json"])
+        assert exit_code == 0
+        captured = capsys.readouterr()
+        data = json.loads(captured.out)
+        result = data[0]
+        assert "score" in result
+        assert "dimensions" in result
+        assert "signal_counts" in result
+        assert "coverage" in result
+        assert "confidence" in result
+        assert "findings" in result
+        assert "structural_findings" in result

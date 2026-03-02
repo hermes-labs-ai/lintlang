@@ -1,0 +1,53 @@
+{
+  "system_prompt": "You are an autonomous research agent. Loop through all search results and analyze each one. Continue until you've covered everything. Don't stop until the analysis is complete. Remember everything from previous searches to build context.",
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "web_search",
+        "description": "Search the web",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string"
+            }
+          },
+          "required": ["query"]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "analyze",
+        "description": "Analyze data",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "data": {
+              "anyOf": [
+                {"type": "string"},
+                {"type": "object"},
+                {"type": "array", "items": {"type": "string"}}
+              ]
+            }
+          },
+          "required": ["data"]
+        }
+      }
+    }
+  ],
+  "messages": [
+    {"role": "system", "content": "You are an autonomous research agent."},
+    {"role": "user", "content": "Research quantum computing advances in 2024"},
+    {"role": "user", "content": "Also look into AI safety developments"},
+    {"role": "system", "content": "Remember to be thorough."},
+    {"role": "assistant", "content": "I'll research both topics."},
+    {"content": "Here are the search results..."},
+    {"role": "assistant", "content": "Let me search for more."},
+    {"role": "assistant", "content": "Found additional results."},
+    {"role": "tool", "content": "{\"results\": []}"},
+    {"role": "user", "content": "What did you find?"}
+  ]
+}
