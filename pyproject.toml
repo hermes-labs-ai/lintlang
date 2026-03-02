@@ -40,7 +40,7 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/roli-lpci/lintlang"
+Homepage = "https://hermes-labs.ai"
 Documentation = "https://github.com/roli-lpci/lintlang#readme"
 Repository = "https://github.com/roli-lpci/lintlang"
 "Bug Tracker" = "https://github.com/roli-lpci/lintlang/issues"
