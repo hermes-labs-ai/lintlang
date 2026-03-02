@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "lintlang"
-version = "0.1.1"
+version = "0.1.2"
 description = "Linter for AI agent tool descriptions, system prompts, and configs. Catches vague instructions, missing constraints, and schema mismatches."
 readme = "README.md"
 license = "Apache-2.0"

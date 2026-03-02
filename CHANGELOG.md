@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.1.2] - 2026-03-02
+
+### Changed
+- Updated project URLs for PyPI backlinks (Homepage, Documentation, Repository, Bug Tracker, Changelog)
+
 ## [0.1.1] - 2026-03-02
 
 ### Fixed
