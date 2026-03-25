@@ -89,27 +89,24 @@ The `--fail-under` flag checks the HERM score (lowest across all files). Exit co
 
 **H5 (Implicit Instruction Failure) — Context-Aware Negatives**
 
-H5 now distinguishes between safety/policy constraints and style issues, reducing false positives by 96%.
+H5's original approach flagged negatives indiscriminately, causing high false positive rates on real agent configs. Security constraints like "Never expose API keys" were incorrectly flagged as style problems that should be rewritten positively.
 
-Old behavior (v0.1.x):
-- Flagged *any* 4+ negative instructions ("don't", "never", "avoid") as problematic
-- 90% false positive rate on real agent configs — security prompts were flagged as "bad style"
+We identified this gap, tested against 26 real-world agent configs (OpenHands, Aider-style, RAG agents, HIPAA compliance, DevOps safety, financial advisors, content moderation, and more), and built a context-aware fix:
 
-New behavior (v0.2.0):
 - Exempts negatives near 60+ safety/policy/accuracy/legal keywords
-- Context window: 100 chars before/after the negative (covers full sentences)
-- Only flags true style negatives that lack security/policy/accuracy context
-- 96% accuracy on 26 real-world agent configs
+- Context window: 100 chars before/after (covers full sentences)
+- Only flags true style negatives that lack safety/policy context
+- Correct on 25/26 configs tested — legitimate constraints no longer false-flagged
 
 **Examples:**
 
-✅ PASS (exempted — legitimate constraints):
-- "Never expose API keys or credentials" → safety
-- "Do not execute code without user approval" → authorization
-- "Never extrapolate beyond the data range" → accuracy  
+✅ PASS (now correctly exempted):
+- "Never expose API keys or credentials" → security constraint
+- "Do not execute code without user approval" → authorization gate
+- "Never extrapolate beyond the data range" → accuracy constraint
 - "Don't make promises without manager approval" → business policy
 
-❌ FLAG (caught — style negatives):
+❌ FLAG (still caught — genuine style issues):
 - "Don't apologize for simple mistakes" → style, rewrite as positive
 - "Never be overly verbose" → style, rewrite as positive
 

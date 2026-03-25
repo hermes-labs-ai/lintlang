@@ -446,7 +446,7 @@ SAFETY_CONTEXT_KEYWORDS = {
     # Scope constraints
     "reference", "previous", "prior", "history", "context",
     # Safety actions
-    "irreversible", "damage", "command", "destructive",
+    "irreversible", "damage", "command",
     "test", "tests", "break", "modify",
     "workspace", "directory", "file", "system",
 }
@@ -470,7 +470,7 @@ def detect_h5(config: AgentConfig) -> list[Finding]:
 
     # Negative instructions — count only those NOT in safety context
     neg_matches = []
-    for pattern, category in NEGATIVE_PATTERNS:
+    for pattern, _category in NEGATIVE_PATTERNS:
         matches = list(re.finditer(pattern, prompt, re.IGNORECASE))
         for match in matches:
             neg_matches.append((match.start(), match.end(), match.group()))
