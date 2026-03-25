@@ -416,6 +416,17 @@ NEGATIVE_PATTERNS = [
     (r"\bdo\s+not\b", "Negative instruction"),
 ]
 
+# Safety/constraint keywords — negative instructions near these are EXEMPT from H5 flagging
+SAFETY_CONTEXT_KEYWORDS = {
+    "api key", "api_key", "secret", "password", "credential", "token", "auth",
+    "permission", "approval", "authorize", "authorization", "authenticated",
+    "security", "secure", "sensitive", "private", "confidential", "protected",
+    "dangerous", "destructive", "delete", "drop", "overwrite", "truncate",
+    "production", "prod", "execute", "eval", "exec", "code",
+    "share", "expose", "leak", "disclose", "external", "public",
+    "sql injection", "xss", "cve", "vulnerability", "attack",
+}
+
 VAGUE_QUALIFIERS = [
     (r"\bbe\s+(?:concise|brief|helpful|careful|thorough|creative|professional)\b", "Vague qualitative instruction"),
     (r"\buse\s+(?:common\s+sense|good\s+judgment|your\s+best\s+judgment)\b", "Assumes human-level inference"),
@@ -433,20 +444,55 @@ def detect_h5(config: AgentConfig) -> list[Finding]:
     if not prompt:
         return findings
 
-    # Negative instructions
-    neg_count = 0
-    for pattern, _ in NEGATIVE_PATTERNS:
+    # Negative instructions — count only those NOT in safety context
+    neg_matches = []
+    for pattern, category in NEGATIVE_PATTERNS:
         matches = list(re.finditer(pattern, prompt, re.IGNORECASE))
-        neg_count += len(matches)
+        for match in matches:
+            neg_matches.append((match.start(), match.end(), match.group()))
 
-    if neg_count > 3:
+    # Filter out negatives that appear near safety keywords
+    safety_context_window = 60  # chars before/after to check for safety keywords
+    legitimate_negatives = 0  # negatives in safety context (these are GOOD)
+    problematic_negatives = []  # negatives NOT in safety context
+
+    for neg_start, neg_end, neg_text in neg_matches:
+        context_start = max(0, neg_start - safety_context_window)
+        context_end = min(len(prompt), neg_end + safety_context_window)
+        context = prompt[context_start:context_end].lower()
+
+        # Check if any safety keyword is in the context window
+        in_safety_context = any(keyword in context for keyword in SAFETY_CONTEXT_KEYWORDS)
+
+        if in_safety_context:
+            legitimate_negatives += 1
+        else:
+            problematic_negatives.append((neg_start, neg_text))
+
+    # Flag problematic negatives (those NOT near safety keywords)
+    if len(problematic_negatives) > 3:
         findings.append(Finding(
             pattern_id="H5",
             pattern_name="Implicit Instruction Failure",
             severity=Severity.MEDIUM,
             location="system_prompt",
-            description=f"System prompt has {neg_count} negative instructions ('don't', 'never', 'avoid'). Models follow positive instructions more reliably.",
+            description=f"System prompt has {len(problematic_negatives)} negative instructions ('don't', 'never', 'avoid'). Models follow positive instructions more reliably.",
             suggestion="Rewrite negatives as positives. Instead of 'Don't apologize', use 'Respond directly without apologies'. Instead of 'Never make up data', use 'Only cite data from provided context'.",
+        ))
+
+    # Optionally flag each problematic negative individually (helps with targeted fixes)
+    for neg_start, neg_text in problematic_negatives[:2]:  # Show first 2 examples
+        start = max(0, neg_start - 30)
+        end = min(len(prompt), neg_start + 60)
+        evidence = prompt[start:end].strip()
+        findings.append(Finding(
+            pattern_id="H5",
+            pattern_name="Implicit Instruction Failure",
+            severity=Severity.LOW,
+            location="system_prompt",
+            description=f"Negative instruction '{neg_text}' could be reframed positively.",
+            suggestion=f"Instead of '{neg_text}...', specify what TO do. Example context: '{evidence}'",
+            evidence=evidence,
         ))
 
     # Vague qualifiers
