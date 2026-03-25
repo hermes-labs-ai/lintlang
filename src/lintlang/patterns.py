@@ -432,12 +432,18 @@ SAFETY_CONTEXT_KEYWORDS = {
     "without", "manager", "supervisor", "admin",
     # Accuracy constraints
     "estimate", "guess", "hallucinate", "fabricate", "make up", "invent",
-    "assume", "speculate", "infer",
+    "assume", "speculate", "infer", "combine", "unrelated",
     # Policy / business rules
     "promise", "guarantee", "commit", "warrant", "assure",
     "refund", "pricing", "competitor", "internal",
+    "investment", "recommendation", "legal", "medical", "financial",
+    "advice", "liability",
     # Scope constraints
     "reference", "previous", "prior", "history", "context",
+    # Safety actions
+    "irreversible", "damage", "command", "destructive",
+    "test", "tests", "break", "modify",
+    "workspace", "directory", "file", "system",
 }
 
 VAGUE_QUALIFIERS = [
@@ -465,7 +471,7 @@ def detect_h5(config: AgentConfig) -> list[Finding]:
             neg_matches.append((match.start(), match.end(), match.group()))
 
     # Filter out negatives that appear near safety keywords
-    safety_context_window = 60  # chars before/after to check for safety keywords
+    safety_context_window = 100  # chars before/after — covers most full sentences
     legitimate_negatives = 0  # negatives in safety context (these are GOOD)
     problematic_negatives = []  # negatives NOT in safety context
 
