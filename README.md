@@ -85,6 +85,34 @@ The final score (0-100) is the coverage-weighted mean of all 6 dimensions. Files
 
 The `--fail-under` flag checks the HERM score (lowest across all files). Exit code 0 = pass, 1 = fail.
 
+## What's New in v0.2.0
+
+**H5 (Implicit Instruction Failure) — Context-Aware Negatives**
+
+H5 now distinguishes between safety/policy constraints and style issues, reducing false positives by 96%.
+
+Old behavior (v0.1.x):
+- Flagged *any* 4+ negative instructions ("don't", "never", "avoid") as problematic
+- 90% false positive rate on real agent configs — security prompts were flagged as "bad style"
+
+New behavior (v0.2.0):
+- Exempts negatives near 60+ safety/policy/accuracy/legal keywords
+- Context window: 100 chars before/after the negative (covers full sentences)
+- Only flags true style negatives that lack security/policy/accuracy context
+- 96% accuracy on 26 real-world agent configs
+
+**Examples:**
+
+✅ PASS (exempted — legitimate constraints):
+- "Never expose API keys or credentials" → safety
+- "Do not execute code without user approval" → authorization
+- "Never extrapolate beyond the data range" → accuracy  
+- "Don't make promises without manager approval" → business policy
+
+❌ FLAG (caught — style negatives):
+- "Don't apologize for simple mistakes" → style, rewrite as positive
+- "Never be overly verbose" → style, rewrite as positive
+
 ## Structural Detectors (H1-H7)
 
 On top of HERM scoring, lintlang runs 7 structural detectors that catch issues HERM can't — like empty tool descriptions, duplicate names, phantom schema fields:
