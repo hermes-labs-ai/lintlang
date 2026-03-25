@@ -430,14 +430,19 @@ SAFETY_CONTEXT_KEYWORDS = {
     # Authorization / approval gates
     "approval", "approved", "review", "reviewed", "confirmation", "confirm",
     "without", "manager", "supervisor", "admin",
-    # Accuracy constraints
+    # Accuracy / methodology constraints
     "estimate", "guess", "hallucinate", "fabricate", "make up", "invent",
     "assume", "speculate", "infer", "combine", "unrelated",
+    "extrapolate", "correlation", "causation", "cherry-pick", "cherry pick",
+    "outlier", "preliminary", "findings", "data",
     # Policy / business rules
     "promise", "guarantee", "commit", "warrant", "assure",
     "refund", "pricing", "competitor", "internal",
     "investment", "recommendation", "legal", "medical", "financial",
     "advice", "liability",
+    # Content moderation
+    "hate speech", "explicit", "sexually", "violence", "approve",
+    "content", "moderate", "moderation", "flag", "manual review",
     # Scope constraints
     "reference", "previous", "prior", "history", "context",
     # Safety actions
