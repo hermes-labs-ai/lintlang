@@ -60,6 +60,12 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="Exit with code 1 on verdict: 'fail' (any CRITICAL/HIGH) or 'review' (any MEDIUM+). Default: no exit on verdict.",
     )
+    scan_parser.add_argument(
+        "--exclude",
+        nargs="+",
+        default=None,
+        help="Glob patterns to exclude (e.g., 'CHANGELOG.md' 'docs/**'). Non-prompt files (README, LICENSE, etc.) are skipped automatically.",
+    )
 
     # ── patterns command ───────────────────────────────────────────
     subparsers.add_parser("patterns", help="List all diagnostic patterns")
@@ -107,7 +113,7 @@ def _cmd_scan(args: argparse.Namespace) -> int:
             continue
 
         if path.is_dir():
-            dir_results = scan_directory(path, patterns=args.patterns)
+            dir_results = scan_directory(path, patterns=args.patterns, exclude=args.exclude)
             for fpath, result in dir_results.items():
                 result.structural_findings = [
                     f for f in result.structural_findings

@@ -3,7 +3,14 @@
 from pathlib import Path
 
 from lintlang.patterns import Finding, Severity
-from lintlang.scanner import ScanResult, compute_health_score, scan_config, scan_directory, scan_file
+from lintlang.scanner import (
+    ScanResult,
+    _is_non_prompt_file,
+    compute_health_score,
+    scan_config,
+    scan_directory,
+    scan_file,
+)
 
 SAMPLES_DIR = Path(__file__).parent.parent / "samples"
 
@@ -89,6 +96,79 @@ class TestScanDirectory:
         assert len(results) > 0
         for result in results.values():
             assert any(f.pattern_id == "ERR" for f in result.structural_findings)
+
+
+class TestFileTypeFiltering:
+    """Tests for non-prompt file detection and filtering."""
+
+    def test_changelog_is_non_prompt(self):
+        assert _is_non_prompt_file(Path("CHANGELOG.md"))
+
+    def test_readme_is_non_prompt(self):
+        assert _is_non_prompt_file(Path("README.md"))
+
+    def test_license_is_non_prompt(self):
+        assert _is_non_prompt_file(Path("LICENSE.md"))
+
+    def test_contributing_is_non_prompt(self):
+        assert _is_non_prompt_file(Path("CONTRIBUTING.md"))
+
+    def test_code_of_conduct_is_non_prompt(self):
+        assert _is_non_prompt_file(Path("CODE_OF_CONDUCT.md"))
+
+    def test_security_is_non_prompt(self):
+        assert _is_non_prompt_file(Path("SECURITY.md"))
+
+    def test_skill_md_is_prompt(self):
+        assert not _is_non_prompt_file(Path("SKILL.md"))
+
+    def test_config_yaml_is_prompt(self):
+        assert not _is_non_prompt_file(Path("agent_config.yaml"))
+
+    def test_system_prompt_is_prompt(self):
+        assert not _is_non_prompt_file(Path("system_prompt.txt"))
+
+    def test_egg_info_dir_is_non_prompt(self):
+        assert _is_non_prompt_file(Path("pkg.egg-info/SOURCES.txt"))
+
+    def test_pytest_cache_is_non_prompt(self):
+        assert _is_non_prompt_file(Path(".pytest_cache/README.md"))
+
+    def test_directory_scan_skips_non_prompt(self, tmp_path):
+        """scan_directory should skip CHANGELOG.md, README.md, etc."""
+        # Create a mix of prompt and non-prompt files
+        (tmp_path / "SKILL.md").write_text("You are an assistant. Use the tools.")
+        (tmp_path / "CHANGELOG.md").write_text("# Changelog\n\n## v1.0\n- Always maintain backward compatibility.")
+        (tmp_path / "README.md").write_text("# My Agent\n\nAn AI agent.")
+        (tmp_path / "LICENSE.md").write_text("MIT License")
+
+        results = scan_directory(tmp_path)
+        scanned_names = {Path(p).name for p in results}
+        assert "SKILL.md" in scanned_names
+        assert "CHANGELOG.md" not in scanned_names
+        assert "README.md" not in scanned_names
+        assert "LICENSE.md" not in scanned_names
+
+    def test_exclude_patterns(self, tmp_path):
+        """--exclude should filter matching files."""
+        (tmp_path / "config.yaml").write_text("system_prompt: You are helpful.")
+        (tmp_path / "test_config.yaml").write_text("system_prompt: Test mode.")
+
+        results = scan_directory(tmp_path, exclude=["test_*"])
+        scanned_names = {Path(p).name for p in results}
+        assert "config.yaml" in scanned_names
+        assert "test_config.yaml" not in scanned_names
+
+    def test_lintlangignore(self, tmp_path):
+        """.lintlangignore should filter matching files."""
+        (tmp_path / "config.yaml").write_text("system_prompt: You are helpful.")
+        (tmp_path / "draft.md").write_text("You are a draft assistant.")
+        (tmp_path / ".lintlangignore").write_text("draft.md\n")
+
+        results = scan_directory(tmp_path)
+        scanned_names = {Path(p).name for p in results}
+        assert "config.yaml" in scanned_names
+        assert "draft.md" not in scanned_names
 
 
 class TestHealthScore:

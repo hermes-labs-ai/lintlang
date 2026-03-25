@@ -2,12 +2,92 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
 from .herm import HermResult, score_text
 from .parsers import parse_file
 from .patterns import PATTERNS, AgentConfig, Finding
+
+# Files that are never agent configs — skip during directory scans
+NON_PROMPT_FILENAMES = {
+    "changelog.md", "changes.md", "history.md",
+    "readme.md", "readme.txt",
+    "contributing.md", "contributors.md",
+    "code_of_conduct.md", "conduct.md",
+    "security.md", "security.txt",
+    "license.md", "license.txt", "license",
+    "authors.md", "authors.txt",
+    "thanks.md", "acknowledgments.md",
+    "funding.md", "sponsors.md",
+    "todo.md", "todo.txt",
+    "requirements.txt", "setup.cfg",
+    "manifest.in", "sources.txt",
+    "dependency_links.txt", "top_level.txt", "requires.txt",
+}
+
+# Regex patterns for filenames that are clearly non-prompt
+NON_PROMPT_PATTERNS = [
+    re.compile(r"^changelog", re.I),
+    re.compile(r"^readme", re.I),
+    re.compile(r"^license", re.I),
+    re.compile(r"^contributing", re.I),
+    re.compile(r"^code.of.conduct", re.I),
+    re.compile(r"^security", re.I),
+]
+
+# Directory paths that indicate non-prompt content
+NON_PROMPT_DIRS = {
+    "egg-info", ".pytest_cache", "node_modules", "__pycache__",
+    ".git", ".tox", ".mypy_cache", ".ruff_cache",
+    "dist", "build", "htmlcov",
+}
+
+
+def _is_non_prompt_file(filepath: Path) -> bool:
+    """Heuristic: is this file clearly NOT an agent prompt/config?"""
+    name_lower = filepath.name.lower()
+
+    # Check exact filename matches
+    if name_lower in NON_PROMPT_FILENAMES:
+        return True
+
+    # Check filename patterns
+    for pattern in NON_PROMPT_PATTERNS:
+        if pattern.match(name_lower):
+            return True
+
+    # Check if in a non-prompt directory
+    return any(part.lower() in NON_PROMPT_DIRS or part.lower().endswith(".egg-info") for part in filepath.parts)
+
+
+def _load_ignore_patterns(directory: Path) -> list[re.Pattern]:
+    """Load .lintlangignore from directory (gitignore-style globs)."""
+    ignore_file = directory / ".lintlangignore"
+    if not ignore_file.exists():
+        return []
+
+    patterns = []
+    for line in ignore_file.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        # Convert glob to regex
+        regex = line.replace(".", r"\.").replace("**/", "(.*/)?").replace("*", "[^/]*").replace("?", "[^/]")
+        try:
+            patterns.append(re.compile(regex))
+        except re.error:
+            continue
+    return patterns
+
+
+def _is_ignored(filepath: Path, base_dir: Path, patterns: list[re.Pattern]) -> bool:
+    """Check if filepath matches any .lintlangignore pattern."""
+    if not patterns:
+        return False
+    relative = str(filepath.relative_to(base_dir))
+    return any(p.search(relative) for p in patterns)
 
 
 @dataclass
@@ -85,8 +165,20 @@ def scan_directory(
     directory: str | Path,
     patterns: list[str] | None = None,
     extensions: tuple[str, ...] = (".yaml", ".yml", ".json", ".txt", ".md", ".prompt"),
+    exclude: list[str] | None = None,
 ) -> dict[str, ScanResult]:
     """Scan all matching files in a directory.
+
+    Args:
+        directory: Path to scan recursively.
+        patterns: Optional list of structural pattern IDs (H1-H7).
+        extensions: File extensions to include.
+        exclude: Glob patterns to exclude (e.g., ["CHANGELOG.md", "docs/**"]).
+
+    Automatically skips:
+        - Non-prompt files (README, CHANGELOG, LICENSE, etc.)
+        - .lintlangignore patterns (gitignore-style, from directory root)
+        - Files matching --exclude patterns
 
     Returns:
         Dict mapping file paths to ScanResults.
@@ -94,8 +186,35 @@ def scan_directory(
     directory = Path(directory)
     results: dict[str, ScanResult] = {}
 
+    # Load .lintlangignore
+    ignore_patterns = _load_ignore_patterns(directory)
+
+    # Compile --exclude patterns
+    exclude_patterns: list[re.Pattern] = []
+    if exclude:
+        for pattern in exclude:
+            regex = pattern.replace(".", r"\.").replace("**/", "(.*/)?").replace("*", "[^/]*").replace("?", "[^/]")
+            try:
+                exclude_patterns.append(re.compile(regex))
+            except re.error:
+                continue
+
     for ext in extensions:
         for filepath in directory.rglob(f"*{ext}"):
+            # Skip non-prompt files (CHANGELOG, README, etc.)
+            if _is_non_prompt_file(filepath):
+                continue
+
+            # Skip .lintlangignore matches
+            if _is_ignored(filepath, directory, ignore_patterns):
+                continue
+
+            # Skip --exclude matches
+            if exclude_patterns:
+                relative = str(filepath.relative_to(directory))
+                if any(p.search(relative) for p in exclude_patterns):
+                    continue
+
             try:
                 results[str(filepath)] = scan_file(filepath, patterns=patterns)
             except Exception as e:
