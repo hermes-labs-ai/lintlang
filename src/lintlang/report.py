@@ -1,8 +1,11 @@
 """Report generation — human-readable diagnostic output.
 
 Supports:
-- Terminal (colored, rich formatting with HERM dimensions)
+- Terminal (colored, rich formatting with verdict + findings)
 - Markdown (for export/sharing)
+
+v0.2.0: Replaced numeric HERM score with PASS/REVIEW/FAIL verdict
+based on structural findings severity.
 """
 
 from __future__ import annotations
@@ -23,6 +26,10 @@ COLORS = {
 RESET = "\033[0m"
 BOLD = "\033[1m"
 DIM = "\033[2m"
+GREEN = "\033[32m"
+YELLOW = "\033[33m"
+RED = "\033[31m"
+BRIGHT_RED = "\033[91m"
 
 
 def _severity_icon(severity: Severity) -> str:
@@ -35,19 +42,43 @@ def _severity_icon(severity: Severity) -> str:
     }[severity]
 
 
-def _score_color(score: float) -> str:
-    if score >= 90:
-        return "\033[32m"   # green
-    elif score >= 70:
-        return "\033[33m"   # yellow
+def compute_verdict(findings: list[Finding]) -> str:
+    """Compute PASS/REVIEW/FAIL verdict from structural findings.
+
+    - FAIL: any CRITICAL or HIGH finding
+    - REVIEW: any MEDIUM finding (no CRITICAL/HIGH)
+    - PASS: only LOW/INFO findings or none
+    """
+    for f in findings:
+        if f.severity in (Severity.CRITICAL, Severity.HIGH):
+            return "FAIL"
+    for f in findings:
+        if f.severity == Severity.MEDIUM:
+            return "REVIEW"
+    return "PASS"
+
+
+def _verdict_display(verdict: str) -> tuple[str, str]:
+    """Return (icon, color) for a verdict."""
+    if verdict == "PASS":
+        return "✅", GREEN
+    elif verdict == "REVIEW":
+        return "⚠️", YELLOW
     else:
-        return "\033[31m"   # red
+        return "❌", BRIGHT_RED
 
 
-def _bar(value: float, width: int = 10) -> str:
-    """Render a simple bar chart: filled + empty blocks."""
-    filled = max(0, min(width, round(value / 100 * width)))
-    return "\u2588" * filled + "\u2591" * (width - filled)
+def _severity_summary(findings: list[Finding]) -> str:
+    """Build a compact severity count string like '2 CRITICAL, 1 HIGH, 3 MEDIUM'."""
+    counts: dict[Severity, int] = {}
+    for f in findings:
+        counts[f.severity] = counts.get(f.severity, 0) + 1
+
+    parts = []
+    for sev in [Severity.CRITICAL, Severity.HIGH, Severity.MEDIUM, Severity.LOW, Severity.INFO]:
+        if sev in counts:
+            parts.append(f"{counts[sev]} {sev.value.upper()}")
+    return ", ".join(parts) if parts else "0 findings"
 
 
 # ── Terminal Report ────────────────────────────────────────────────
@@ -59,54 +90,24 @@ def format_terminal(
 ) -> str:
     """Format a ScanResult for terminal output with ANSI colors."""
     lines: list[str] = []
-    herm = result.herm
+    findings = result.structural_findings
+    verdict = compute_verdict(findings)
+    icon, vcolor = _verdict_display(verdict)
 
     # Header
     lines.append("")
-    lines.append(f"{BOLD}  LINTLANG REPORT (HERM v1.1){RESET}")
+    lines.append(f"{BOLD}  LINTLANG v{__version__}{RESET}")
     if result.file:
         lines.append(f"  {DIM}{result.file}{RESET}")
     lines.append(f"  {DIM}{'─' * 50}{RESET}")
     lines.append("")
 
-    # HERM dimensions
-    lines.append(f"  {BOLD}Hermeneutical Dimensions{RESET}")
-    for dim_name, dim_score in herm.dimension_scores.items():
-        color = _score_color(dim_score)
-        bar = _bar(dim_score)
-        # Truncate dimension name for alignment
-        short = dim_name.split(" ", 1)[1] if " " in dim_name else dim_name
-        lines.append(f"    {dim_name.split(' ')[0]} {short[:32]:<32s} {color}{bar}{RESET}  {dim_score:5.1f}")
+    # Verdict
+    lines.append(f"  {icon} {BOLD}{vcolor}{verdict}{RESET} — {_severity_summary(findings)}")
     lines.append("")
 
-    # Coverage + confidence
-    cov_pct = f"{herm.coverage * 100:.0f}%"
-    lines.append(f"  Coverage: {cov_pct}  |  Confidence: {herm.confidence}")
-    lines.append("")
-
-    # HERM findings
-    if herm.findings:
-        lines.append(f"  {BOLD}Signals{RESET}")
-        for finding in herm.findings:
-            lines.append(f"    {DIM}- {finding}{RESET}")
-        lines.append("")
-
-    # Structural findings (H1-H7)
-    findings = result.structural_findings
+    # Structural findings (H1-H7) — the main output
     if findings:
-        counts: dict[Severity, int] = {}
-        for f in findings:
-            counts[f.severity] = counts.get(f.severity, 0) + 1
-
-        summary_parts = []
-        for sev in [Severity.CRITICAL, Severity.HIGH, Severity.MEDIUM, Severity.LOW, Severity.INFO]:
-            if sev in counts:
-                color = COLORS[sev]
-                summary_parts.append(f"{color}{counts[sev]} {sev.value}{RESET}")
-
-        lines.append(f"  {BOLD}Structural Issues{RESET}  ({', '.join(summary_parts)})")
-        lines.append("")
-
         by_pattern: dict[str, list[Finding]] = {}
         for f in findings:
             by_pattern.setdefault(f.pattern_id, []).append(f)
@@ -114,24 +115,25 @@ def format_terminal(
         for pid in sorted(by_pattern.keys()):
             pattern_findings = by_pattern[pid]
             pattern_name = pattern_findings[0].pattern_name
-            lines.append(f"  {BOLD}{pid}: {pattern_name}{RESET} ({len(pattern_findings)} findings)")
+            lines.append(f"  {BOLD}{pid}: {pattern_name}{RESET}")
             lines.append("")
 
             for f in pattern_findings:
                 color = COLORS[f.severity]
-                icon = _severity_icon(f.severity)
-                lines.append(f"    {color}{icon} [{f.severity.value.upper()}]{RESET} {f.location}")
+                icon_f = _severity_icon(f.severity)
+                lines.append(f"    {color}{icon_f} [{f.severity.value.upper()}]{RESET} {f.location}")
                 lines.append(f"      {f.description}")
                 if f.evidence:
                     lines.append(f"      {DIM}Evidence: \"{f.evidence}\"{RESET}")
                 if show_suggestions:
-                    lines.append(f"      {DIM}Fix: {f.suggestion}{RESET}")
+                    lines.append(f"      {DIM}→ {f.suggestion}{RESET}")
                 lines.append("")
+    else:
+        lines.append(f"  {GREEN}No structural issues found.{RESET}")
+        lines.append("")
 
-    # Score
-    sc = _score_color(result.score)
     lines.append(f"  {DIM}{'─' * 50}{RESET}")
-    lines.append(f"  HERM Score: {BOLD}{sc}{result.score:.1f}/100{RESET}")
+    lines.append(f"  {DIM}lintlang v{__version__} | H1-H7 structural analysis | Zero LLM calls{RESET}")
     lines.append("")
 
     return "\n".join(lines)
@@ -146,50 +148,29 @@ def format_markdown(
 ) -> str:
     """Format a ScanResult as a Markdown document."""
     lines: list[str] = []
-    herm = result.herm
+    findings = result.structural_findings
+    verdict = compute_verdict(findings)
 
-    lines.append("# Lintlang Report (HERM v1.1)")
+    if verdict == "PASS":
+        verdict_md = "✅ **PASS**"
+    elif verdict == "REVIEW":
+        verdict_md = "⚠️ **REVIEW**"
+    else:
+        verdict_md = "❌ **FAIL**"
+
+    lines.append("# Lintlang Report")
     lines.append("")
     if result.file:
         lines.append(f"**Source:** `{result.file}`")
         lines.append("")
 
-    # Score
-    lines.append(f"**HERM Score: {result.score:.1f}/100** | Coverage: {herm.coverage * 100:.0f}% | Confidence: {herm.confidence}")
+    # Verdict
+    lines.append(f"**Verdict:** {verdict_md} — {_severity_summary(findings)}")
     lines.append("")
-
-    # Dimensions table
-    lines.append("## Hermeneutical Dimensions")
-    lines.append("")
-    lines.append("| Dimension | Score |")
-    lines.append("|-----------|-------|")
-    for dim_name, dim_score in herm.dimension_scores.items():
-        lines.append(f"| {dim_name} | {dim_score:.1f} |")
-    lines.append("")
-
-    # Signals
-    if herm.findings:
-        lines.append("## Signals")
-        lines.append("")
-        for finding in herm.findings:
-            lines.append(f"- {finding}")
-        lines.append("")
 
     # Structural findings
-    findings = result.structural_findings
     if findings:
-        lines.append("## Structural Issues")
-        lines.append("")
-
-        counts: dict[Severity, int] = {}
-        for f in findings:
-            counts[f.severity] = counts.get(f.severity, 0) + 1
-
-        lines.append("| Severity | Count |")
-        lines.append("|----------|-------|")
-        for sev in [Severity.CRITICAL, Severity.HIGH, Severity.MEDIUM, Severity.LOW, Severity.INFO]:
-            if sev in counts:
-                lines.append(f"| {sev.value.upper()} | {counts[sev]} |")
+        lines.append("## Findings")
         lines.append("")
 
         by_pattern: dict[str, list[Finding]] = {}
@@ -214,8 +195,11 @@ def format_markdown(
                 if show_suggestions:
                     lines.append(f"**Fix:** {f.suggestion}")
                     lines.append("")
+    else:
+        lines.append("No structural issues found.")
+        lines.append("")
 
     lines.append("---")
-    lines.append(f"*Generated by lintlang v{__version__} (HERM v1.1)*")
+    lines.append(f"*Generated by lintlang v{__version__} — H1-H7 structural analysis, zero LLM calls*")
 
     return "\n".join(lines)

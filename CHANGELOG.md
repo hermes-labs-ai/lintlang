@@ -1,5 +1,31 @@
 # Changelog
 
+## [0.2.0] - 2026-03-25
+
+### Changed
+- **Breaking: Replaced numeric HERM score with PASS/REVIEW/FAIL verdict** in terminal and markdown output
+  - ❌ FAIL — any CRITICAL or HIGH finding
+  - ⚠️ REVIEW — any MEDIUM finding
+  - ✅ PASS — only LOW/INFO findings or none
+- Terminal output now leads with verdict + severity summary instead of dimension bars
+- Markdown report restructured around verdict + findings (no score in header)
+- JSON output: verdict at top level, HERM score moved under `herm` key (preserved for programmatic use)
+- `patterns` command simplified to show H1-H7 detectors only
+
+### Added
+- `--fail-on fail|review` CLI flag for verdict-based CI gating
+- `compute_verdict()` function in public API
+- `test_verdict.py` with 10 dedicated verdict logic tests
+- `.md` extension support in `scan_directory` (SKILL.md files were silently skipped)
+- Expanded `is_prompt_like` regex to recognize SKILL.md format (description/purpose/role patterns)
+
+### Fixed
+- SKILL.md files now get proper coverage instead of defaulting to 65% (low confidence)
+- Scanning directories with .md instruction files now includes them automatically
+
+### Deprecated
+- `--fail-under` (HERM score threshold) still works but `--fail-on` is preferred
+
 ## [0.1.2] - 2026-03-02
 
 ### Changed

@@ -87,7 +87,7 @@ def _detect_context(path: str, text: str) -> dict[str, bool]:
         "is_cassette": "cassettes" in s,
         "is_test": ".test." in s or "/tests/" in s,
         "is_prompt_like": bool(re.search(
-            r"you are|system prompt|thought:|action:|observation:",
+            r"you are|system prompt|thought:|action:|observation:|description:|^##?\s*purpose|role:|skill\.md",
             text, re.I,
         )),
     }

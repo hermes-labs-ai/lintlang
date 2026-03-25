@@ -84,7 +84,7 @@ def scan_file(path: str | Path, patterns: list[str] | None = None) -> ScanResult
 def scan_directory(
     directory: str | Path,
     patterns: list[str] | None = None,
-    extensions: tuple[str, ...] = (".yaml", ".yml", ".json", ".txt", ".prompt"),
+    extensions: tuple[str, ...] = (".yaml", ".yml", ".json", ".txt", ".md", ".prompt"),
 ) -> dict[str, ScanResult]:
     """Scan all matching files in a directory.
 

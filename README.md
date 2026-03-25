@@ -15,7 +15,7 @@ Most AI agent bugs aren't code bugs — they're language bugs. Vague tool descri
 pip install lintlang
 ```
 
-Requires Python 3.10+. One dependency (`pyyaml`).
+Requires Python 3.10+. One dependency (`pyyaml`). No API keys, no network access, no LLM calls.
 
 ## Quick Start
 
@@ -23,96 +23,65 @@ Requires Python 3.10+. One dependency (`pyyaml`).
 # Scan a single file
 lintlang scan agent_config.yaml
 
-# Scan a directory
+# Scan a directory (finds .yaml, .json, .txt, .md, .prompt)
 lintlang scan configs/
 
 # JSON output for CI
 lintlang scan config.yaml --format json
 
-# Fail CI if score drops below 80
-lintlang scan config.yaml --fail-under 80
+# Fail CI on CRITICAL/HIGH findings
+lintlang scan config.yaml --fail-on fail
+
+# Fail CI on any MEDIUM+ findings
+lintlang scan config.yaml --fail-on review
 ```
 
 ### Example Output
 
 ```
-  LINTLANG REPORT (HERM v1.1)
+  LINTLANG v0.2.0
   bad_tool_descriptions.yaml
   ──────────────────────────────────────────────────
 
-  Hermeneutical Dimensions
-    HERM-1 Interpretive Ambiguity           ██████████  100.0
-    HERM-2 User-Intent Misalignment Risk    █████████░   88.0
-    HERM-3 Input-Driven Misinterpretation   ████████░░   80.0
-    HERM-4 Instruction Conflict/Polysemy    █████████░   92.0
-    HERM-5 Pragmatic Drift Risk             ██████████  100.0
-    HERM-6 Adversarial Reframing            ██████████  100.0
+  ❌ FAIL — 1 CRITICAL, 2 HIGH, 6 MEDIUM, 3 LOW
 
-  Coverage: 90%  |  Confidence: high
-
-  Structural Issues  (1 critical, 2 high, 6 medium, 3 low)
-
-  H1: Tool Description Ambiguity (5 findings)
+  H1: Tool Description Ambiguity
 
     !! [CRITICAL] tool:process_ticket
       Tool 'process_ticket' has no description.
-      Fix: Add a specific description explaining WHEN to use this tool.
+      → Add a specific description explaining WHEN to use this tool.
 
     ! [HIGH] tool:get_user_info
       Tool 'get_user_info' has a very short description (13 chars)
-      Fix: Expand to include purpose, when to use, expected input/output.
+      → Expand to include purpose, when to use, expected input/output.
+
+    ~ [MEDIUM] tool:handle_request
+      Tool 'handle_request' starts with vague verb 'handle'.
+      → Replace with a specific action verb.
+
+  H2: Missing Constraint Scaffolding
+
+    ! [HIGH] system_prompt
+      System prompt defines tools but has no termination conditions.
+      → Add: 'Maximum 5 tool calls per task. Stop and report after 2 failures.'
 
   ──────────────────────────────────────────────────
-  HERM Score: 92.0/100
+  lintlang v0.2.0 | H1-H7 structural analysis | Zero LLM calls
 ```
 
-## How Scoring Works (HERM v1.1)
+## How It Works
 
-lintlang uses the **HERM v1.1** (Hermeneutical Evaluation and Risk Metrics) scoring engine. It evaluates 6 dimensions of linguistic quality:
+lintlang gives you a **verdict**, not a score:
 
-| Dimension | What It Measures |
-|-----------|-----------------|
-| **HERM-1** Interpretive Ambiguity | How many vague qualifiers like "as needed", "when appropriate" |
-| **HERM-2** User-Intent Misalignment Risk | Ambiguity density + whether priority ordering exists |
-| **HERM-3** Input-Driven Misinterpretation | Input surface signals + task boundary language |
-| **HERM-4** Instruction Conflict/Polysemy | Excessive negatives + missing priority signals |
-| **HERM-5** Pragmatic Drift Risk | Ambiguity + negative directive density |
-| **HERM-6** Adversarial Reframing | Hijack phrases, coercive pressure, unbounded repeats |
+| Verdict | Meaning | When |
+|---------|---------|------|
+| ✅ **PASS** | Ship it | Only LOW/INFO findings or none |
+| ⚠️ **REVIEW** | Has blind spots | MEDIUM findings present |
+| ❌ **FAIL** | Will break in production | CRITICAL or HIGH findings |
 
-The final score (0-100) is the coverage-weighted mean of all 6 dimensions. Files that don't look like prompts or configs receive lower coverage (and thus a score cap), preventing false confidence.
-
-**Coverage** (55-100%) reflects how much of the file lintlang could meaningfully evaluate. **Confidence** (high/medium/low) summarizes coverage for quick triage.
-
-The `--fail-under` flag checks the HERM score (lowest across all files). Exit code 0 = pass, 1 = fail.
-
-## What's New in v0.2.0
-
-**H5 (Implicit Instruction Failure) — Context-Aware Negatives**
-
-H5's original approach flagged negatives indiscriminately, causing high false positive rates on real agent configs. Security constraints like "Never expose API keys" were incorrectly flagged as style problems that should be rewritten positively.
-
-We identified this gap, tested against 26 real-world agent configs (OpenHands, Aider-style, RAG agents, HIPAA compliance, DevOps safety, financial advisors, content moderation, and more), and built a context-aware fix:
-
-- Exempts negatives near 60+ safety/policy/accuracy/legal keywords
-- Context window: 100 chars before/after (covers full sentences)
-- Only flags true style negatives that lack safety/policy context
-- Correct on 25/26 configs tested — legitimate constraints no longer false-flagged
-
-**Examples:**
-
-✅ PASS (now correctly exempted):
-- "Never expose API keys or credentials" → security constraint
-- "Do not execute code without user approval" → authorization gate
-- "Never extrapolate beyond the data range" → accuracy constraint
-- "Don't make promises without manager approval" → business policy
-
-❌ FLAG (still caught — genuine style issues):
-- "Don't apologize for simple mistakes" → style, rewrite as positive
-- "Never be overly verbose" → style, rewrite as positive
+Each finding includes the **pattern** (H1-H7), **severity**, **location**, and a **concrete fix suggestion**. No vague "improve your prompt" — specific rewrites you can apply immediately.
 
 ## Structural Detectors (H1-H7)
-
-On top of HERM scoring, lintlang runs 7 structural detectors that catch issues HERM can't — like empty tool descriptions, duplicate names, phantom schema fields:
 
 | Pattern | Name | What Users Report | Severity |
 |---------|------|-------------------|----------|
@@ -124,51 +93,63 @@ On top of HERM scoring, lintlang runs 7 structural detectors that catch issues H
 | **H6** | Template Format Contract Violation | "Agent broke after prompt change" | MEDIUM-INFO |
 | **H7** | Role Confusion | "Chat history is messed up" | CRITICAL-MEDIUM |
 
-## Usage
+### H5: Context-Aware Negatives
 
-```bash
-# Scan files (YAML, JSON, or plain text)
-lintlang scan config.yaml prompt.txt tools.json
+H5 distinguishes between **safety constraints** and **style negatives**. Security rules like "Never expose API keys" are correctly exempted. Style issues like "Don't be verbose" are flagged with positive rewrites.
 
-# Scan a directory recursively
-lintlang scan configs/
+Validated on 26 real-world configs (OpenHands, RAG agents, HIPAA compliance, financial advisors, content moderation, DevOps safety).
 
-# Check only specific patterns
-lintlang scan config.yaml --patterns H1 H3
+## CI Integration
 
-# Filter by minimum severity
-lintlang scan config.yaml --min-severity high
+### GitHub Actions
 
-# Markdown report
-lintlang scan config.yaml --format markdown
-
-# Hide fix suggestions
-lintlang scan config.yaml --no-suggestions
-
-# List all patterns and dimensions
-lintlang patterns
+```yaml
+- name: Lint agent configs
+  run: |
+    pip install lintlang
+    lintlang scan configs/ --fail-on fail
 ```
 
-### Programmatic API
+### Verdict-Based Gating
+
+| Flag | Exits 1 when | Use case |
+|------|-------------|----------|
+| `--fail-on fail` | Any CRITICAL/HIGH finding | Blocking deploy gate |
+| `--fail-on review` | Any MEDIUM+ finding | Strict quality gate |
+| `--fail-under 80` | HERM score < threshold | Legacy score-based gate |
+
+### Filter by Severity
+
+```bash
+# Only show CRITICAL and HIGH
+lintlang scan config.yaml --min-severity high
+
+# Only check specific patterns
+lintlang scan config.yaml --patterns H1 H3
+```
+
+## Programmatic API
 
 ```python
-from lintlang import scan_file, scan_directory
+from lintlang import scan_file, compute_verdict
 
-# Scan a single file
 result = scan_file("config.yaml")
-print(f"HERM Score: {result.score}/100")
-print(f"Coverage: {result.herm.coverage}, Confidence: {result.herm.confidence}")
-
-for dim, score in result.herm.dimension_scores.items():
-    print(f"  {dim}: {score}")
+verdict = compute_verdict(result.structural_findings)
+print(f"Verdict: {verdict}")  # PASS, REVIEW, or FAIL
 
 for finding in result.structural_findings:
     print(f"  [{finding.severity.value}] {finding.description}")
+    print(f"  → {finding.suggestion}")
+```
 
+```python
 # Scan a directory
+from lintlang import scan_directory, compute_verdict
+
 results = scan_directory("configs/")
 for path, result in results.items():
-    print(f"{path}: {result.score}")
+    verdict = compute_verdict(result.structural_findings)
+    print(f"{path}: {verdict}")
 ```
 
 ## Supported Formats
@@ -179,38 +160,18 @@ lintlang auto-detects file format:
 - **JSON** (`.json`) — OpenAI and Anthropic tool schemas, message arrays
 - **Plain text** (`.txt`, `.md`, `.prompt`) — System prompts, instruction docs
 
-Unknown extensions: tried as JSON, then YAML, then plain text.
-
-## CI Integration
-
-### GitHub Actions
-
-```yaml
-- name: Lint agent configs
-  run: |
-    pip install lintlang
-    lintlang scan configs/ --fail-under 80
-```
-
-### Pre-commit
-
-```bash
-lintlang scan src/agent/config.yaml --fail-under 80 || exit 1
-```
-
-Exit code 0 = all files pass. Exit code 1 = score below threshold or scan failure.
+Unknown extensions are tried as JSON → YAML → plain text.
 
 ## How Is lintlang Different?
 
 | Tool | What It Does | How lintlang Differs |
 |------|-------------|---------------------|
-| **promptfoo** | Tests prompts via eval suites at runtime | lintlang is static analysis — catches issues at authoring time, no LLM calls |
-| **guardrails-ai** | Validates LLM outputs at runtime | lintlang catches the root cause (bad instructions), not symptoms (bad outputs) |
-| **NeMo Guardrails** | Runtime dialogue rails (Colang DSL) | lintlang operates on config files, not live conversations |
-| **eslint / ruff** | Lints source code syntax | lintlang lints natural language in agent configs |
-| **semgrep** | Code pattern matching (SAST) | lintlang matches linguistic patterns in prose |
+| **promptfoo** | Tests prompts via eval suites at runtime | lintlang is static — no LLM calls, catches issues at authoring time |
+| **guardrails-ai** | Validates LLM outputs at runtime | lintlang catches root causes (bad instructions), not symptoms |
+| **NeMo Guardrails** | Runtime dialogue rails | lintlang operates on config files, not live conversations |
+| **eslint / ruff** | Lints source code | lintlang lints natural language in agent configs |
 
-lintlang is the only tool that treats tool descriptions, system prompts, and agent configs as **lintable artifacts** — applying static analysis to natural language the same way eslint applies rules to JavaScript.
+lintlang treats tool descriptions, system prompts, and agent configs as **lintable artifacts** — static analysis for prose, like eslint for JavaScript.
 
 ## Development
 

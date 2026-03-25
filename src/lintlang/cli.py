@@ -9,14 +9,14 @@ from pathlib import Path
 from . import __version__
 from .parsers import parse_file
 from .patterns import PATTERNS as _PATTERNS
-from .report import format_markdown, format_terminal
+from .report import compute_verdict, format_markdown, format_terminal
 from .scanner import ScanResult, scan_config, scan_directory
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="lintlang",
-        description="Linguistic linter for AI agent systems. HERM v1.1 hermeneutical scoring with H1-H7 structural detectors.",
+        description="Linguistic linter for AI agent systems. H1-H7 structural analysis with PASS/REVIEW/FAIL verdicts.",
     )
     parser.add_argument("--version", action="version", version=f"lintlang {__version__}")
 
@@ -52,7 +52,13 @@ def main(argv: list[str] | None = None) -> int:
         "--fail-under",
         type=float,
         default=0.0,
-        help="Exit with code 1 if HERM score is below this threshold (default: 0)",
+        help="Exit with code 1 if HERM score is below this threshold (legacy; prefer --fail-on)",
+    )
+    scan_parser.add_argument(
+        "--fail-on",
+        choices=["fail", "review"],
+        default=None,
+        help="Exit with code 1 on verdict: 'fail' (any CRITICAL/HIGH) or 'review' (any MEDIUM+). Default: no exit on verdict.",
     )
 
     # ── patterns command ───────────────────────────────────────────
@@ -71,14 +77,7 @@ def main(argv: list[str] | None = None) -> int:
 
 def _cmd_patterns() -> int:
     """List all diagnostic patterns."""
-    from .herm import DIMENSIONS
     from .patterns import PATTERNS
-
-    print()
-    print("  HERMENEUTICAL DIMENSIONS (HERM v1.1)")
-    print("  " + "─" * 50)
-    for dim in DIMENSIONS:
-        print(f"  {dim}")
 
     print()
     print("  STRUCTURAL DETECTORS (H1-H7)")
@@ -93,7 +92,7 @@ def _cmd_patterns() -> int:
 
 
 def _cmd_scan(args: argparse.Namespace) -> int:
-    """Scan files with HERM v1.1 + structural detectors."""
+    """Scan files with H1-H7 structural detectors."""
     import json as json_mod
 
     severity_order = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
@@ -139,15 +138,10 @@ def _cmd_scan(args: argparse.Namespace) -> int:
     elif args.format == "json":
         output = []
         for result in results.values():
+            verdict = compute_verdict(result.structural_findings)
             output.append({
                 "file": result.file,
-                "score": result.score,
-                "dimensions": result.herm.dimension_scores,
-                "signal_counts": result.herm.signal_counts,
-                "coverage": result.herm.coverage,
-                "confidence": result.herm.confidence,
-                "findings": result.herm.findings,
-                "context_flags": result.herm.context_flags,
+                "verdict": verdict,
                 "structural_findings": [
                     {
                         "pattern_id": f.pattern_id,
@@ -160,6 +154,16 @@ def _cmd_scan(args: argparse.Namespace) -> int:
                     }
                     for f in result.structural_findings
                 ],
+                # Raw HERM data preserved for programmatic consumers
+                "herm": {
+                    "score": result.score,
+                    "dimensions": result.herm.dimension_scores,
+                    "signal_counts": result.herm.signal_counts,
+                    "coverage": result.herm.coverage,
+                    "confidence": result.herm.confidence,
+                    "findings": result.herm.findings,
+                    "context_flags": result.herm.context_flags,
+                },
             })
         print(json_mod.dumps(output, indent=2))
 
@@ -167,11 +171,23 @@ def _cmd_scan(args: argparse.Namespace) -> int:
         print("Error: No files were successfully scanned.", file=sys.stderr)
         return 1
 
-    # HERM score check (lowest score across all files)
-    min_score = min(r.score for r in results.values())
-    if args.fail_under > 0 and min_score < args.fail_under:
-        print(f"\nHERM score {min_score:.1f} is below threshold {args.fail_under:.1f}", file=sys.stderr)
-        return 1
+    # Verdict-based exit
+    if args.fail_on:
+        verdicts = [compute_verdict(r.structural_findings) for r in results.values()]
+        if args.fail_on == "fail" and "FAIL" in verdicts:
+            worst = next(r for r in results.values() if compute_verdict(r.structural_findings) == "FAIL")
+            print(f"\nVerdict: FAIL — {worst.file} has CRITICAL/HIGH findings", file=sys.stderr)
+            return 1
+        if args.fail_on == "review" and any(v in ("FAIL", "REVIEW") for v in verdicts):
+            print("\nVerdict: issues found — use --min-severity to filter", file=sys.stderr)
+            return 1
+
+    # Legacy --fail-under support (HERM score threshold)
+    if args.fail_under > 0:
+        min_score = min(r.score for r in results.values())
+        if min_score < args.fail_under:
+            print(f"\nHERM score {min_score:.1f} is below threshold {args.fail_under:.1f}", file=sys.stderr)
+            return 1
 
     return 0
 
