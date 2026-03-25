@@ -417,14 +417,27 @@ NEGATIVE_PATTERNS = [
 ]
 
 # Safety/constraint keywords — negative instructions near these are EXEMPT from H5 flagging
+# Covers: security, authorization, accuracy, policy/business rules
 SAFETY_CONTEXT_KEYWORDS = {
+    # Security
     "api key", "api_key", "secret", "password", "credential", "token", "auth",
-    "permission", "approval", "authorize", "authorization", "authenticated",
+    "permission", "authorize", "authorization", "authenticated",
     "security", "secure", "sensitive", "private", "confidential", "protected",
     "dangerous", "destructive", "delete", "drop", "overwrite", "truncate",
     "production", "prod", "execute", "eval", "exec", "code",
     "share", "expose", "leak", "disclose", "external", "public",
     "sql injection", "xss", "cve", "vulnerability", "attack",
+    # Authorization / approval gates
+    "approval", "approved", "review", "reviewed", "confirmation", "confirm",
+    "without", "manager", "supervisor", "admin",
+    # Accuracy constraints
+    "estimate", "guess", "hallucinate", "fabricate", "make up", "invent",
+    "assume", "speculate", "infer",
+    # Policy / business rules
+    "promise", "guarantee", "commit", "warrant", "assure",
+    "refund", "pricing", "competitor", "internal",
+    # Scope constraints
+    "reference", "previous", "prior", "history", "context",
 }
 
 VAGUE_QUALIFIERS = [
