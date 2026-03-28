@@ -2,8 +2,10 @@
 
 [![CI](https://github.com/roli-lpci/lintlang/actions/workflows/ci.yml/badge.svg)](https://github.com/roli-lpci/lintlang/actions/workflows/ci.yml)
 [![PyPI version](https://img.shields.io/pypi/v/lintlang)](https://pypi.org/project/lintlang/)
+[![PyPI downloads](https://img.shields.io/pypi/dm/lintlang)](https://pypi.org/project/lintlang/)
 [![Python 3.10+](https://img.shields.io/pypi/pyversions/lintlang)](https://pypi.org/project/lintlang/)
 [![License](https://img.shields.io/pypi/l/lintlang)](https://github.com/roli-lpci/lintlang/blob/main/LICENSE)
+[![GitHub stars](https://img.shields.io/github/stars/roli-lpci/lintlang)](https://github.com/roli-lpci/lintlang)
 
 **Static linter for AI agent tool descriptions, system prompts, and configs.**
 
