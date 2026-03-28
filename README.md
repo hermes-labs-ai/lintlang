@@ -184,6 +184,21 @@ pip install -e ".[dev]"
 pytest
 ```
 
+## Hermes Labs Ecosystem
+
+lintlang is part of the [Hermes Labs](https://hermes-labs.ai) open-source suite:
+
+- [**little-canary**](https://github.com/roli-lpci/little-canary) — Prompt injection detection
+- [**zer0dex**](https://github.com/roli-lpci/zer0dex) — Dual-layer memory for AI agents
+- [**forgetted**](https://github.com/roli-lpci/forgetted) — Selective memory governance
+- [**zer0lint**](https://github.com/roli-lpci/zer0lint) — mem0 extraction diagnostics
+- [**suy-sideguy**](https://github.com/roli-lpci/suy-sideguy) — Autonomous agent watchdog
+- [**quickthink**](https://github.com/roli-lpci/quickthink) — Planning scaffolding for local LLMs
+
+---
+
+If lintlang saves you time, please [star the repo](https://github.com/roli-lpci/lintlang) — it helps others find it.
+
 ## License
 
 [Apache 2.0](LICENSE)
