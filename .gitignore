@@ -14,3 +14,10 @@ htmlcov/
 .internal/
 diagnostics/
 gtm/
+
+# Dev artifacts (keep local, never commit)
+.claude/
+CLAUDE.md
+MEMORY.md
+SESSION-SUMMARY.md
+DELIVERABLES.md

@@ -416,6 +416,37 @@ NEGATIVE_PATTERNS = [
     (r"\bdo\s+not\b", "Negative instruction"),
 ]
 
+# ── Layer 1: Structural exemptions ────────────────────────────────
+# Precompiled regexes for regions where negatives should be ignored entirely.
+# HTML comments, fenced code blocks, and template/generated-file markers.
+_STRUCTURAL_EXEMPT_REGIONS: list[re.Pattern[str]] = [
+    re.compile(r"<!--.*?-->", re.DOTALL),              # HTML comments
+    re.compile(r"```.*?```", re.DOTALL),               # Fenced code blocks
+    re.compile(r"`[^`\n]+`"),                          # Inline code spans
+    re.compile(r"(?:DO NOT EDIT|GENERATED|AUTO-GENERATED)[^\n]*", re.IGNORECASE),  # Generated-file markers
+]
+
+# ── Layer 2: Phrase-level exemptions ──────────────────────────────
+# Regex patterns for negatives that are idiomatic, descriptive, or non-instructional.
+# Each is compiled once; a match anywhere around the negative text exempts it.
+H5_PHRASE_EXEMPTIONS: list[re.Pattern[str]] = [
+    # Privacy / telemetry disclaimers
+    re.compile(r"never\s+(?:sent|shared|stored|transmitted|collected|uploaded|tracked|leaves)", re.IGNORECASE),
+    # Idiomatic / deliberate style (specific-object phrases)
+    re.compile(r"don'?t\s+(?:cry\s+wolf|dance\s+around|reinvent|overthink|overengineer|second.guess|sugar.coat|sweat)", re.IGNORECASE),
+    # UI / button labels — negatives inside quoted strings that look like choices
+    re.compile(r'["\u201c](?:Never\s+ask\s+again|Not?\s+now|Don\'?t\s+show\s+again|Don\'?t\s+remind)["\u201d]', re.IGNORECASE),
+    # Descriptive / explanatory text (third-person subject + negative verb — describing state, not instructing)
+    # Excludes "I" and "you" which commonly appear in direct agent behavioral instructions.
+    re.compile(r"\b(?:it|we|they|that|this|there|the\s+\w+)\s+(?:don'?t|doesn'?t|didn'?t|won'?t|can'?t|couldn'?t|isn'?t|aren'?t|wasn'?t|haven'?t|hasn'?t)\b", re.IGNORECASE),
+    # "do not edit" / "do not modify" markers (build system boilerplate)
+    re.compile(r"do\s+not\s+(?:edit|modify|change|touch|remove|delete)\s+(?:directly|manually|this)", re.IGNORECASE),
+    # "avoid" in non-instruction context (e.g., "to avoid confusion", "avoid false positives")
+    re.compile(r"\bto\s+avoid\b", re.IGNORECASE),
+    # Negatives inside array/list literals: ["...", "Never ask again", ...]
+    re.compile(r'\[(?:[^\]]*,\s*)?["\u201c][^"\u201d]*(?:never|don\'?t|not\s+now)[^"\u201d]*["\u201d]', re.IGNORECASE),
+]
+
 # Safety/constraint keywords — negative instructions near these are EXEMPT from H5 flagging
 # Covers: security, authorization, accuracy, policy/business rules
 SAFETY_CONTEXT_KEYWORDS = {
@@ -452,11 +483,23 @@ SAFETY_CONTEXT_KEYWORDS = {
 }
 
 VAGUE_QUALIFIERS = [
+    # "be + adjective" with no operational definition
     (r"\bbe\s+(?:concise|brief|helpful|careful|thorough|creative|professional)\b", "Vague qualitative instruction"),
-    (r"\buse\s+(?:common\s+sense|good\s+judgment|your\s+best\s+judgment)\b", "Assumes human-level inference"),
-    (r"\bbe\s+reasonable\b", "Assumes human-level inference"),
+    (r"\bbe\s+(?:smart|natural|aggressive|adversarial|rigorous|pragmatic|nuanced)\b", "Vague qualitative instruction"),
+    (r"\bbe\s+(?:appropriate|reasonable|responsible|respectful|transparent|consistent)\b", "Vague qualitative instruction"),
+    # Human-level inference
+    (r"\buse\s+(?:common\s+sense|good\s+judgment|your\s+best\s+judgment|your\s+discretion)\b", "Assumes human-level inference"),
+    # Ambiguous conditionals
     (r"\bas\s+(?:needed|appropriate|necessary)\b", "Ambiguous conditional — 'as needed' by whose criteria?"),
-    (r"\bwhen\s+(?:appropriate|necessary|relevant)\b", "Ambiguous conditional"),
+    (r"\bwhen\s+(?:appropriate|necessary|relevant|possible)\b", "Ambiguous conditional"),
+    (r"\bif\s+(?:appropriate|necessary|relevant|needed)\b", "Ambiguous conditional"),
+    # Figurative verbs — almost never have operational definitions
+    (r"\b(?:dance|shy|shying)\s+around\b", "Figurative verb — no operational definition"),
+    (r"\blean\s+into\b", "Figurative verb — no operational definition"),
+    (r"\bdouble\s+down\s+on\b", "Figurative verb — no operational definition"),
+    (r"\bpush\s+back\s+on\b", "Figurative verb — no operational definition"),
+    (r"\berr\s+on\s+the\s+side\s+of\b", "Figurative verb — no operational definition"),
+    (r"\bkeep\s+(?:it|things)\s+(?:simple|clean|tight|short)\b", "Vague qualitative instruction"),
 ]
 
 
@@ -468,24 +511,45 @@ def detect_h5(config: AgentConfig) -> list[Finding]:
     if not prompt:
         return findings
 
-    # Negative instructions — count only those NOT in safety context
+    # Negative instructions — layered exemption filtering
     neg_matches = []
     for pattern, _category in NEGATIVE_PATTERNS:
         matches = list(re.finditer(pattern, prompt, re.IGNORECASE))
         for match in matches:
             neg_matches.append((match.start(), match.end(), match.group()))
 
-    # Filter out negatives that appear near safety keywords
+    # ── Layer 1: Build set of structurally-exempt character ranges ──
+    exempt_ranges: list[tuple[int, int]] = []
+    for region_re in _STRUCTURAL_EXEMPT_REGIONS:
+        for m in region_re.finditer(prompt):
+            exempt_ranges.append((m.start(), m.end()))
+
+    # ── Layered filtering ──────────────────────────────────────────
     safety_context_window = 100  # chars before/after — covers most full sentences
-    legitimate_negatives = 0  # negatives in safety context (these are GOOD)
-    problematic_negatives = []  # negatives NOT in safety context
+    legitimate_negatives = 0  # negatives exempted (these are GOOD)
+    problematic_negatives = []  # negatives NOT exempted
 
     for neg_start, neg_end, neg_text in neg_matches:
+        # Layer 1: Skip if inside a structurally-exempt region
+        if any(rs <= neg_start and neg_end <= re for rs, re in exempt_ranges):
+            legitimate_negatives += 1
+            continue
+
+        # Layer 2: Skip if the surrounding text matches a known-good phrase
+        phrase_window = 80  # chars around the negative to check
+        phrase_start = max(0, neg_start - phrase_window)
+        phrase_end = min(len(prompt), neg_end + phrase_window)
+        phrase_ctx = prompt[phrase_start:phrase_end]
+
+        if any(pat.search(phrase_ctx) for pat in H5_PHRASE_EXEMPTIONS):
+            legitimate_negatives += 1
+            continue
+
+        # Layer 3 (fallback): Skip if near a safety keyword
         context_start = max(0, neg_start - safety_context_window)
         context_end = min(len(prompt), neg_end + safety_context_window)
         context = prompt[context_start:context_end].lower()
 
-        # Check if any safety keyword is in the context window
         in_safety_context = any(keyword in context for keyword in SAFETY_CONTEXT_KEYWORDS)
 
         if in_safety_context:
@@ -519,10 +583,15 @@ def detect_h5(config: AgentConfig) -> list[Finding]:
             evidence=evidence,
         ))
 
-    # Vague qualifiers
+    # Vague qualifiers (deduplicate identical matched text)
+    seen_vague: set[str] = set()
     for pattern, category in VAGUE_QUALIFIERS:
         matches = list(re.finditer(pattern, prompt, re.IGNORECASE))
         for match in matches:
+            key = match.group().lower()
+            if key in seen_vague:
+                continue
+            seen_vague.add(key)
             start = max(0, match.start() - 20)
             end = min(len(prompt), match.end() + 30)
             findings.append(Finding(
@@ -566,10 +635,18 @@ def detect_h6(config: AgentConfig) -> list[Finding]:
     if not prompt:
         return findings
 
+    # Build a cleaned version of the prompt that strips out non-instructional
+    # format references (code blocks, inline code, filenames, CLI flags) to
+    # reduce false positives when counting output-format keywords.
+    cleaned = re.sub(r"```[^`]*```", " ", prompt, flags=re.DOTALL)   # fenced code blocks
+    cleaned = re.sub(r"`[^`]+`", " ", cleaned)                       # inline code
+    cleaned = re.sub(r"\w+\.(?:json|yaml|yml|xml|md|toml|csv)\b", " ", cleaned, flags=re.IGNORECASE)  # filenames
+    cleaned = re.sub(r"--(?:json|format|output)(?:\s+\w+)?", " ", cleaned, flags=re.IGNORECASE)       # CLI flags
+
     # Mixed format instructions
-    has_json = bool(re.search(r"\bjson\b", prompt, re.IGNORECASE))
-    has_markdown = bool(re.search(r"\bmarkdown\b", prompt, re.IGNORECASE))
-    has_xml = bool(re.search(r"\bxml\b", prompt, re.IGNORECASE))
+    has_json = bool(re.search(r"\bjson\b", cleaned, re.IGNORECASE))
+    has_markdown = bool(re.search(r"\bmarkdown\b", cleaned, re.IGNORECASE))
+    has_xml = bool(re.search(r"\bxml\b", cleaned, re.IGNORECASE))
     format_count = sum([has_json, has_markdown, has_xml])
 
     if format_count > 1:

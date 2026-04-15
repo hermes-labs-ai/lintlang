@@ -83,6 +83,12 @@ lintlang gives you a **verdict**, not a score:
 
 Each finding includes the **pattern** (H1-H7), **severity**, **location**, and a **concrete fix suggestion**. No vague "improve your prompt" — specific rewrites you can apply immediately.
 
+## Why These 7 Detectors?
+
+These aren't arbitrary rules — they're the 7 structural failure modes that cause real agent breakdowns in production. We identified them across audits of 8 major AI frameworks (LangChain, Semantic Kernel, AutoGen, smolagents, LiteLLM, Anthropic SDK, OpenAI SDK, Agno) and 12 filed PRs. Each detector maps to a specific class of bug that no other linter catches because they're language problems, not code problems.
+
+No existing tool covers this: yamllint checks syntax, semgrep checks code patterns, ruff checks Python style. None of them can tell you that your tool description is ambiguous enough to cause wrong-tool selection, or that your system prompt lacks termination conditions and will loop forever.
+
 ## Structural Detectors (H1-H7)
 
 | Pattern | Name | What Users Report | Severity |
@@ -99,7 +105,11 @@ Each finding includes the **pattern** (H1-H7), **severity**, **location**, and a
 
 H5 distinguishes between **safety constraints** and **style negatives**. Security rules like "Never expose API keys" are correctly exempted. Style issues like "Don't be verbose" are flagged with positive rewrites.
 
-Validated on 26 real-world configs (OpenHands, RAG agents, HIPAA compliance, financial advisors, content moderation, DevOps safety).
+Validated on 26 real-world configs (OpenHands, RAG agents, HIPAA compliance, financial advisors, content moderation, DevOps safety) — see [`samples/`](samples/) for examples.
+
+### Why not just use GPT-4?
+
+Zero cost, zero latency, zero data exposure. Runs in CI where LLM calls can't. Catches structural patterns (missing termination, schema mismatches, role ordering) that LLMs are blind to because they process content, not structure.
 
 ## CI Integration
 
@@ -118,7 +128,7 @@ Validated on 26 real-world configs (OpenHands, RAG agents, HIPAA compliance, fin
 |------|-------------|----------|
 | `--fail-on fail` | Any CRITICAL/HIGH finding | Blocking deploy gate |
 | `--fail-on review` | Any MEDIUM+ finding | Strict quality gate |
-| `--fail-under 80` | HERM score < threshold | Legacy score-based gate |
+| `--fail-under 80` | Quality score < threshold | Legacy score-based gate |
 
 ### Filter by Severity
 

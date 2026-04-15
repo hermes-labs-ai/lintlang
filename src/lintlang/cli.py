@@ -9,7 +9,7 @@ from pathlib import Path
 from . import __version__
 from .parsers import parse_file
 from .patterns import PATTERNS as _PATTERNS
-from .report import compute_verdict, format_markdown, format_terminal
+from .report import compute_verdict, format_markdown, format_summary_table, format_terminal
 from .scanner import ScanResult, scan_config, scan_directory
 
 
@@ -52,7 +52,7 @@ def main(argv: list[str] | None = None) -> int:
         "--fail-under",
         type=float,
         default=0.0,
-        help="Exit with code 1 if HERM score is below this threshold (legacy; prefer --fail-on)",
+        help="Exit with code 1 if quality score is below this threshold (legacy; prefer --fail-on)",
     )
     scan_parser.add_argument(
         "--fail-on",
@@ -100,6 +100,9 @@ def _cmd_patterns() -> int:
 def _cmd_scan(args: argparse.Namespace) -> int:
     """Scan files with H1-H7 structural detectors."""
     import json as json_mod
+    import time
+
+    t_start = time.monotonic()
 
     severity_order = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
     min_sev = severity_order.get(args.min_severity, 4)
@@ -173,6 +176,11 @@ def _cmd_scan(args: argparse.Namespace) -> int:
             })
         print(json_mod.dumps(output, indent=2))
 
+    # Summary table for multi-file terminal scans
+    if args.format == "terminal" and len(results) > 1:
+        elapsed = time.monotonic() - t_start
+        print(format_summary_table(results, elapsed))
+
     if not results:
         print("Error: No files were successfully scanned.", file=sys.stderr)
         return 1
@@ -188,11 +196,11 @@ def _cmd_scan(args: argparse.Namespace) -> int:
             print("\nVerdict: issues found — use --min-severity to filter", file=sys.stderr)
             return 1
 
-    # Legacy --fail-under support (HERM score threshold)
+    # Legacy --fail-under support (quality score threshold)
     if args.fail_under > 0:
         min_score = min(r.score for r in results.values())
         if min_score < args.fail_under:
-            print(f"\nHERM score {min_score:.1f} is below threshold {args.fail_under:.1f}", file=sys.stderr)
+            print(f"\nQuality score {min_score:.1f} is below threshold {args.fail_under:.1f}", file=sys.stderr)
             return 1
 
     return 0

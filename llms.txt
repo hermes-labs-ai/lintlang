@@ -1,16 +1,17 @@
 # lintlang
 
-> Static linter for AI agent tool descriptions, system prompts, and configs. Catches vague instructions, missing constraints, schema mismatches, and other language-level failures before they cause agent misbehavior. Zero LLM calls. One dependency. Runs in CI.
+> Static linter for AI agent tool descriptions, system prompts, and configs. Context engineering quality gate. Zero LLM calls. One dependency. Runs in CI.
 
-lintlang uses the HERM v1.1 (Hermeneutical Evaluation and Risk Metrics) scoring engine to evaluate 6 dimensions of linguistic quality in agent configurations. On top of HERM scoring, 7 structural detectors (H1-H7) catch issues like empty tool descriptions, duplicate names, phantom schema fields, unbounded retry loops, and role sequencing errors.
+lintlang catches language-level failures before they cause agent misbehavior: vague tool descriptions, missing constraints, schema mismatches, unbounded retry loops, role sequencing errors. It uses 7 structural detectors (H1-H7) with a three-layer exemption system that distinguishes safety constraints from style issues.
 
-Install with `pip install lintlang` (Python 3.10+). Use as CLI (`lintlang scan config.yaml`) or library (`from lintlang import scan_file`). Supports YAML, JSON, and plain text. Output as terminal, markdown, or JSON. CI integration via `--fail-under` flag.
+Install with `pip install lintlang` (Python 3.10+). Use as CLI (`lintlang scan config.yaml`) or library (`from lintlang import scan_file`). Supports YAML, JSON, and plain text. Output as terminal, markdown, or JSON. CI integration via `--fail-on fail|review`.
 
 ## Documentation
 
-- [README](https://github.com/roli-lpci/lintlang/blob/main/README.md): Install, usage, scoring, patterns, CI integration
+- [README](https://github.com/roli-lpci/lintlang/blob/main/README.md): Install, usage, detectors, CI integration
 - [Changelog](https://github.com/roli-lpci/lintlang/blob/main/CHANGELOG.md): Version history
 - [AGENTS.md](https://github.com/roli-lpci/lintlang/blob/main/AGENTS.md): AI agent integration guide
+- [llms-full.txt](https://github.com/roli-lpci/lintlang/blob/main/llms-full.txt): Full technical reference
 
 ## Optional
 

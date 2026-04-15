@@ -1,0 +1,115 @@
+# lintlang — Full Technical Reference
+
+> Static linter for AI agent tool descriptions, system prompts, and configs.
+> Context engineering quality gate. Zero LLM calls. One dependency. Runs in CI.
+> By Hermes Labs (https://hermes-labs.ai).
+
+## What It Does
+
+lintlang treats agent configs as lintable artifacts — the same way eslint lints JavaScript or ruff lints Python. It catches language-level failures that cause agents to pick wrong tools, loop infinitely, break structured output, or leak state across tasks.
+
+No LLM calls. No API keys. No network access. Pure static analysis via regex + heuristics.
+
+## Install
+
+```
+pip install lintlang
+```
+
+Python 3.10+. Single runtime dependency: pyyaml.
+
+## CLI Usage
+
+```
+lintlang scan config.yaml              # Scan a file
+lintlang scan configs/                 # Scan a directory
+lintlang scan config.yaml --format json # JSON output
+lintlang scan config.yaml --fail-on fail    # CI gate: fail on CRITICAL/HIGH
+lintlang scan config.yaml --fail-on review  # CI gate: fail on MEDIUM+
+lintlang scan config.yaml --min-severity high  # Only show HIGH+
+lintlang scan config.yaml --patterns H1 H3     # Only run specific detectors
+lintlang patterns                      # List all detectors
+```
+
+## Programmatic API
+
+```python
+from lintlang import scan_file, scan_directory, compute_verdict
+
+result = scan_file("config.yaml")
+verdict = compute_verdict(result.structural_findings)  # PASS, REVIEW, or FAIL
+
+for finding in result.structural_findings:
+    print(f"[{finding.severity.value}] {finding.pattern}: {finding.description}")
+    print(f"  -> {finding.suggestion}")
+```
+
+## Verdict System
+
+| Verdict | Meaning | Trigger |
+|---------|---------|---------|
+| PASS | Ship it | Only LOW/INFO findings or none |
+| REVIEW | Has blind spots | MEDIUM findings present |
+| FAIL | Will break in production | CRITICAL or HIGH findings |
+
+## Structural Detectors (H1-H7)
+
+### H1: Tool Description Ambiguity
+Catches: empty descriptions, very short descriptions (<20 chars), vague verbs (get, handle, process, manage, do), duplicate tool names, high word overlap between tools (Jaccard similarity with stopword removal).
+
+### H2: Missing Constraint Scaffolding
+Catches: no termination conditions, unbounded retry loops ("keep trying until"), negative termination ("don't stop until"), "continue until" without limits, missing retry budgets.
+
+### H3: Schema-Intent Mismatch
+Catches: phantom required fields (listed in required but not in properties), parameters with no description, generic parameter names (data, input, value, payload), undescribed anyOf/oneOf variants, nested objects without descriptions.
+
+### H4: Context Boundary Erosion
+Catches: "remember everything" without scope, "use all/entire conversation/history/context" without bounds, "always keep/maintain/remember" without specifying what/how long, long prompts with no boundary markers.
+
+### H5: Implicit Instruction Failure
+Three-layer exemption system for negative instructions:
+- Layer 1 (structural): Exempts negatives inside HTML comments, code blocks, inline code, generated-file markers.
+- Layer 2 (phrase-level): Exempts privacy disclaimers ("never sent/shared/stored"), UI labels ("Never ask again"), descriptive text ("it doesn't"), idiomatic phrases ("don't reinvent"), "to avoid" constructions.
+- Layer 3 (safety context): Exempts negatives near security/auth/policy keywords within 100-char window.
+
+Also catches: vague qualifiers ("be concise", "be helpful", "use common sense"), ambiguous conditionals ("as needed", "when appropriate"), figurative verbs ("lean into", "err on the side of", "keep it simple"), high instruction count without priority ordering.
+
+### H6: Template Format Contract Violation
+Code-aware detection: strips fenced code blocks, inline code, filenames, and CLI flags before counting format keywords. Catches: multiple output formats without disambiguation, missing format specification, template variables, missing version markers.
+
+### H7: Role Confusion
+Catches: multiple system messages, system messages not at position 0, consecutive same-role messages, orphan tool results (no preceding tool_use), messages missing role field.
+
+## Supported Formats
+
+- YAML (.yaml, .yml) — OpenAI function-calling format, tool definitions
+- JSON (.json) — OpenAI and Anthropic tool schemas, message arrays
+- Plain text (.txt, .md, .prompt) — System prompts, instruction docs
+
+Auto-detects format. Unknown extensions tried as JSON -> YAML -> plain text.
+
+## CI Integration
+
+GitHub Actions:
+```yaml
+- name: Lint agent configs
+  run: |
+    pip install lintlang
+    lintlang scan configs/ --fail-on fail
+```
+
+Exit codes: 0 = pass, 1 = findings matched --fail-on threshold or error.
+
+## Part of Hermes Labs Ecosystem
+
+- little-canary: Prompt injection detection
+- cogito-ergo: Three-layer memory retrieval for AI agents
+- quickthink: Planning scaffolding for local LLMs
+- zer0dex: Dual-layer memory for AI agents
+- forgetted: Selective memory governance
+- zer0lint: Memory extraction diagnostics
+- suy-sideguy: Autonomous agent watchdog
+
+## License
+
+Apache 2.0

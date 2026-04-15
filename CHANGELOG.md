@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.2.1] - 2026-04-13
+
+### Added
+- **H5 layered exemption system** — three-layer filtering reduces false positives on negatives:
+  - Layer 1: Structural exemptions (HTML comments, code blocks, generated-file markers)
+  - Layer 2: Phrase-level exemptions (privacy disclaimers, UI labels, descriptive text, idiomatic expressions)
+  - Layer 3: Safety-context keyword window (existing behavior, now the fallback)
+- **Expanded vague qualifier detection** — catches figurative verbs (`lean into`, `err on the side of`, `double down on`, `keep it simple`), broader ambiguous conditionals (`if appropriate`, `when possible`)
+- **H6 code-aware format detection** — strips fenced code blocks, inline code, filenames, and CLI flags before counting format keywords (prevents `--json` flag from triggering mixed-format warnings)
+- **Multi-file summary table** — box-drawing table with per-file verdict, findings breakdown, and scan timing (terminal output only, shown when >1 file scanned)
+- **Vague qualifier deduplication** — identical matches within a file are reported once
+
+### Changed
+- Development status upgraded from Alpha to Production/Stable
+- Author email updated to rbosch@lpci.ai
+
 ## [0.2.0] - 2026-03-25
 
 ### Changed
