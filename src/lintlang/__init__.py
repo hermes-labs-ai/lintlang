@@ -19,11 +19,12 @@ __version__ = "0.2.1"
 from lintlang.herm import HermResult, score_text
 from lintlang.patterns import AgentConfig, Finding, Severity
 from lintlang.report import compute_verdict
-from lintlang.scanner import ScanResult, scan_config, scan_directory, scan_file
+from lintlang.scanner import ScanResult, scan_config, scan_directory, scan_file, scan_python_file
 
 __all__ = [
     "__version__",
     "scan_file",
+    "scan_python_file",
     "scan_directory",
     "scan_config",
     "compute_verdict",

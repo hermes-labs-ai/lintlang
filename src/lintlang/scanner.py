@@ -8,7 +8,10 @@ from pathlib import Path
 
 from .herm import HermResult, score_text
 from .parsers import parse_file
-from .patterns import PATTERNS, AgentConfig, Finding
+from .patterns import PATTERNS, AgentConfig, Finding, Severity
+
+# Pipeline detectors (P-series) — registered lazily to avoid circular imports
+_PIPELINE_DETECTORS_LOADED = False
 
 # Files that are never agent configs — skip during directory scans
 NON_PROMPT_FILENAMES = {
@@ -218,7 +221,6 @@ def scan_directory(
             try:
                 results[str(filepath)] = scan_file(filepath, patterns=patterns)
             except Exception as e:
-                from .patterns import Severity as _Severity
                 herm = score_text("", source_path=str(filepath))
                 results[str(filepath)] = ScanResult(
                     file=str(filepath),
@@ -227,7 +229,7 @@ def scan_directory(
                     structural_findings=[Finding(
                         pattern_id="ERR",
                         pattern_name="Parse Error",
-                        severity=_Severity.INFO,
+                        severity=Severity.INFO,
                         location=str(filepath),
                         description=f"Failed to parse: {e}",
                         suggestion="Check file format (YAML, JSON, or plain text).",
@@ -247,3 +249,84 @@ def compute_health_score(findings: list[Finding]) -> float:
     total_penalty = sum(f.severity.score for f in findings)
     capped = min(total_penalty, 100)
     return max(0.0, 100.0 - capped)
+
+
+# ── Python/Pipeline scanning (metatool extension) ─────────────────────
+
+
+def scan_python_file(
+    path: str | Path,
+    patterns: list[str] | None = None,
+) -> ScanResult:
+    """Scan a Python file for embedded prompts, thresholds, and pipeline issues.
+
+    This is lintlang's metatool mode: instead of treating the whole file as a
+    prompt (which gives meaningless results), it:
+    1. Uses AST to extract embedded prompts from string literals
+    2. Runs H1-H7 on each extracted prompt
+    3. Runs P1-P2 pipeline detectors on thresholds and embedded scaffolds
+    4. Scores the concatenated prompts with HERM
+
+    Returns a single ScanResult aggregating all findings.
+    """
+    from .extractors import (
+        detect_scaffold_in_code,
+        detect_uncalibrated_thresholds,
+        extract_from_python_file,
+        extracted_prompts_to_configs,
+    )
+
+    path = Path(path)
+    extraction = extract_from_python_file(path)
+
+    # Pipeline-specific detectors (P1, P2)
+    all_findings: list[Finding] = []
+    all_findings.extend(detect_uncalibrated_thresholds(extraction))
+    all_findings.extend(detect_scaffold_in_code(extraction))
+
+    # Run H1-H7 on each extracted prompt
+    configs = extracted_prompts_to_configs(extraction)
+    prompt_texts: list[str] = []
+    pattern_ids = patterns or list(PATTERNS.keys())
+
+    for config in configs:
+        prompt_texts.append(config.system_prompt)
+        for pid in pattern_ids:
+            if pid not in PATTERNS:
+                continue
+            # Only run prompt-relevant detectors (H2, H4, H5, H6 — not H1/H3/H7)
+            if pid in ("H1", "H3", "H7"):
+                continue
+            detector = PATTERNS[pid]["detect"]
+            findings = detector(config)
+            # Prefix location with the extraction source
+            for f in findings:
+                if config.source_file and not f.location.startswith(config.source_file):
+                    f.location = f"{config.source_file} > {f.location}"
+            all_findings.extend(findings)
+
+    # HERM scoring on concatenated extracted prompts
+    combined_text = "\n\n".join(prompt_texts) if prompt_texts else ""
+    herm = score_text(combined_text, source_path=str(path))
+
+    # Add parse errors as findings
+    for err in extraction.parse_errors:
+        all_findings.append(Finding(
+            pattern_id="ERR",
+            pattern_name="Parse Error",
+            severity=Severity.INFO,
+            location=str(path),
+            description=f"Python parse error: {err}",
+            suggestion="Fix the syntax error and re-scan.",
+        ))
+
+    # Sort by severity
+    severity_order = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
+    all_findings.sort(key=lambda f: severity_order.get(f.severity.value, 5))
+
+    return ScanResult(
+        file=str(path),
+        score=herm.score,
+        herm=herm,
+        structural_findings=all_findings,
+    )
