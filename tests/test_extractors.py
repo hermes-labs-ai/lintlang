@@ -1,10 +1,13 @@
 """Tests for Python prompt extraction and pipeline detectors."""
 
+from unittest.mock import patch
+
 from lintlang.extractors import (
     ExtractionResult,
     ExtractedPrompt,
     ExtractedThreshold,
     detect_scaffold_in_code,
+    detect_scaffold_quality,
     detect_uncalibrated_thresholds,
     extract_from_python,
     extracted_prompts_to_configs,
@@ -213,6 +216,80 @@ class TestEmbeddedScaffoldDetector:
             ExtractedPrompt(text=short_text, source_file="pipe.py", line_start=5, line_end=5, signal_matches=["role assignment"]),
         ])
         findings = detect_scaffold_in_code(result)
+        assert len(findings) == 0
+
+
+class TestScaffoldQualityDetector:
+    """Test P3: Scaffold Quality detector using embedding similarity."""
+
+    def _make_result(self, text: str) -> ExtractionResult:
+        return ExtractionResult(prompts=[
+            ExtractedPrompt(
+                text=text, source_file="test.py",
+                line_start=1, line_end=3,
+                signal_matches=["role assignment"],
+            ),
+        ])
+
+    def test_ollama_down_fails_open(self):
+        """When Ollama is unavailable, P3 returns no findings (fail open)."""
+        result = self._make_result(
+            "You are a vague helper. Do stuff. Respond with things. Be good at it maybe."
+        )
+        with patch("lintlang.extractors._embed_texts", return_value=None):
+            findings = detect_scaffold_quality(result)
+        assert len(findings) == 0
+
+    def test_high_quality_scaffold_not_flagged(self):
+        """A well-structured scaffold should have high similarity and not be flagged."""
+        good_prompt = (
+            "You are a code review assistant. For each file, analyze correctness, "
+            "edge cases, and naming. Output a structured JSON report with severity "
+            "levels. Never fabricate issues. Cite line numbers for each finding."
+        )
+        result = self._make_result(good_prompt)
+
+        # Mock embedding: centroid and prompt are identical = similarity 1.0
+        fake_embedding = [0.1] * 768
+        with patch("lintlang.extractors._get_good_centroid", return_value=fake_embedding):
+            with patch("lintlang.extractors._embed_texts", return_value=[fake_embedding]):
+                findings = detect_scaffold_quality(result)
+        assert len(findings) == 0
+
+    def test_low_quality_scaffold_flagged(self):
+        """A vague, unstructured prompt should be flagged as low quality."""
+        bad_prompt = (
+            "You are a helper. Please help the user with whatever they need. "
+            "Try your best. Be nice and helpful. Do whatever seems right."
+        )
+        result = self._make_result(bad_prompt)
+
+        # Mock: centroid points one way, prompt points another = low similarity
+        centroid = [1.0] + [0.0] * 767
+        bad_emb = [0.0] * 767 + [1.0]
+        with patch("lintlang.extractors._get_good_centroid", return_value=centroid):
+            with patch("lintlang.extractors._embed_texts", return_value=[bad_emb]):
+                findings = detect_scaffold_quality(result)
+        assert len(findings) == 1
+        assert findings[0].pattern_id == "P3"
+        assert findings[0].severity == Severity.MEDIUM
+        assert "similarity" in findings[0].description.lower()
+
+    def test_short_prompt_skipped(self):
+        """Prompts under 50 chars should be skipped."""
+        result = ExtractionResult(prompts=[
+            ExtractedPrompt(
+                text="Short prompt.", source_file="test.py",
+                line_start=1, line_end=1, signal_matches=[],
+            ),
+        ])
+        findings = detect_scaffold_quality(result)
+        assert len(findings) == 0
+
+    def test_empty_extraction_no_findings(self):
+        """Empty extraction result should produce no findings."""
+        result = ExtractionResult()
+        findings = detect_scaffold_quality(result)
         assert len(findings) == 0
 
 

@@ -271,6 +271,7 @@ def scan_python_file(
     """
     from .extractors import (
         detect_scaffold_in_code,
+        detect_scaffold_quality,
         detect_uncalibrated_thresholds,
         extract_from_python_file,
         extracted_prompts_to_configs,
@@ -279,10 +280,11 @@ def scan_python_file(
     path = Path(path)
     extraction = extract_from_python_file(path)
 
-    # Pipeline-specific detectors (P1, P2)
+    # Pipeline-specific detectors (P1, P2, P3)
     all_findings: list[Finding] = []
     all_findings.extend(detect_uncalibrated_thresholds(extraction))
     all_findings.extend(detect_scaffold_in_code(extraction))
+    all_findings.extend(detect_scaffold_quality(extraction))
 
     # Run H1-H7 on each extracted prompt
     configs = extracted_prompts_to_configs(extraction)

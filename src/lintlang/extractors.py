@@ -22,11 +22,16 @@ Architecture:
 from __future__ import annotations
 
 import ast
+import json
+import logging
 import re
+import urllib.request
 from dataclasses import dataclass, field
 from pathlib import Path
 
 from .patterns import AgentConfig, Finding, Severity
+
+logger = logging.getLogger(__name__)
 
 # ── Prompt detection heuristics ──────────────────────────────────────
 
@@ -316,6 +321,154 @@ def detect_scaffold_in_code(result: ExtractionResult) -> list[Finding]:
                 description=f"Medium prompt ({char_count} chars) embedded in source. Signals: {', '.join(p.signal_matches[:3])}.",
                 suggestion="Consider externalizing if this prompt is expected to change frequently.",
                 evidence=p.text[:80] + "..." if len(p.text) > 80 else p.text,
+            ))
+    return findings
+
+
+# ── Scaffold quality detection (P3) ─────────────────────────────────
+# Uses nomic-embed-text to compare prompt embeddings against a known-good
+# scaffold centroid. Based on experiment: 100% separation, 0.16-0.24 gap.
+
+# Five known-good scaffold fragments used to compute the centroid.
+# These are representative of well-structured, high-quality scaffolds.
+GOOD_SCAFFOLD_EXEMPLARS: list[str] = [
+    "You are a code review assistant. For each file, analyze: 1) correctness of logic, "
+    "2) edge case handling, 3) naming clarity, 4) test coverage gaps. Output a structured "
+    "JSON report with severity levels for each finding. Never fabricate issues.",
+    "thought: Reason step by step about the user's query before acting. "
+    "action: Select exactly one tool from the available set. Provide required parameters. "
+    "observation: Read the tool output carefully. If incomplete, re-plan. "
+    "answer: Synthesize a final response grounded only in observations.",
+    "You are a data extraction agent. Your task is to parse the input document and extract "
+    "all entities matching the schema below. Return valid JSON only. If a field cannot be "
+    "determined from the source text, set it to null. Do not hallucinate values. "
+    "Schema: {name: string, role: string, organization: string, confidence: float}",
+    "## Instructions\nAnalyze the user's question against the retrieved context passages. "
+    "For each claim you make, cite the passage number [1]-[N]. If the context does not "
+    "contain sufficient information, state that explicitly rather than guessing. "
+    "Respond in markdown with headers for each section of your analysis.",
+    "You are a security audit agent. Scan the provided configuration for: "
+    "1) hardcoded secrets or API keys, 2) overly permissive IAM policies, "
+    "3) unencrypted data at rest, 4) missing rate limits. "
+    "Classify each finding as critical/high/medium/low. Provide remediation steps. "
+    "Output format: JSON array of {finding, severity, location, remediation}.",
+]
+
+# Similarity threshold: prompts below this are flagged as low quality.
+# Calibrated from free-experiments-20260418: good scaffolds cluster at 0.6-0.8,
+# bad scaffolds at 0.3-0.5. Threshold 0.5 gives 100% separation in experiment.
+P3_SIMILARITY_THRESHOLD = 0.5
+
+OLLAMA_EMBED_URL = "http://localhost:11434/api/embed"
+OLLAMA_EMBED_MODEL = "nomic-embed-text"
+
+# Cache for the good-scaffold centroid (computed once per process)
+_good_centroid_cache: list[float] | None = None
+
+
+def _embed_texts(texts: list[str]) -> list[list[float]] | None:
+    """Embed texts via Ollama nomic-embed-text. Returns None if Ollama is down."""
+    try:
+        payload = json.dumps({"model": OLLAMA_EMBED_MODEL, "input": texts}).encode()
+        req = urllib.request.Request(
+            OLLAMA_EMBED_URL,
+            data=payload,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read())
+        embeddings = data.get("embeddings")
+        if embeddings and len(embeddings) == len(texts):
+            return embeddings
+        return None
+    except Exception:
+        logger.debug("Ollama embedding unavailable, skipping P3 scaffold quality check")
+        return None
+
+
+def _cosine_similarity(a: list[float], b: list[float]) -> float:
+    """Compute cosine similarity between two vectors."""
+    dot = sum(x * y for x, y in zip(a, b))
+    norm_a = sum(x * x for x in a) ** 0.5
+    norm_b = sum(x * x for x in b) ** 0.5
+    if norm_a == 0 or norm_b == 0:
+        return 0.0
+    return dot / (norm_a * norm_b)
+
+
+def _get_good_centroid() -> list[float] | None:
+    """Compute (and cache) the centroid of known-good scaffold embeddings."""
+    global _good_centroid_cache
+    if _good_centroid_cache is not None:
+        return _good_centroid_cache
+
+    embeddings = _embed_texts(GOOD_SCAFFOLD_EXEMPLARS)
+    if embeddings is None:
+        return None
+
+    dim = len(embeddings[0])
+    centroid = [0.0] * dim
+    for emb in embeddings:
+        for i, v in enumerate(emb):
+            centroid[i] += v
+    n = len(embeddings)
+    centroid = [c / n for c in centroid]
+    _good_centroid_cache = centroid
+    return centroid
+
+
+def detect_scaffold_quality(result: ExtractionResult) -> list[Finding]:
+    """P3: Detect low-quality scaffolds using embedding similarity.
+
+    Embeds each extracted prompt (>50 chars) with nomic-embed-text and
+    compares to a centroid computed from 5 known-good scaffolds. Prompts
+    with similarity < 0.5 are flagged as LOW_QUALITY_SCAFFOLD.
+
+    Fails open: if Ollama is unavailable, returns no findings.
+    """
+    # Filter to prompts worth checking
+    candidates = [p for p in result.prompts if len(p.text) > MIN_PROMPT_LENGTH]
+    if not candidates:
+        return []
+
+    # Get the good-scaffold centroid
+    centroid = _get_good_centroid()
+    if centroid is None:
+        return []  # Fail open
+
+    # Embed all candidate prompts
+    candidate_texts = [p.text for p in candidates]
+    embeddings = _embed_texts(candidate_texts)
+    if embeddings is None:
+        return []  # Fail open
+
+    findings: list[Finding] = []
+    for prompt, emb in zip(candidates, embeddings):
+        sim = _cosine_similarity(emb, centroid)
+        if sim < P3_SIMILARITY_THRESHOLD:
+            location = (
+                f"{prompt.source_file}:{prompt.line_start}-{prompt.line_end}"
+                if prompt.source_file
+                else f"lines:{prompt.line_start}-{prompt.line_end}"
+            )
+            findings.append(Finding(
+                pattern_id="P3",
+                pattern_name="Low Quality Scaffold",
+                severity=Severity.MEDIUM,
+                location=location,
+                description=(
+                    f"Scaffold similarity to known-good exemplars is {sim:.2f} "
+                    f"(threshold: {P3_SIMILARITY_THRESHOLD}). "
+                    f"Low similarity correlates with vague instructions, missing constraints, "
+                    f"or lack of structure."
+                ),
+                suggestion=(
+                    "Improve scaffold quality: add explicit output format, "
+                    "behavioral constraints (never/always), step-by-step structure, "
+                    "and grounding instructions. See known-good exemplars for patterns."
+                ),
+                evidence=prompt.text[:120] + "..." if len(prompt.text) > 120 else prompt.text,
             ))
     return findings
 
