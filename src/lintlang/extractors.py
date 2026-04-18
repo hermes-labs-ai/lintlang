@@ -389,7 +389,7 @@ def _embed_texts(texts: list[str]) -> list[list[float]] | None:
 
 def _cosine_similarity(a: list[float], b: list[float]) -> float:
     """Compute cosine similarity between two vectors."""
-    dot = sum(x * y for x, y in zip(a, b))
+    dot = sum(x * y for x, y in zip(a, b, strict=False))
     norm_a = sum(x * x for x in a) ** 0.5
     norm_b = sum(x * x for x in b) ** 0.5
     if norm_a == 0 or norm_b == 0:
@@ -444,7 +444,7 @@ def detect_scaffold_quality(result: ExtractionResult) -> list[Finding]:
         return []  # Fail open
 
     findings: list[Finding] = []
-    for prompt, emb in zip(candidates, embeddings):
+    for prompt, emb in zip(candidates, embeddings, strict=False):
         sim = _cosine_similarity(emb, centroid)
         if sim < P3_SIMILARITY_THRESHOLD:
             location = (

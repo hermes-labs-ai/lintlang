@@ -3,9 +3,9 @@
 from unittest.mock import patch
 
 from lintlang.extractors import (
-    ExtractionResult,
     ExtractedPrompt,
     ExtractedThreshold,
+    ExtractionResult,
     detect_scaffold_in_code,
     detect_scaffold_quality,
     detect_uncalibrated_thresholds,
@@ -251,9 +251,11 @@ class TestScaffoldQualityDetector:
 
         # Mock embedding: centroid and prompt are identical = similarity 1.0
         fake_embedding = [0.1] * 768
-        with patch("lintlang.extractors._get_good_centroid", return_value=fake_embedding):
-            with patch("lintlang.extractors._embed_texts", return_value=[fake_embedding]):
-                findings = detect_scaffold_quality(result)
+        with (
+            patch("lintlang.extractors._get_good_centroid", return_value=fake_embedding),
+            patch("lintlang.extractors._embed_texts", return_value=[fake_embedding]),
+        ):
+            findings = detect_scaffold_quality(result)
         assert len(findings) == 0
 
     def test_low_quality_scaffold_flagged(self):
@@ -267,9 +269,11 @@ class TestScaffoldQualityDetector:
         # Mock: centroid points one way, prompt points another = low similarity
         centroid = [1.0] + [0.0] * 767
         bad_emb = [0.0] * 767 + [1.0]
-        with patch("lintlang.extractors._get_good_centroid", return_value=centroid):
-            with patch("lintlang.extractors._embed_texts", return_value=[bad_emb]):
-                findings = detect_scaffold_quality(result)
+        with (
+            patch("lintlang.extractors._get_good_centroid", return_value=centroid),
+            patch("lintlang.extractors._embed_texts", return_value=[bad_emb]),
+        ):
+            findings = detect_scaffold_quality(result)
         assert len(findings) == 1
         assert findings[0].pattern_id == "P3"
         assert findings[0].severity == Severity.MEDIUM
