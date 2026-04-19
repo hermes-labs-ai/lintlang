@@ -1,5 +1,42 @@
 # lintlang
 
+AI agent configs fail for language reasons long before they fail for code reasons: vague tool descriptions, missing stop conditions, and schema fields that say nothing useful.
+
+`lintlang` is a static linter for agent configs, system prompts, and tool definitions that catches those language-level failures before they hit CI, runtime, or human review.
+
+- "My agent picks the wrong tool because the tool descriptions all sound the same."
+- "We only catch prompt and config drift after the agent starts looping."
+- "I want a prompt linter or agent-config linter that runs in CI with no model calls."
+- "Our YAML is valid, but the instructions inside it are still bad."
+
+```bash
+pip install lintlang
+```
+
+```bash
+lintlang scan samples/bad_tool_descriptions.yaml
+```
+
+```text
+LINTLANG v0.2.1
+samples/bad_tool_descriptions.yaml
+
+FAIL — 1 CRITICAL, 2 HIGH, 6 MEDIUM, 3 LOW
+H1: Tool Description Ambiguity
+  [CRITICAL] tool:process_ticket
+  Tool 'process_ticket' has no description.
+```
+
+**When To Use It**
+
+Use `lintlang` when you author or review AI agent tool descriptions, system prompts, or config files and want a static prompt/config quality gate in CI before runtime testing.
+
+**When Not To Use It**
+
+Do not use `lintlang` as a runtime evaluator, an LLM judge, or proof that an agent is behaviorally safe. It catches structural language problems, not dynamic execution failures.
+
+![lintlang preview](assets/preview.png)
+
 [![CI](https://github.com/roli-lpci/lintlang/actions/workflows/ci.yml/badge.svg)](https://github.com/roli-lpci/lintlang/actions/workflows/ci.yml)
 [![PyPI version](https://img.shields.io/pypi/v/lintlang)](https://pypi.org/project/lintlang/)
 [![PyPI downloads](https://img.shields.io/pypi/dm/lintlang)](https://pypi.org/project/lintlang/)

@@ -1,94 +1,49 @@
-# AGENTS.md — lintlang
+# AGENTS.md
 
-## What This Is
+`lintlang` is a static linter for AI agent configs, tool definitions, and system prompts.
 
-lintlang is a Python CLI and library that statically lints AI agent tool descriptions,
-system prompts, and configs. It catches language-level failures (vague descriptions,
-missing constraints, schema mismatches) that cause agents to pick wrong tools,
-loop infinitely, or break structured output.
+## Use it for
 
-No LLM calls. One dependency (pyyaml). Runs in CI.
+- linting tool descriptions before agents start choosing the wrong tools
+- checking prompts and configs for missing constraints, schema mismatches, and role confusion
+- running a zero-LLM CI gate over YAML, JSON, and prompt text
 
-## Quick Setup
+## Do not use it for
 
-```bash
-pip install lintlang
-```
+- runtime evaluation
+- dynamic agent testing
+- proving an agent is safe in production
 
-Requires Python 3.10+.
-
-## CLI Usage
-
-```bash
-# Scan files or directories
-lintlang scan config.yaml
-lintlang scan configs/
-lintlang scan config.yaml --format json
-lintlang scan config.yaml --fail-under 80
-
-# List available patterns
-lintlang patterns
-```
-
-Exit code 0 = pass. Exit code 1 = score below threshold or scan failure.
-
-## Programmatic Usage
-
-```python
-from lintlang import scan_file, scan_directory, ScanResult
-
-result = scan_file("config.yaml")
-print(result.score)                    # HERM score (0-100)
-print(result.herm.dimension_scores)    # 6 HERM dimensions
-print(result.herm.coverage)            # 0.55-1.0
-print(result.herm.confidence)          # "high", "medium", "low"
-print(result.structural_findings)      # list[Finding] from H1-H7 detectors
-
-results = scan_directory("configs/")   # dict[str, ScanResult]
-```
-
-## JSON Output Schema
-
-```json
-{
-  "file": "config.yaml",
-  "score": 92.0,
-  "dimensions": {"HERM-1 Interpretive Ambiguity": 100.0, ...},
-  "signal_counts": {"ambiguous_qualifiers": 0, ...},
-  "coverage": 0.90,
-  "confidence": "high",
-  "findings": ["No explicit priority ordering"],
-  "structural_findings": [
-    {
-      "pattern_id": "H1",
-      "severity": "critical",
-      "location": "tool:process_ticket",
-      "description": "Tool has no description.",
-      "suggestion": "Add a specific description."
-    }
-  ]
-}
-```
-
-## Build & Test
+## Minimal commands
 
 ```bash
 pip install -e ".[dev]"
-pytest
-python -m build
+lintlang --help
+lintlang scan samples/bad_tool_descriptions.yaml
+pytest -q
+ruff check src/ tests/
 ```
 
-## Architecture
+## Output shape
 
-- `src/lintlang/herm.py` — HERM v1.1 scoring engine (6 dimensions, 8 signal categories)
-- `src/lintlang/scanner.py` — Orchestrator combining HERM + H1-H7 structural detectors
-- `src/lintlang/patterns.py` — 7 structural detectors (H1-H7) with Finding dataclass
-- `src/lintlang/parsers.py` — YAML/JSON/text auto-detection
-- `src/lintlang/cli.py` — CLI entry point
-- `src/lintlang/report.py` — Terminal + Markdown formatters
+- terminal verdicts: `PASS`, `REVIEW`, or `FAIL`
+- structural findings by pattern `H1` through `H7`
+- JSON output for CI via `--format json`
 
-## Supported File Formats
+## Success means
 
-- YAML (.yaml, .yml) — OpenAI function-calling format, tool definitions
-- JSON (.json) — OpenAI/Anthropic tool schemas, message arrays
-- Plain text (.txt, .md, .prompt) — System prompts, instruction docs
+- the same config file produces the same verdict and findings
+- scan output points to concrete locations and rewrite guidance
+- tests and sample self-scan pass offline
+
+## Common failure cases
+
+- users expect lintlang to judge runtime model behavior
+- configs are syntactically valid but still too underspecified to be safe
+- teams gate only on syntax linters and miss language-level failure modes
+
+## Maintainer notes
+
+- keep detector language aligned with actual failure modes in the samples
+- keep CLI examples and severity semantics aligned with README
+- keep the tool fully offline and deterministic

@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "lintlang"
 version = "0.2.1"
-description = "Linter for AI agent tool descriptions, system prompts, and configs. Catches vague instructions, missing constraints, and schema mismatches. By Hermes Labs."
+description = "Static linter for AI agent configs, tool descriptions, and system prompts with zero-LLM CI gating"
 readme = "README.md"
 license = {text = "Apache-2.0"}
 license-files = ["LICENSE"]
@@ -16,6 +16,7 @@ authors = [
 keywords = [
     "linter", "ai-agents", "llm", "tool-calling", "function-calling",
     "prompt-engineering", "context-engineering", "prompt-linter",
+    "agent-config-linter", "prompt-linting", "static-prompt-analysis",
     "agent-testing", "static-analysis", "agentic",
     "structured-output", "prompt-validation",
 ]
@@ -40,7 +41,7 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://hermes-labs.ai"
+Homepage = "https://github.com/roli-lpci/lintlang"
 Documentation = "https://github.com/roli-lpci/lintlang#readme"
 Repository = "https://github.com/roli-lpci/lintlang"
 "Bug Tracker" = "https://github.com/roli-lpci/lintlang/issues"

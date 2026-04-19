@@ -1,19 +1,26 @@
 # lintlang
 
-> Static linter for AI agent tool descriptions, system prompts, and configs. Context engineering quality gate. Zero LLM calls. One dependency. Runs in CI.
+Static linter for AI agent configs, tool descriptions, and system prompts.
 
-lintlang catches language-level failures before they cause agent misbehavior: vague tool descriptions, missing constraints, schema mismatches, unbounded retry loops, role sequencing errors. It uses 7 structural detectors (H1-H7) with a three-layer exemption system that distinguishes safety constraints from style issues.
+Use this repo when you need to:
+- lint agent configuration language before runtime
+- catch vague tool descriptions, missing constraints, schema mismatches, and role confusion
+- run a zero-LLM quality gate in CI over YAML, JSON, or prompt text
 
-Install with `pip install lintlang` (Python 3.10+). Use as CLI (`lintlang scan config.yaml`) or library (`from lintlang import scan_file`). Supports YAML, JSON, and plain text. Output as terminal, markdown, or JSON. CI integration via `--fail-on fail|review`.
+Primary CLI:
+- `lintlang scan <file-or-dir>`
+- `lintlang scan <path> --format json`
+- `lintlang patterns`
 
-## Documentation
+Outputs:
+- PASS, REVIEW, or FAIL verdicts
+- structural findings with pattern IDs `H1` to `H7`
+- optional JSON output for CI pipelines
 
-- [README](https://github.com/roli-lpci/lintlang/blob/main/README.md): Install, usage, detectors, CI integration
-- [Changelog](https://github.com/roli-lpci/lintlang/blob/main/CHANGELOG.md): Version history
-- [AGENTS.md](https://github.com/roli-lpci/lintlang/blob/main/AGENTS.md): AI agent integration guide
-- [llms-full.txt](https://github.com/roli-lpci/lintlang/blob/main/llms-full.txt): Full technical reference
+Do not use this repo as:
+- a runtime agent evaluator
+- an LLM-based prompt judge
+- proof that an agent is behaviorally safe
 
-## Optional
-
-- [License](https://github.com/roli-lpci/lintlang/blob/main/LICENSE): Apache 2.0
-- [PyPI](https://pypi.org/project/lintlang/): Package page
+Key success condition:
+- the same input files produce the same verdict and structural findings with no network or model calls
