@@ -4,7 +4,7 @@ Thank you for your interest in contributing to lintlang.
 
 ## Reporting Bugs
 
-- Search [existing issues](https://github.com/roli-lpci/lintlang/issues) first to avoid duplicates.
+- Search [existing issues](https://github.com/hermes-labs-ai/lintlang/issues) first to avoid duplicates.
 - Open a new issue with a clear title and description.
 - Include steps to reproduce, expected behavior, and actual behavior.
 - Attach sample input files if relevant.

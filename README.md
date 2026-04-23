@@ -58,12 +58,12 @@ Use `lintlang` when you author or review AI agent tool descriptions, system prom
 
 ![lintlang preview](assets/preview.png)
 
-[![CI](https://github.com/roli-lpci/lintlang/actions/workflows/ci.yml/badge.svg)](https://github.com/roli-lpci/lintlang/actions/workflows/ci.yml)
+[![CI](https://github.com/hermes-labs-ai/lintlang/actions/workflows/ci.yml/badge.svg)](https://github.com/hermes-labs-ai/lintlang/actions/workflows/ci.yml)
 [![PyPI version](https://img.shields.io/pypi/v/lintlang)](https://pypi.org/project/lintlang/)
 [![PyPI downloads](https://img.shields.io/pypi/dm/lintlang)](https://pypi.org/project/lintlang/)
 [![Python 3.10+](https://img.shields.io/pypi/pyversions/lintlang)](https://pypi.org/project/lintlang/)
-[![License](https://img.shields.io/pypi/l/lintlang)](https://github.com/roli-lpci/lintlang/blob/main/LICENSE)
-[![GitHub stars](https://img.shields.io/github/stars/roli-lpci/lintlang)](https://github.com/roli-lpci/lintlang)
+[![License](https://img.shields.io/pypi/l/lintlang)](https://github.com/hermes-labs-ai/lintlang/blob/main/LICENSE)
+[![GitHub stars](https://img.shields.io/github/stars/hermes-labs-ai/lintlang)](https://github.com/hermes-labs-ai/lintlang)
 
 **Static linter for AI agent tool descriptions, system prompts, and configs.**
 
@@ -246,7 +246,7 @@ lintlang treats tool descriptions, system prompts, and agent configs as **lintab
 ## Development
 
 ```bash
-git clone https://github.com/roli-lpci/lintlang.git
+git clone https://github.com/hermes-labs-ai/lintlang.git
 cd lintlang
 pip install -e ".[dev]"
 pytest

@@ -41,11 +41,11 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/roli-lpci/lintlang"
-Documentation = "https://github.com/roli-lpci/lintlang#readme"
-Repository = "https://github.com/roli-lpci/lintlang"
-"Bug Tracker" = "https://github.com/roli-lpci/lintlang/issues"
-Changelog = "https://github.com/roli-lpci/lintlang/blob/main/CHANGELOG.md"
+Homepage = "https://github.com/hermes-labs-ai/lintlang"
+Documentation = "https://github.com/hermes-labs-ai/lintlang#readme"
+Repository = "https://github.com/hermes-labs-ai/lintlang"
+"Bug Tracker" = "https://github.com/hermes-labs-ai/lintlang/issues"
+Changelog = "https://github.com/hermes-labs-ai/lintlang/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
 dev = [
