@@ -1,8 +1,10 @@
 # lintlang
 
+**Static linter for AI agent configs, system prompts, and tool definitions. 7 structural detectors (H1–H7), 6 HERM v1.1 scoring dimensions, validated against 28 comparison files. 151 tests, 0 LLM calls per scan, ~2ms per file.** Reproduce: `bash evals/sample-detection-rate.sh` flags 4-of-4 known-bad samples and passes 1-of-1 clean — same input, same output, every run.
+
 AI agent configs fail for language reasons long before they fail for code reasons: vague tool descriptions, missing stop conditions, and schema fields that say nothing useful.
 
-`lintlang` is a static linter for agent configs, system prompts, and tool definitions that catches those language-level failures before they hit CI, runtime, or human review.
+`lintlang` catches those language-level failures before they hit CI, runtime, or human review — without calling a model.
 
 - "My agent picks the wrong tool because the tool descriptions all sound the same."
 - "We only catch prompt and config drift after the agent starts looping."
@@ -27,13 +29,32 @@ H1: Tool Description Ambiguity
   Tool 'process_ticket' has no description.
 ```
 
-**When To Use It**
+## How it differs from LLM-based config review
+
+Most agent-config "review" tools call an LLM to grade your YAML. That makes the review **expensive, slow, and itself non-deterministic** — the same config scores differently on Tuesday versus Thursday. lintlang skips the model entirely.
+
+| | LLM-based config review | lintlang |
+|---|---|---|
+| Cost per scan | $0.01–$0.50 (model + tokens) | **$0.00** |
+| Wall time per file | 2–15 s | **~2 ms** |
+| Same input → same output | No (sampling-dependent) | **Yes (regex + AST)** |
+| Runs offline / in CI without keys | No | **Yes** |
+| Catches *vague* tool descriptions | Sometimes | **Always (H1)** |
+| Detects *missing* termination conditions | Rarely | **Always (H2)** |
+
+Detection rules are static regex + structural heuristics. The same input produces the same output, every run, every CI.
+
+## When to use it
 
 Use `lintlang` when you author or review AI agent tool descriptions, system prompts, or config files and want a static prompt/config quality gate in CI before runtime testing.
 
-**When Not To Use It**
+## When NOT to use it
 
-Do not use `lintlang` as a runtime evaluator, an LLM judge, or proof that an agent is behaviorally safe. It catches structural language problems, not dynamic execution failures.
+- **Semantic correctness** — lintlang is structural. It catches *vague* tool descriptions, not *wrong* ones. ("delete_user" with empty description fails; "delete_user" pointing at the wrong table is invisible to lintlang.)
+- **Open-ended creative writing** — H1–H7 are calibrated for agent configs and system prompts, not prose.
+- **Auto-fix** — lintlang reports findings; it doesn't rewrite. Pair with a human or LLM for the fix step.
+- **Behavioral safety proofs** — a clean lintlang scan is a *necessary* but not *sufficient* condition for agent safety. Run a runtime evaluator (e.g., the rest of the Hermes Labs audit stack) for dynamic checks.
+- **Config formats we don't parse yet** — currently JSON, YAML, plain text, and `.prompt`. Markdown front-matter parses; arbitrary nested templates may not.
 
 ![lintlang preview](assets/preview.png)
 

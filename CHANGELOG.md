@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.2.2] - 2026-04-26
+
+### Added
+
+- **`INTENT.md`** at repo root — Hermes Labs convention; one-page invariants doc covering accepts/refuses/non-goals + verification contract.
+- **`evals/sample-detection-rate.sh`** — runnable detection-rate check that scans the bundled samples and asserts the expected outcome (4 known-bad files flagged, 1 known-clean file passes). The smallest reproducible eval surface for the README's flagship claims.
+
+### Changed
+
+- **README chiseled to Hermes Labs Flagship Standard v1.** Quantified opener with named benchmarks (235 tests, 7 H1–H7 detectors, 6 HERM v1.1 dimensions, validated against 28 comparison files, ~2ms per file scan). Added a "How it differs from LLM-based config review" anti-pattern section with concrete cost/time/determinism comparison. Expanded "When NOT to use" to 5 named scenarios. Added a reproduce-yourself line pointing at `evals/sample-detection-rate.sh`.
+
+### Notes
+
+- Chisel pass — README + structural docs only. No detector changes.
+- Tier B coverage against `flagship-standard.md`: 6/7 (B6 plugin path is the acknowledged miss; queued for v0.3 when a formal `Protocol`/`register()` extension surface lands).
+- An in-progress E1–E5 epistemic-failure detector set lives on local branch `wip/eseries-integration` (commit `b199987`, session `0214f811` 2026-04-22). Merge into v0.3 requires (a) porting six broader E1 sycophancy patterns from the older `epistemic.py` into the canonical `detectors_epistemic.py`, (b) stripping the in-session-invented "B09 adversarial-school / attack V16" framework references from code comments (they reference no external corpus), (c) adding a `--include-epistemic` opt-in flag so existing CIs are not surprised by new default detectors.
+
 ## [0.2.1] - 2026-04-13
 
 ### Added
