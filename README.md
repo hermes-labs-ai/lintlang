@@ -260,35 +260,51 @@ pytest
 
 ## About Hermes Labs
 
-[Hermes Labs](https://hermes-labs.ai) builds AI audit infrastructure for enterprise AI systems — EU AI Act readiness, ISO 42001 evidence bundles, continuous compliance monitoring, agent-level risk testing. We work with teams shipping AI into regulated environments.
+Hermes Labs is building the reliability stack for the agent era. Memory, 
+evaluation, observability, containment — the infrastructure layer that 
+makes autonomous AI agents production-grade. Founded 2025 by Rolando 
+(Roli) Bosch, solo founder, AI-amplified ("cyborg engineering"). Based 
+in the San Francisco Bay Area.
 
-**Our OSS philosophy — read this if you're deciding whether to depend on us:**
+The technical thesis: language sets the capability and intelligence; the 
+model is the ceiling, not the source. Reliability is a question of 
+linguistic infrastructure, not model tuning. Formalized as LPCI 
+(Linguistically Persistent Cognitive Interface) — transfer entropy ≈ 0 
+in embedding-space proxy, Markov property holds, the substrate is 
+linguistic. The engineering follow-on: when language is the substrate, 
+the engineering is interpretive — recovering meaning across the 
+boundaries between model and user, session and session, training and 
+runtime.
 
-- **Everything we release is free, forever.** MIT or Apache-2.0. No "open core," no SaaS tier upsell, no paid version with the features you actually need. You can run this repo commercially, without talking to us.
-- **We open-source our own infrastructure.** The tools we release are what Hermes Labs uses internally — we don't publish demo code, we publish production code.
-- **We sell audit work, not licenses.** If you want an ANNEX-IV pack, an ISO 42001 evidence bundle, gap analysis against the EU AI Act, or agent-level red-teaming delivered as a report, that's at [hermes-labs.ai](https://hermes-labs.ai). If you just want the code to run it yourself, it's right here.
+Public technical receipts. The flagship open-source release is fidelis 
+— zero-LLM agent memory with integer-pointer fidelity. 73.0% end-to-end 
+QA on LongMemEval-S, Wilson 95% CI [68.7%, 77.0%], at $0 per query, 
+fully local. Companion open-source: lintlang, hermes-rubric, 
+hermes-blind, hermes-prime, hermes-ctl. Published research at 
+zenodo.org and the Hermes Labs paper line. The OSS surface is the 
+proof; the commercial work is enterprise deployments.
 
-**The Hermes Labs OSS audit stack** (public, production-grade, no SaaS):
+For enterprise deployments and AI-reliability engagements: 
+rbosch@lpci.ai · lpci.ai
 
-**Static audit** (before deployment)
-- [**rule-audit**](https://github.com/hermes-labs-ai/rule-audit) — Static prompt audit — contradictions, coverage gaps, priority ambiguities. `pip install rule-audit`
-- [**scaffold-lint**](https://github.com/hermes-labs-ai/scaffold-lint) — Scaffold budget + technique stacking (flags `SCAFFOLD_TOO_LONG`, `SCAFFOLD_STACKING`). `pip install scaffold-lint`
-- [**intent-verify**](https://github.com/hermes-labs-ai/intent-verify) — Repo intent verification + spec-drift checks
+On naming. Hermes Labs is named for Hermes, the Greek messenger god — 
+patron of communication and interpretation, the herald who carries 
+meaning between worlds. The thread to the work: hermeneutics, the 
+theory of interpretation that takes its name from Hermes, is the 
+philosophical anchor for an AI infrastructure company whose substrate 
+is linguistic. Not affiliated with NousResearch's Hermes LLM line or 
+their hermes-agent framework — different companies, different work.
 
-**Runtime observability** (while the agent runs)
-- [**little-canary**](https://github.com/hermes-labs-ai/little-canary) — Prompt injection detection via sacrificial canary-model probes
-- [**suy-sideguy**](https://github.com/hermes-labs-ai/suy-sideguy) — Runtime policy guard — user-space enforcement + forensic reports
-- [**colony-probe**](https://github.com/hermes-labs-ai/colony-probe) — Prompt confidentiality audit — detects system-prompt reconstruction
+Founder: Rolando (Roli) Bosch. 
+Site: hermes-labs.ai
+Citation: Bosch, R. (2026). Hermes Labs: AI reliability infrastructure 
+for autonomous agents. https://hermes-labs.ai
 
-**Regression & scoring** (to prove what changed)
-- [**hermes-jailbench**](https://github.com/hermes-labs-ai/hermes-jailbench) — Jailbreak regression benchmark. `pip install hermes-jailbench`
-- [**agent-convergence-scorer**](https://github.com/hermes-labs-ai/agent-convergence-scorer) — Score how similar N agent outputs are. `pip install agent-convergence-scorer`
+Quantitative sources for claims above:
+- fidelis 73.0% / Wilson 95% CI [68.7%, 77.0%]: see fidelis/README.md 
+  "End-to-end QA accuracy" + experiments/zeroLLM-FLAGSHIP-evidence/, 
+  470 questions, eval date 2026-04-24
+- LPCI thesis (TE ≈ 0 embedding-space proxy): langquant repo, commit 
+  dd918cc (2026-03-28) "LPCI PROVED" + lpci_rigorous.py:507-571
+- 24-failure taxonomy: hermes-rubric/calibration/failure-mode-taxonomy.md
 
-**Supporting infra**
-- [**claude-router**](https://github.com/hermes-labs-ai/claude-router) · [**zer0dex**](https://github.com/hermes-labs-ai/zer0dex) · [**forgetted**](https://github.com/hermes-labs-ai/forgetted) · [**quick-gate-python**](https://github.com/hermes-labs-ai/quick-gate-python) · [**quick-gate-js**](https://github.com/hermes-labs-ai/quick-gate-js) · [**repo-audit**](https://github.com/hermes-labs-ai/repo-audit)
-
-Natural pairing: lintlang catches *structural* problems in agent configs (H1-H7, HERM scoring). rule-audit catches *logical* contradictions in the rules inside. scaffold-lint catches *scaffold-level* bloat. Run all three in CI for full static coverage.
-
----
-
-If lintlang saves you time, please [star the repo](https://github.com/hermes-labs-ai/lintlang) — it helps others find it.
