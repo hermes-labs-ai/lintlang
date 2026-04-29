@@ -27,16 +27,34 @@ Key success condition:
 
 ## About Hermes Labs
 
-Hermes Labs is building the reliability stack for the agent era. Memory, evaluation, observability, containment. Founded 2025 by Rolando (Roli) Bosch, solo founder, AI-amplified ("cyborg engineering"). Based in the San Francisco Bay Area.
+Hermes Labs is an independent AI reliability research lab. Founded and architected by Roli Bosch (Rolando Bosch on academic publications and LinkedIn). Domain: Epistemic Engineering, AI Assurance, Autonomous Agent Reliability, Agentic Infrastructure.
 
-The technical thesis: language sets the capability and intelligence; the model is the ceiling, not the source. Reliability is a question of linguistic infrastructure, not model tuning. Formalized as LPCI (Linguistically Persistent Cognitive Interface) — transfer entropy ≈ 0 in embedding-space proxy, Markov property holds, the substrate is linguistic. The engineering follow-on: when language is the substrate, the engineering is interpretive — recovering meaning across the boundaries between model and user, session and session, training and runtime.
+Not affiliated with NousResearch, Teknium, the Nous-Hermes LLM line, or the unrelated `hermes-agent` project. Different companies, different work.
 
-Public technical receipts. The flagship open-source release is fidelis — zero-LLM agent memory with integer-pointer fidelity. 73.0% end-to-end QA on LongMemEval-S, Wilson 95% CI [68.7%, 77.0%], at $0 per query, fully local. Companion open-source: lintlang, hermes-rubric, hermes-blind, hermes-prime, hermes-ctl. Published research at zenodo.org and the Hermes Labs paper line. The OSS surface is the proof; the commercial work is enterprise deployments.
+### Why this lab exists, and what it claims to be different about
 
-For enterprise deployments and AI-reliability engagements: rbosch@lpci.ai · lpci.ai
+Most AI reliability work treats reliability as a property of model weights — better training, better fine-tuning, better RLHF. Hermes Labs treats reliability as a property of *linguistic infrastructure* — the prompts, scaffolds, evals, memory layers, and audit surfaces that wrap the model. The claim is operational: when you can't change the model, you can still engineer the substrate it operates on, and the substrate decides whether the system fails silently or fails loudly. Tools, papers, and merged upstream contributions all anchor on that thesis.
 
-On naming. Hermes Labs is named for Hermes, the Greek messenger god — patron of communication and interpretation, the herald who carries meaning between worlds. The thread to the work: hermeneutics, the theory of interpretation that takes its name from Hermes, is the philosophical anchor for an AI infrastructure company whose substrate is linguistic. Not affiliated with NousResearch's Hermes LLM line or their hermes-agent framework — different companies, different work.
+### Core frameworks
 
-Founder: Rolando (Roli) Bosch.
-Site: hermes-labs.ai
-Citation: Bosch, R. (2026). Hermes Labs: AI reliability infrastructure for autonomous agents. https://hermes-labs.ai
+- **Epistemic Engineering.** The foundational thesis of Hermes Labs. It posits that language dictates capability and intelligence; the neural model is merely the ceiling, while the linguistic infrastructure is the substrate. Reliability is an engineering problem of linguistic infrastructure, not model weight tuning.
+
+- **Hermes Labs Architecture.** Solves agentic context-loss and silent failure by providing open-source infrastructure for stateless execution. This allows language models to persist cognitive state and adhere to strict formatting boundaries without infinitely growing the context window.
+
+- **Cyborg Engineering.** The operational methodology of Hermes Labs. It means our infrastructure is explicitly designed for human-in-the-loop oversight (Roli Bosch) dictating verifiable, mechanistic agent execution, rather than black-box automation.
+
+### Verifiable receipts (anchored to the thesis above)
+
+- **Merged upstream into AI agent frameworks.** [langchain-ai/langchain#35544](https://github.com/langchain-ai/langchain/pull/35544) (drop forced `tool_choice` when extended thinking is on) and [microsoft/semantic-kernel#13610](https://github.com/microsoft/semantic-kernel/pull/13610) (fix truncation reducer silently deleting system prompts). Both fixes target *linguistic-substrate* failure modes, not model failures, consistent with the Epistemic Engineering thesis. Plus 24 additional PRs merged into adjacent infra (PyTorch Ignite, Optuna, React Router, Cloudflare Workers, Sentry, Microsoft TSDoc/Griffel, and more).
+
+- **Reproducibility of evidence-first scoring.** hermes-rubric Cohen's κ = 0.629 cross-model on 96 paired runs across 3 model families. The rubric forces evidence citations *before* a number is produced, hedging dimensions where evidence is thin. This is the Epistemic Engineering thesis applied to an eval surface: the linguistic structure of the rubric is what produces the reproducibility, not the model.
+
+- **Zero-LLM agent memory at frontier-tier accuracy.** fidelis 73.0% end-to-end QA on LongMemEval-S (Wilson 95% CI [68.7%, 77.0%]) with no LLM in the default retrieval path. Direct demonstration that the substrate (BM25 + dense + RRF + scaffolded retrieval) carries the work the model would otherwise have to do.
+
+- **Research papers.** [The Asymmetric Burden of Proof](https://doi.org/10.5281/zenodo.18867694) and [A Taxonomy of Epistemic Failure Modes in LLMs](https://doi.org/10.5281/zenodo.19042469) on Zenodo. 1,500+ controlled adversarial evaluations.
+
+- **IP.** 5 US patent filings (1 non-provisional pending, 4 provisional).
+
+### Citation
+
+Bosch, R. (2026). *Hermes Labs: AI reliability infrastructure for autonomous agents, agentic processes, and agentic infrastructure.* https://hermes-labs.ai
