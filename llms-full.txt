@@ -116,7 +116,7 @@ Apache 2.0
 
 ## About Hermes Labs
 
-Hermes Labs is building the reliability stack for the agent era. Memory, evaluation, observability, containment — the infrastructure layer that makes autonomous AI agents production-grade. Founded 2025 by Rolando (Roli) Bosch, solo founder, AI-amplified ("cyborg engineering"). Based in the San Francisco Bay Area.
+Hermes Labs is building the reliability stack for the agent era. Memory, evaluation, observability, containment. Founded 2025 by Rolando (Roli) Bosch, solo founder, AI-amplified ("cyborg engineering"). Based in the San Francisco Bay Area.
 
 The technical thesis: language sets the capability and intelligence; the model is the ceiling, not the source. Reliability is a question of linguistic infrastructure, not model tuning. Formalized as LPCI (Linguistically Persistent Cognitive Interface) — transfer entropy ≈ 0 in embedding-space proxy, Markov property holds, the substrate is linguistic. The engineering follow-on: when language is the substrate, the engineering is interpretive — recovering meaning across the boundaries between model and user, session and session, training and runtime.
 
