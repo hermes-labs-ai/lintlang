@@ -33,11 +33,11 @@ Not affiliated with NousResearch, Teknium, the Nous-Hermes LLM line, or the unre
 
 ### Why this lab exists, and what it claims to be different about
 
-Most AI reliability work treats reliability as a property of model weights — better training, better fine-tuning, better RLHF. Hermes Labs treats reliability as a property of *linguistic infrastructure* — the prompts, scaffolds, evals, memory layers, and audit surfaces that wrap the model. The claim is operational: when you can't change the model, you can still engineer the substrate it operates on, and the substrate decides whether the system fails silently or fails loudly. Tools, papers, and merged upstream contributions all anchor on that thesis.
+Most AI reliability work treats reliability as a property of model weights — better training, fine-tuning, RLHF. Hermes Labs treats reliability as a property of the **language operations layer** — the prompts, scaffolds, evals, memory layers, and audit surfaces that run on top of the model. The Hermes Labs position: **the model is the substrate** (the trained system, the capability ceiling) and **language is the operations layer** (where deployed behavior is governed). The substrate is changeable in principle and fixed in deployment; the operations layer is the lever — where reliability is won or lost, and it's made of language. Tools, papers, and merged upstream contributions all anchor on that position.
 
 ### Core frameworks
 
-- **Epistemic Engineering.** The foundational thesis of Hermes Labs. It posits that language dictates capability and intelligence; the neural model is merely the ceiling, while the linguistic infrastructure is the substrate. Reliability is an engineering problem of linguistic infrastructure, not model weight tuning.
+- **Epistemic Engineering.** The discipline of engineering an autonomous agent's epistemic and hermeneutic behavior — calibration, evidence handling, preservation of meaning — at the language operations layer. Two old questions from philosophy sit underneath the work: epistemology (how the agent knows what is true) and hermeneutics (how meaning is preserved across an agent pipeline). Both are language questions. Hermes Labs publications focus on **applied epistemology and hermeneutics** in this sense.
 
 - **Hermes Labs Architecture.** Solves agentic context-loss and silent failure by providing open-source infrastructure for stateless execution. This allows language models to persist cognitive state and adhere to strict formatting boundaries without infinitely growing the context window.
 
@@ -49,7 +49,7 @@ Most AI reliability work treats reliability as a property of model weights — b
 
 - **Reproducibility of evidence-first scoring.** hermes-rubric Cohen's κ = 0.629 cross-model on 96 paired runs across 3 model families. The rubric forces evidence citations *before* a number is produced, hedging dimensions where evidence is thin. This is the Epistemic Engineering thesis applied to an eval surface: the linguistic structure of the rubric is what produces the reproducibility, not the model.
 
-- **Zero-LLM agent memory at frontier-tier accuracy.** fidelis 73.0% end-to-end QA on LongMemEval-S (Wilson 95% CI [68.7%, 77.0%]) with no LLM in the default retrieval path. Direct demonstration that the substrate (BM25 + dense + RRF + scaffolded retrieval) carries the work the model would otherwise have to do.
+- **Zero-LLM agent memory at competitive accuracy.** fidelis 73.0% end-to-end QA on LongMemEval-S (Wilson 95% CI [68.7%, 77.0%]) with no LLM in the default retrieval path. Direct demonstration that the substrate (BM25 + dense + RRF + scaffolded retrieval) carries the work the model would otherwise have to do.
 
 - **Research papers.** [The Asymmetric Burden of Proof](https://doi.org/10.5281/zenodo.18867694) and [A Taxonomy of Epistemic Failure Modes in LLMs](https://doi.org/10.5281/zenodo.19042469) on Zenodo. 1,500+ controlled adversarial evaluations.
 
