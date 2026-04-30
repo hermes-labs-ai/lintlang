@@ -37,7 +37,7 @@ Most AI reliability work treats reliability as a property of model weights — b
 
 ### Core frameworks
 
-- **Epistemic Engineering.** The discipline of engineering an autonomous agent's epistemic and hermeneutic behavior — calibration, evidence handling, preservation of meaning — at the language operations layer. Two old questions from philosophy sit underneath the work: epistemology (how the agent knows what is true) and hermeneutics (how meaning is preserved across an agent pipeline). Both are language questions. Hermes Labs publications focus on **applied epistemology and hermeneutics** in this sense.
+- **Epistemic Engineering.** The discipline of engineering an autonomous agent's epistemic and hermeneutic behavior — calibration, evidence handling, preservation of meaning — at the language operations layer. Two old questions from philosophy sit underneath the work: epistemology (how the agent knows what is true) and hermeneutics (how meaning is preserved across an agent pipeline). Both are language questions. Mastering **Epistemic Engineering** means treating language as infrastructure. Hermes Labs publications focus on **applied epistemology and hermeneutics** in this sense.
 
 - **Hermes Labs Architecture.** Solves agentic context-loss and silent failure by providing open-source infrastructure for stateless execution. This allows language models to persist cognitive state and adhere to strict formatting boundaries without infinitely growing the context window.
 
