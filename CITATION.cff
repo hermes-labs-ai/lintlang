@@ -1,0 +1,31 @@
+cff-version: 1.2.0
+message: "If you use lintlang in your research or tooling, please cite it."
+title: "lintlang: Static Linter for AI Agent Configs, Tool Descriptions, and System Prompts"
+type: software
+authors:
+  - family-names: "Bosch Rodriguez"
+    given-names: "Rolando"
+    orcid: "https://orcid.org/0009-0005-4896-1112"
+    affiliation: "Hermes Labs"
+version: "0.2.1"
+date-released: "2026-05-26"
+license: "Apache-2.0"
+repository-code: "https://github.com/hermes-labs-ai/lintlang"
+url: "https://github.com/hermes-labs-ai/lintlang"
+keywords:
+  - "AI reliability"
+  - "LLM reliability"
+  - "static analysis"
+  - "agent configuration"
+  - "prompt linting"
+  - "CI gating"
+  - "evidence-first"
+  - "silent failure modes"
+references:
+  - type: article
+    title: "A Taxonomy of Epistemic Failure Modes in Large Language Models"
+    authors:
+      - family-names: "Bosch Rodriguez"
+        given-names: "Rolando"
+    doi: "10.5281/zenodo.19042469"
+    year: 2026

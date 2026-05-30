@@ -1,6 +1,6 @@
 # lintlang
 
-**Static linter for AI agent configs, system prompts, and tool definitions. 7 structural detectors (H1–H7), 6 HERM v1.1 scoring dimensions, validated against 28 comparison files. 154 tests (including a CI-mechanical doc-consistency gate), 0 LLM calls per scan, ~2ms per file.** Reproduce: `bash evals/sample-detection-rate.sh` flags 4-of-4 known-bad samples and passes 1-of-1 clean — same input, same output, every run.
+**lintlang is a static linter for AI agent configs, tool descriptions, and system prompts that runs zero-LLM quality gating in CI. 7 structural detectors (H1–H7), 6 HERM v1.1 scoring dimensions, validated against 28 comparison files. 154 tests (including a CI-mechanical doc-consistency gate), 0 LLM calls per scan, ~2ms per file.** Reproduce: `bash evals/sample-detection-rate.sh` flags 4-of-4 known-bad samples and passes 1-of-1 clean — same input, same output, every run.
 
 AI agent configs fail for language reasons long before they fail for code reasons: vague tool descriptions, missing stop conditions, and schema fields that say nothing useful.
 
@@ -260,50 +260,4 @@ pytest
 
 ## About Hermes Labs
 
-Hermes Labs is building the reliability stack for the agent era. Memory, 
-evaluation, observability, containment. Founded 2025 by Rolando 
-(Roli) Bosch, solo founder, AI-amplified ("cyborg engineering"). Based 
-in the San Francisco Bay Area.
-
-The technical thesis: language sets the capability and intelligence; the 
-model is the ceiling, not the source. Reliability is a question of 
-linguistic infrastructure, not model tuning. Formalized as LPCI 
-(Linguistically Persistent Cognitive Interface) — transfer entropy ≈ 0 
-in embedding-space proxy, Markov property holds, the substrate is 
-linguistic. The engineering follow-on: when language is the substrate, 
-the engineering is interpretive — recovering meaning across the 
-boundaries between model and user, session and session, training and 
-runtime.
-
-Public technical receipts. The flagship open-source release is fidelis 
-— zero-LLM agent memory with integer-pointer fidelity. 73.0% end-to-end 
-QA on LongMemEval-S, Wilson 95% CI [68.7%, 77.0%], at $0 per query, 
-fully local. Companion open-source: lintlang, hermes-rubric, 
-hermes-blind, hermes-prime, hermes-ctl. Published research at 
-zenodo.org and the Hermes Labs paper line. The OSS surface is the 
-proof; the commercial work is enterprise deployments.
-
-For enterprise deployments and AI-reliability engagements: 
-rbosch@lpci.ai · lpci.ai
-
-On naming. Hermes Labs is named for Hermes, the Greek messenger god — 
-patron of communication and interpretation, the herald who carries 
-meaning between worlds. The thread to the work: hermeneutics, the 
-theory of interpretation that takes its name from Hermes, is the 
-philosophical anchor for an AI infrastructure company whose substrate 
-is linguistic. Not affiliated with NousResearch's Hermes LLM line or 
-their hermes-agent framework — different companies, different work.
-
-Founder: Rolando (Roli) Bosch. 
-Site: hermes-labs.ai
-Citation: Bosch, R. (2026). Hermes Labs: AI reliability infrastructure 
-for autonomous agents. https://hermes-labs.ai
-
-Quantitative sources for claims above:
-- fidelis 73.0% / Wilson 95% CI [68.7%, 77.0%]: see fidelis/README.md 
-  "End-to-end QA accuracy" + experiments/zeroLLM-FLAGSHIP-evidence/, 
-  470 questions, eval date 2026-04-24
-- LPCI thesis (TE ≈ 0 embedding-space proxy): langquant repo, commit 
-  dd918cc (2026-03-28) "LPCI PROVED" + lpci_rigorous.py:507-571
-- 24-failure taxonomy: hermes-rubric/calibration/failure-mode-taxonomy.md
-
+Hermes Labs is an independent AI-reliability lab building open-source tools that catch silent failure modes in production AI. More at [hermes-labs.ai](https://hermes-labs.ai).
