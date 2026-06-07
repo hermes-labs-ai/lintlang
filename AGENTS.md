@@ -6,7 +6,9 @@
 
 - linting tool descriptions before agents start choosing the wrong tools
 - checking prompts and configs for missing constraints, schema mismatches, and role confusion
-- running a zero-LLM CI gate over YAML, JSON, and prompt text
+- running a zero-LLM CI gate over YAML, JSON, prompt text, and Python source files
+- scanning `.py` files to find embedded prompts and uncalibrated thresholds (P1/P2 detectors)
+- opt-in embedding-based scaffold quality check (`--enable-embeddings`, P3) when Ollama is available
 
 ## Do not use it for
 

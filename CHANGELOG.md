@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.3.0] - 2026-06-07
+
+### Changed
+
+- **P3 scaffold quality check is now opt-in** (`--enable-embeddings` CLI flag; `enable_embeddings=True` in the Python API). Previously `detect_scaffold_quality()` ran automatically during `.py` file scans, making a localhost Ollama network call even in zero-network CI environments. The flag defaults to `False`, restoring the zero-LLM, zero-network invariant stated in `INTENT.md`. Existing CI pipelines using `lintlang scan *.py` are unaffected — P3 findings simply won't appear until `--enable-embeddings` is passed. Users who relied on P3 must add the flag explicitly.
+
+### Added
+
+- `--enable-embeddings` flag on `lintlang scan`. Activates P3 (nomic-embed-text similarity check against known-good scaffold centroid). When enabled and Ollama is unavailable at runtime, P3 fails open (returns no findings). Requires Ollama running locally with `nomic-embed-text` model pulled.
+- `enable_embeddings` keyword argument on `scan_python_file()` and `detect_scaffold_quality()` for programmatic users.
+- `test_disabled_by_default` test: asserts no network call and no findings when the flag is absent (1 new test; 155 tests total, all passing).
+
+### Notes
+
+- Zero runtime dependency change — `pyyaml` remains the only runtime dep. The Ollama call is opt-in at invocation time, not a package dependency.
+- `INTENT.md` updated to document the P3 opt-in contract and the `--enable-embeddings` flag.
+
 ## [0.2.2] - 2026-04-26
 
 ### Added

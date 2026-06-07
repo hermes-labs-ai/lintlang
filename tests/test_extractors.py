@@ -231,13 +231,26 @@ class TestScaffoldQualityDetector:
             ),
         ])
 
+    def test_disabled_by_default(self):
+        """P3 returns no findings when enable_embeddings is False (default).
+
+        Zero-LLM invariant: calling without the opt-in flag must never
+        make a network request or return embedding-based findings.
+        """
+        result = self._make_result(
+            "You are a vague helper. Do stuff. Respond with things. Be good at it maybe."
+        )
+        # No patch needed — the guard returns before any network call
+        findings = detect_scaffold_quality(result)
+        assert len(findings) == 0
+
     def test_ollama_down_fails_open(self):
-        """When Ollama is unavailable, P3 returns no findings (fail open)."""
+        """When opted in but Ollama is unavailable, P3 returns no findings (fail open)."""
         result = self._make_result(
             "You are a vague helper. Do stuff. Respond with things. Be good at it maybe."
         )
         with patch("lintlang.extractors._embed_texts", return_value=None):
-            findings = detect_scaffold_quality(result)
+            findings = detect_scaffold_quality(result, enable_embeddings=True)
         assert len(findings) == 0
 
     def test_high_quality_scaffold_not_flagged(self):
@@ -255,7 +268,7 @@ class TestScaffoldQualityDetector:
             patch("lintlang.extractors._get_good_centroid", return_value=fake_embedding),
             patch("lintlang.extractors._embed_texts", return_value=[fake_embedding]),
         ):
-            findings = detect_scaffold_quality(result)
+            findings = detect_scaffold_quality(result, enable_embeddings=True)
         assert len(findings) == 0
 
     def test_low_quality_scaffold_flagged(self):
@@ -273,27 +286,27 @@ class TestScaffoldQualityDetector:
             patch("lintlang.extractors._get_good_centroid", return_value=centroid),
             patch("lintlang.extractors._embed_texts", return_value=[bad_emb]),
         ):
-            findings = detect_scaffold_quality(result)
+            findings = detect_scaffold_quality(result, enable_embeddings=True)
         assert len(findings) == 1
         assert findings[0].pattern_id == "P3"
         assert findings[0].severity == Severity.MEDIUM
         assert "similarity" in findings[0].description.lower()
 
     def test_short_prompt_skipped(self):
-        """Prompts under 50 chars should be skipped."""
+        """Prompts under 50 chars should be skipped (opt-in enabled)."""
         result = ExtractionResult(prompts=[
             ExtractedPrompt(
                 text="Short prompt.", source_file="test.py",
                 line_start=1, line_end=1, signal_matches=[],
             ),
         ])
-        findings = detect_scaffold_quality(result)
+        findings = detect_scaffold_quality(result, enable_embeddings=True)
         assert len(findings) == 0
 
     def test_empty_extraction_no_findings(self):
-        """Empty extraction result should produce no findings."""
+        """Empty extraction result should produce no findings (opt-in enabled)."""
         result = ExtractionResult()
-        findings = detect_scaffold_quality(result)
+        findings = detect_scaffold_quality(result, enable_embeddings=True)
         assert len(findings) == 0
 
 

@@ -5,16 +5,19 @@ Static linter for AI agent configs, tool descriptions, and system prompts.
 Use this repo when you need to:
 - lint agent configuration language before runtime
 - catch vague tool descriptions, missing constraints, schema mismatches, and role confusion
-- run a zero-LLM quality gate in CI over YAML, JSON, or prompt text
+- run a zero-LLM quality gate in CI over YAML, JSON, prompt text, or Python source files
+- scan `.py` files for embedded prompts and uncalibrated thresholds (P1/P2 detectors)
+- opt-in embedding-based scaffold quality check via `--enable-embeddings` (P3, requires local Ollama)
 
 Primary CLI:
 - `lintlang scan <file-or-dir>`
 - `lintlang scan <path> --format json`
+- `lintlang scan myagent.py --enable-embeddings`
 - `lintlang patterns`
 
 Outputs:
 - PASS, REVIEW, or FAIL verdicts
-- structural findings with pattern IDs `H1` to `H7`
+- structural findings with pattern IDs `H1` to `H7`, `P1`, `P2`, and optionally `P3`
 - optional JSON output for CI pipelines
 
 Do not use this repo as:
@@ -24,6 +27,7 @@ Do not use this repo as:
 
 Key success condition:
 - the same input files produce the same verdict and structural findings with no network or model calls
+- `--enable-embeddings` is the only exception: opt-in, localhost Ollama only, fails open if unavailable
 
 ## About Hermes Labs
 

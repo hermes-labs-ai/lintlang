@@ -1,0 +1,25 @@
+cff-version: 1.2.0
+message: "If you use lintlang in your research or tooling, please cite it."
+title: "lintlang: Static linter for AI agent configs, tool descriptions, and system prompts"
+version: "0.3.0"
+date-released: "2026-06-07"
+authors:
+  - name: "Hermes Labs"
+    email: rbosch@lpci.ai
+url: "https://github.com/hermes-labs-ai/lintlang"
+repository-code: "https://github.com/hermes-labs-ai/lintlang"
+license: Apache-2.0
+abstract: >
+  lintlang is a zero-LLM static linter for AI agent configurations, tool descriptions,
+  and system prompts. It combines HERM v1.1 dimensional scoring (6 dimensions,
+  8 signal categories) with 7 structural detectors (H1-H7) and pipeline detectors
+  (P1-P3) that catch language-level failures — vague instructions, missing constraints,
+  uncalibrated thresholds — before they reach runtime. Deterministic, 0 LLM calls
+  per default scan, ~2ms per file.
+keywords:
+  - AI agents
+  - static analysis
+  - prompt engineering
+  - linter
+  - agent configuration
+  - LLM reliability

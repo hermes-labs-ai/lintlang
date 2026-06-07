@@ -418,15 +418,26 @@ def _get_good_centroid() -> list[float] | None:
     return centroid
 
 
-def detect_scaffold_quality(result: ExtractionResult) -> list[Finding]:
-    """P3: Detect low-quality scaffolds using embedding similarity.
+def detect_scaffold_quality(result: ExtractionResult, *, enable_embeddings: bool = False) -> list[Finding]:
+    """P3: Detect low-quality scaffolds using embedding similarity (opt-in).
 
-    Embeds each extracted prompt (>50 chars) with nomic-embed-text and
-    compares to a centroid computed from 5 known-good scaffolds. Prompts
+    Requires ``enable_embeddings=True`` to activate. When disabled (default),
+    returns an empty list immediately — preserving the zero-LLM invariant.
+
+    When enabled: embeds each extracted prompt (>50 chars) with nomic-embed-text
+    and compares to a centroid computed from 5 known-good scaffolds. Prompts
     with similarity < 0.5 are flagged as LOW_QUALITY_SCAFFOLD.
 
-    Fails open: if Ollama is unavailable, returns no findings.
+    Fails open: if Ollama is unavailable at runtime, returns no findings.
+
+    Args:
+        result: Extraction result containing candidate prompts.
+        enable_embeddings: Must be explicitly set to True to allow Ollama calls.
+            Defaults to False to preserve zero-LLM, zero-network contract.
     """
+    if not enable_embeddings:
+        return []  # Opt-in only — zero-LLM invariant
+
     # Filter to prompts worth checking
     candidates = [p for p in result.prompts if len(p.text) > MIN_PROMPT_LENGTH]
     if not candidates:

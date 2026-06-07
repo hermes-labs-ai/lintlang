@@ -66,6 +66,16 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="Glob patterns to exclude (e.g., 'CHANGELOG.md' 'docs/**'). Non-prompt files (README, LICENSE, etc.) are skipped automatically.",
     )
+    scan_parser.add_argument(
+        "--enable-embeddings",
+        action="store_true",
+        default=False,
+        help=(
+            "Enable P3 scaffold quality check via nomic-embed-text (requires Ollama running locally). "
+            "Disabled by default to preserve zero-LLM, zero-network invariant. "
+            "When enabled and Ollama is unavailable, P3 fails open (no findings)."
+        ),
+    )
 
     # ── patterns command ───────────────────────────────────────────
     subparsers.add_parser("patterns", help="List all diagnostic patterns")
@@ -128,7 +138,7 @@ def _cmd_scan(args: argparse.Namespace) -> int:
         try:
             # Use Python extractor for .py files
             if path.suffix == ".py":
-                result = scan_python_file(path, patterns=args.patterns)
+                result = scan_python_file(path, patterns=args.patterns, enable_embeddings=args.enable_embeddings)
             else:
                 config = parse_file(path)
                 result = scan_config(config, patterns=args.patterns)

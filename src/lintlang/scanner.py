@@ -257,6 +257,7 @@ def compute_health_score(findings: list[Finding]) -> float:
 def scan_python_file(
     path: str | Path,
     patterns: list[str] | None = None,
+    enable_embeddings: bool = False,
 ) -> ScanResult:
     """Scan a Python file for embedded prompts, thresholds, and pipeline issues.
 
@@ -266,6 +267,13 @@ def scan_python_file(
     2. Runs H1-H7 on each extracted prompt
     3. Runs P1-P2 pipeline detectors on thresholds and embedded scaffolds
     4. Scores the concatenated prompts with HERM
+
+    Args:
+        path: Path to the Python file to scan.
+        patterns: Optional list of structural pattern IDs (H1-H7) to run.
+        enable_embeddings: Enable P3 scaffold quality check via nomic-embed-text
+            (requires Ollama running locally). Defaults to False to preserve the
+            zero-LLM, zero-network invariant.
 
     Returns a single ScanResult aggregating all findings.
     """
@@ -284,7 +292,7 @@ def scan_python_file(
     all_findings: list[Finding] = []
     all_findings.extend(detect_uncalibrated_thresholds(extraction))
     all_findings.extend(detect_scaffold_in_code(extraction))
-    all_findings.extend(detect_scaffold_quality(extraction))
+    all_findings.extend(detect_scaffold_quality(extraction, enable_embeddings=enable_embeddings))
 
     # Run H1-H7 on each extracted prompt
     configs = extracted_prompts_to_configs(extraction)

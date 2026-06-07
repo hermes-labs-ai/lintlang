@@ -9,17 +9,19 @@ A static linter for AI agent tool descriptions, system prompts, and config files
 ## Accepts
 
 - File or directory of AI agent configs in JSON, YAML, plain text, or `.prompt`.
+- Python source files (`.py`) via AST-based prompt extractor — runs H1-H7 + P1-P2 on embedded prompts and thresholds.
 - Pattern filtering: `--patterns H1 H3` runs only listed detectors.
 - Output formats: terminal (ANSI), Markdown, JSON for CI.
 - Severity gating: `--fail-on fail|review|any` controls non-zero exit.
 - Verbosity flags: `--verbose`, `--quiet`.
+- `--enable-embeddings` (opt-in): activates P3 scaffold quality check via nomic-embed-text (requires Ollama locally). Disabled by default; fails open if Ollama is unavailable.
 
 ## Refuses
 
 - Any operation that requires an LLM call. lintlang is static; if you want model-grading, use a different tool.
 - Auto-fix / rewriting. lintlang reports; it does not modify input files.
-- Network access. No telemetry, no model calls, no remote rule fetch.
-- Languages outside its parsed format set. Currently JSON / YAML / plain text / `.prompt`. Adding a format is a code change with regression coverage.
+- Network access by default. No telemetry, no model calls, no remote rule fetch. The one exception is `--enable-embeddings` (P3), which is opt-in and makes a localhost Ollama call only.
+- Languages outside its parsed format set. Currently JSON / YAML / plain text / `.prompt` / `.py`. Adding a format is a code change with regression coverage.
 
 ## Non-goals
 
@@ -39,6 +41,6 @@ A static linter for AI agent tool descriptions, system prompts, and config files
 
 ## Verification contract
 
-- `pytest`: 235+ tests collected, all passing.
+- `pytest`: 155 tests collected, all passing.
 - `lintlang scan samples/`: detects 4-of-5 known-bad sample files; 1 known-clean file PASSES.
 - HERM v1.1 reference parity: 28-file comparison set produces identical scores to the standalone HERM v1.1 implementation.
