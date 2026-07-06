@@ -10,7 +10,9 @@
 
 - `--enable-embeddings` flag on `lintlang scan`. Activates P3 (nomic-embed-text similarity check against known-good scaffold centroid). When enabled and Ollama is unavailable at runtime, P3 fails open (returns no findings). Requires Ollama running locally with `nomic-embed-text` model pulled.
 - `enable_embeddings` keyword argument on `scan_python_file()` and `detect_scaffold_quality()` for programmatic users.
-- `test_disabled_by_default` test: asserts no network call and no findings when the flag is absent (1 new test; 155 tests total, all passing).
+- `test_disabled_by_default` test: asserts no network call and no findings when the flag is absent.
+- **Version-of-record consistency gate** (`tests/test_version_consistency.py`): asserts `lintlang.__version__` equals `pyproject.toml`'s `[project].version`, reading source directly so it holds in a fresh clone. Fixes and guards against the prior drift where `__version__` reported `0.2.1` while the published artifact was `0.2.2`. This is the "separate gate" that `test_docs_consistency.py` names as out of its scope.
+- Two new tests bring the suite to 156 tests total, all passing.
 
 ### Notes
 

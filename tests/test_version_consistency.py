@@ -1,0 +1,61 @@
+"""Mechanical gate: `lintlang.__version__` must equal `pyproject.toml` version.
+
+The doc-consistency gate (`test_docs_consistency.py`) explicitly documents that
+"PyPI version drift between pyproject and CHANGELOG" is a *separate gate* it does
+not cover. This is that gate — the narrowest possible version-of-record check.
+
+Why it exists: on 2026-07-05 the shipped package (`pip show lintlang` → 0.2.2,
+PyPI latest 0.2.2, `pyproject.toml` → 0.2.2) reported `lintlang.__version__ ==
+"0.2.1"`. `lintlang --version` and any programmatic `importlib.metadata`-vs-
+`__version__` comparison therefore disagreed with the published artifact — a
+falsifiable public inconsistency in a tool people already depend on. This gate
+fails CI the moment the two drift again.
+
+The check reads the source `__version__` and the `[project].version` field
+directly (not the installed metadata) so it holds in a fresh clone before any
+build/install step.
+"""
+
+from __future__ import annotations
+
+import re
+from pathlib import Path
+
+try:  # Python 3.11+
+    import tomllib
+except ModuleNotFoundError:  # pragma: no cover - Python 3.10 fallback
+    tomllib = None  # type: ignore[assignment]
+
+import lintlang
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
+PYPROJECT = REPO_ROOT / "pyproject.toml"
+
+
+def _pyproject_version() -> str:
+    text = PYPROJECT.read_text(encoding="utf-8")
+    if tomllib is not None:
+        data = tomllib.loads(text)
+        return str(data["project"]["version"])
+    # Python 3.10: minimal regex fallback (no tomllib in stdlib)
+    m = re.search(r'(?m)^version\s*=\s*"([^"]+)"', text)
+    assert m, "could not locate [project] version in pyproject.toml"
+    return m.group(1)
+
+
+def test_dunder_version_matches_pyproject():
+    """`lintlang.__version__` must equal the packaged `[project].version`.
+
+    If this fails, update `src/lintlang/__init__.py:__version__` (or
+    `pyproject.toml`) so the runtime version-of-record matches the published
+    artifact. They must never disagree — `lintlang --version` reports the
+    dunder, PyPI/pip report the pyproject value.
+    """
+    dunder = lintlang.__version__
+    packaged = _pyproject_version()
+    assert dunder == packaged, (
+        f"\n\nlintlang.__version__ == {dunder!r} but pyproject [project].version "
+        f"== {packaged!r}.\n"
+        f"Fix: set both to the same string (the version actually published to "
+        f"PyPI).\n"
+    )
