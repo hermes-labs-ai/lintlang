@@ -269,9 +269,10 @@ in the San Francisco Bay Area.
 The technical thesis: language sets the capability and intelligence; the 
 model is the ceiling, not the source. Reliability is a question of 
 linguistic infrastructure, not model tuning. Formalized as LPCI 
-(Linguistically Persistent Cognitive Interface) — transfer entropy ≈ 0 
-in embedding-space proxy, Markov property holds, the substrate is 
-linguistic. The engineering follow-on: when language is the substrate, 
+(Linguistically Persistent Cognitive Interface) — a language scaffold 
+carries state across a stateless model (recall A/B 0.83 vs 0.00 across 
+74 sessions, ~2.5x compression; langquant dd918cc). The engineering 
+follow-on: when language is the substrate, 
 the engineering is interpretive — recovering meaning across the 
 boundaries between model and user, session and session, training and 
 runtime.
@@ -304,7 +305,7 @@ Quantitative sources for claims above:
 - fidelis 73.0% / Wilson 95% CI [68.7%, 77.0%]: see fidelis/README.md 
   "End-to-end QA accuracy" + experiments/zeroLLM-FLAGSHIP-evidence/, 
   470 questions, eval date 2026-04-24
-- LPCI thesis (TE ≈ 0 embedding-space proxy): langquant repo, commit 
-  dd918cc (2026-03-28) "LPCI PROVED" + lpci_rigorous.py:507-571
+- LPCI thesis (recall A/B 0.83 vs 0.00, n=74, ~2.5x compression): 
+  langquant repo, commit dd918cc (2026-03-28) + lpci_rigorous.py:507-571
 - 24-failure taxonomy: hermes-rubric/calibration/failure-mode-taxonomy.md
 
