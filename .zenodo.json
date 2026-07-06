@@ -1,0 +1,31 @@
+{
+  "upload_type": "software",
+  "title": "lintlang: static linter for AI agent configs, system prompts, and tool definitions (zero-LLM)",
+  "version": "0.2.2",
+  "description": "lintlang is a static linter for the reliability/assurance layer of production AI that flags language-level failures in AI agent configs, system prompts, and tool definitions before runtime, using deterministic regex and structural heuristics with zero LLM calls in the hot path. It applies 7 structural detectors (H1-H7) for the failure classes evals and code linters miss: ambiguous tool descriptions that cause wrong-tool selection, missing termination conditions that cause infinite loops, schema-intent mismatches, and role confusion. Same input produces the same output every run, so it can gate CI without keys, network, or model cost.",
+  "creators": [
+    {
+      "name": "Bosch Rodriguez, Rolando",
+      "orcid": "0009-0005-4896-1112",
+      "affiliation": "Hermes Labs"
+    }
+  ],
+  "keywords": [
+    "AI reliability",
+    "LLM reliability",
+    "silent failure modes",
+    "zero-LLM",
+    "agent-config linting",
+    "prompt linting",
+    "tool-description ambiguity",
+    "static analysis"
+  ],
+  "license": "Apache-2.0",
+  "related_identifiers": [
+    {
+      "identifier": "10.5281/zenodo.19042469",
+      "relation": "references",
+      "scheme": "doi"
+    }
+  ]
+}

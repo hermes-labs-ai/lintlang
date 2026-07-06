@@ -1,14 +1,17 @@
 cff-version: 1.2.0
 message: "If you use lintlang in your research or tooling, please cite it."
-title: "lintlang: Static linter for AI agent configs, tool descriptions, and system prompts"
-version: "0.3.0"
-date-released: "2026-06-07"
+title: "lintlang: Static Linter for AI Agent Configs, Tool Descriptions, and System Prompts"
+type: software
 authors:
-  - name: "Hermes Labs"
-    email: rbosch@lpci.ai
-url: "https://github.com/hermes-labs-ai/lintlang"
+  - family-names: "Bosch Rodriguez"
+    given-names: "Rolando"
+    orcid: "https://orcid.org/0009-0005-4896-1112"
+    affiliation: "Hermes Labs"
+version: "0.3.0"
+date-released: "2026-07-06"
+license: "Apache-2.0"
 repository-code: "https://github.com/hermes-labs-ai/lintlang"
-license: Apache-2.0
+url: "https://github.com/hermes-labs-ai/lintlang"
 abstract: >
   lintlang is a zero-LLM static linter for AI agent configurations, tool descriptions,
   and system prompts. It combines HERM v1.1 dimensional scoring (6 dimensions,
@@ -17,9 +20,19 @@ abstract: >
   uncalibrated thresholds — before they reach runtime. Deterministic, 0 LLM calls
   per default scan, ~2ms per file.
 keywords:
-  - AI agents
-  - static analysis
-  - prompt engineering
-  - linter
-  - agent configuration
-  - LLM reliability
+  - "AI reliability"
+  - "LLM reliability"
+  - "static analysis"
+  - "agent configuration"
+  - "prompt linting"
+  - "CI gating"
+  - "evidence-first"
+  - "silent failure modes"
+references:
+  - type: article
+    title: "A Taxonomy of Epistemic Failure Modes in Large Language Models"
+    authors:
+      - family-names: "Bosch Rodriguez"
+        given-names: "Rolando"
+    doi: "10.5281/zenodo.19042469"
+    year: 2026
