@@ -75,7 +75,7 @@ Most AI agent bugs aren't code bugs — they're language bugs. Vague tool descri
 pip install lintlang
 ```
 
-Requires Python 3.10+. One dependency (`pyyaml`). No API keys, no network access, no LLM calls.
+Requires Python 3.10+. One dependency (`pyyaml`). No API keys. Default scans make no network calls and no LLM calls. The one exception is the opt-in `--enable-embeddings` flag (P3 scaffold-quality check), which calls a local Ollama instance (`localhost:11434`) for embeddings and fails open with no findings if Ollama isn't running. No external network access either way.
 
 ## Quick Start
 
