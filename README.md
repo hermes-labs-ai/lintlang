@@ -262,7 +262,7 @@ pytest
 
 Hermes Labs is building the reliability stack for the agent era. Memory, 
 evaluation, observability, containment — the infrastructure layer that 
-makes autonomous AI agents production-grade. Founded 2025 by Rolando 
+makes autonomous AI agents dependable. Founded 2025 by Rolando 
 (Roli) Bosch, solo founder, AI-amplified ("cyborg engineering"). Based 
 in the San Francisco Bay Area.
 
