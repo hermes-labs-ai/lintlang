@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.3.0] - 2026-06-07
+## [0.3.1] - 2026-07-12
 
 ### Changed
 
@@ -12,12 +12,15 @@
 - `enable_embeddings` keyword argument on `scan_python_file()` and `detect_scaffold_quality()` for programmatic users.
 - `test_disabled_by_default` test: asserts no network call and no findings when the flag is absent.
 - **Version-of-record consistency gate** (`tests/test_version_consistency.py`): asserts `lintlang.__version__` equals `pyproject.toml`'s `[project].version`, reading source directly so it holds in a fresh clone. Fixes and guards against the prior drift where `__version__` reported `0.2.1` while the published artifact was `0.2.2`. This is the "separate gate" that `test_docs_consistency.py` names as out of its scope.
-- Two new tests bring the suite to 156 tests total, all passing.
+- Three release-integrity tests bring the suite to 157 tests total, all passing.
 
 ### Notes
 
 - Zero runtime dependency change — `pyyaml` remains the only runtime dep. The Ollama call is opt-in at invocation time, not a package dependency.
 - `INTENT.md` updated to document the P3 opt-in contract and the `--enable-embeddings` flag.
+- `0.3.0` was never published to PyPI or created as a GitHub Release. A public
+  `v0.3.0` Git tag already points to an older, pre-fix commit, so this release
+  advances to `0.3.1` rather than moving or reusing that immutable tag.
 
 ## [0.2.2] - 2026-04-26
 

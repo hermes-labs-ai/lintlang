@@ -30,6 +30,8 @@ import lintlang
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 PYPROJECT = REPO_ROOT / "pyproject.toml"
+CHANGELOG = REPO_ROOT / "CHANGELOG.md"
+CITATION = REPO_ROOT / "CITATION.cff"
 
 
 def _pyproject_version() -> str:
@@ -58,4 +60,35 @@ def test_dunder_version_matches_pyproject():
         f"== {packaged!r}.\n"
         f"Fix: set both to the same string (the version actually published to "
         f"PyPI).\n"
+    )
+
+
+def test_release_surfaces_match_pyproject():
+    """Release-facing metadata must name the same version as the package."""
+    packaged = _pyproject_version()
+    changelog = CHANGELOG.read_text(encoding="utf-8")
+    citation = CITATION.read_text(encoding="utf-8")
+
+    changelog_match = re.search(
+        r"(?m)^## \[([^]]+)\] - (\d{4}-\d{2}-\d{2})$", changelog
+    )
+    citation_match = re.search(r'(?m)^version:\s*["\']?([^"\'\s]+)', citation)
+    citation_date_match = re.search(
+        r'(?m)^date-released:\s*["\']?([^"\'\s]+)', citation
+    )
+
+    assert changelog_match, "CHANGELOG.md has no release heading"
+    assert citation_match, "CITATION.cff has no version field"
+    assert citation_date_match, "CITATION.cff has no date-released field"
+    assert changelog_match.group(1) == packaged, (
+        f"CHANGELOG latest version {changelog_match.group(1)!r} does not match "
+        f"pyproject version {packaged!r}"
+    )
+    assert citation_match.group(1) == packaged, (
+        f"CITATION.cff version {citation_match.group(1)!r} does not match "
+        f"pyproject version {packaged!r}"
+    )
+    assert citation_date_match.group(1) == changelog_match.group(2), (
+        f"CITATION.cff date {citation_date_match.group(1)!r} does not match "
+        f"CHANGELOG release date {changelog_match.group(2)!r}"
     )
