@@ -95,7 +95,9 @@ class TestScanDirectory:
         results = scan_directory(tmp_path)
         assert len(results) > 0
         for result in results.values():
-            assert any(f.pattern_id == "ERR" for f in result.structural_findings)
+            assert result.input_error is not None
+            assert "Failed to parse" in result.input_error
+            assert result.structural_findings == []
 
 
 class TestFileTypeFiltering:

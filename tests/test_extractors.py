@@ -378,5 +378,6 @@ MAX_RETRIES = 5
         py_file = tmp_path / "broken.py"
         py_file.write_text("def broken(:\n  pass")
         result = scan_python_file(py_file)
-        err_findings = [f for f in result.structural_findings if f.pattern_id == "ERR"]
-        assert len(err_findings) == 1
+        assert result.input_error is not None
+        assert "Python parse error" in result.input_error
+        assert not any(f.pattern_id == "ERR" for f in result.structural_findings)

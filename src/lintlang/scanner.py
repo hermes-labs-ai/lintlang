@@ -8,7 +8,7 @@ from pathlib import Path
 
 from .herm import HermResult, score_text
 from .parsers import parse_file
-from .patterns import PATTERNS, AgentConfig, Finding, Severity
+from .patterns import PATTERNS, AgentConfig, Finding
 
 # Pipeline detectors (P-series) — registered lazily to avoid circular imports
 _PIPELINE_DETECTORS_LOADED = False
@@ -100,6 +100,14 @@ class ScanResult:
     score: float                                    # HERM hermeneutical score (0-100)
     herm: HermResult                                # Full HERM result
     structural_findings: list[Finding] = field(default_factory=list)
+    input_error: str | None = None                  # Fatal load/parse failure, separate from lint severity
+
+
+def input_error_result(path: str | Path, message: str) -> ScanResult:
+    """Build a result for an input that could not be loaded or parsed."""
+    source = str(path)
+    herm = score_text("", source_path=source)
+    return ScanResult(file=source, score=herm.score, herm=herm, input_error=message)
 
 
 def _build_scoring_text(config: AgentConfig) -> str:
@@ -221,20 +229,7 @@ def scan_directory(
             try:
                 results[str(filepath)] = scan_file(filepath, patterns=patterns)
             except Exception as e:
-                herm = score_text("", source_path=str(filepath))
-                results[str(filepath)] = ScanResult(
-                    file=str(filepath),
-                    score=herm.score,
-                    herm=herm,
-                    structural_findings=[Finding(
-                        pattern_id="ERR",
-                        pattern_name="Parse Error",
-                        severity=Severity.INFO,
-                        location=str(filepath),
-                        description=f"Failed to parse: {e}",
-                        suggestion="Check file format (YAML, JSON, or plain text).",
-                    )],
-                )
+                results[str(filepath)] = input_error_result(filepath, f"Failed to parse: {e}")
 
     return results
 
@@ -319,17 +314,6 @@ def scan_python_file(
     combined_text = "\n\n".join(prompt_texts) if prompt_texts else ""
     herm = score_text(combined_text, source_path=str(path))
 
-    # Add parse errors as findings
-    for err in extraction.parse_errors:
-        all_findings.append(Finding(
-            pattern_id="ERR",
-            pattern_name="Parse Error",
-            severity=Severity.INFO,
-            location=str(path),
-            description=f"Python parse error: {err}",
-            suggestion="Fix the syntax error and re-scan.",
-        ))
-
     # Sort by severity
     severity_order = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
     all_findings.sort(key=lambda f: severity_order.get(f.severity.value, 5))
@@ -339,4 +323,9 @@ def scan_python_file(
         score=herm.score,
         herm=herm,
         structural_findings=all_findings,
+        input_error=(
+            "; ".join(f"Python parse error: {err}" for err in extraction.parse_errors)
+            if extraction.parse_errors
+            else None
+        ),
     )

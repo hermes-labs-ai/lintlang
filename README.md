@@ -1,6 +1,6 @@
 # lintlang
 
-**lintlang is a static linter for AI agent configs, tool descriptions, and system prompts that runs zero-LLM quality gating in CI. 7 structural detectors (H1–H7), 6 HERM v1.1 scoring dimensions, validated against 28 comparison files. 157 tests (including CI-mechanical documentation and release-version consistency gates), 0 LLM calls per scan, ~2ms per file.** Reproduce: `bash evals/sample-detection-rate.sh` flags 4-of-4 known-bad samples and passes 1-of-1 clean — same input, same output, every run.
+**lintlang is a static linter for AI agent configs, tool descriptions, and system prompts that runs zero-LLM quality gating in CI. 7 structural detectors (H1–H7), 6 HERM v1.1 scoring dimensions, validated against 28 comparison files. 159 tests (including CI-mechanical documentation and release-version consistency gates), 0 LLM calls per scan, ~2ms per file.** Reproduce: `bash evals/sample-detection-rate.sh` flags 4-of-4 known-bad samples and passes 1-of-1 clean — same input, same output, every run.
 
 AI agent configs fail for language reasons long before they fail for code reasons: vague tool descriptions, missing stop conditions, and schema fields that say nothing useful.
 
@@ -188,6 +188,13 @@ Zero cost, zero latency, zero data exposure. Runs in CI where LLM calls can't. C
 | `--fail-on review` | Any MEDIUM+ finding | Strict quality gate |
 | `--fail-under 80` | Quality score < threshold | Legacy score-based gate |
 
+Input integrity is a separate fatal channel: every explicitly requested input,
+and every supported file discovered in a requested directory, must be readable
+and parseable. A missing, unreadable, or malformed input exits `1` regardless
+of `--fail-on`. JSON output keeps the affected path in the result list with
+`"verdict": "ERROR"` and a non-null `"input_error"`; it is never labeled
+`PASS` or silently omitted because another input scanned successfully.
+
 ### Filter by Severity
 
 ```bash
@@ -204,6 +211,8 @@ lintlang scan config.yaml --patterns H1 H3
 from lintlang import scan_file, compute_verdict
 
 result = scan_file("config.yaml")
+if result.input_error:
+    raise ValueError(f"lintlang could not scan the input: {result.input_error}")
 verdict = compute_verdict(result.structural_findings)
 print(f"Verdict: {verdict}")  # PASS, REVIEW, or FAIL
 
@@ -218,6 +227,9 @@ from lintlang import scan_directory, compute_verdict
 
 results = scan_directory("configs/")
 for path, result in results.items():
+    if result.input_error:
+        print(f"{path}: ERROR — {result.input_error}")
+        continue
     verdict = compute_verdict(result.structural_findings)
     print(f"{path}: {verdict}")
 ```

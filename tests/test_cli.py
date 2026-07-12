@@ -113,6 +113,46 @@ class TestCLI:
         exit_code = main(["scan", "/nonexistent/file.yaml", "--fail-on", "fail"])
         assert exit_code == 1
 
+    def test_fail_on_with_valid_and_missing_file_is_input_error(self, tmp_path, capsys):
+        """A valid input must not mask an explicitly requested missing input."""
+        valid = tmp_path / "valid.yaml"
+        valid.write_text("system_prompt: You are helpful.")
+        missing = tmp_path / "missing.yaml"
+
+        exit_code = main([
+            "scan", str(valid), str(missing), "--format", "json", "--fail-on", "fail",
+        ])
+
+        assert exit_code == 1
+        captured = capsys.readouterr()
+        data = json.loads(captured.out)
+        by_file = {item["file"]: item for item in data}
+        assert by_file[str(valid)]["verdict"] == "PASS"
+        assert by_file[str(valid)]["input_error"] is None
+        assert by_file[str(missing)]["verdict"] == "ERROR"
+        assert by_file[str(missing)]["input_error"] == "File not found"
+        assert f"Input error: {missing}: File not found" in captured.err
+
+    def test_fail_on_with_directory_parse_error_is_input_error(self, tmp_path, capsys):
+        """A malformed supported file found in a directory must fail closed."""
+        (tmp_path / "valid.yaml").write_text("system_prompt: You are helpful.")
+        malformed = tmp_path / "broken.json"
+        malformed.write_text('{"system_prompt": "unterminated"')
+
+        exit_code = main([
+            "scan", str(tmp_path), "--format", "json", "--fail-on", "fail",
+        ])
+
+        assert exit_code == 1
+        captured = capsys.readouterr()
+        data = json.loads(captured.out)
+        by_file = {item["file"]: item for item in data}
+        assert by_file[str(malformed)]["verdict"] == "ERROR"
+        assert "Failed to parse" in by_file[str(malformed)]["input_error"]
+        assert by_file[str(malformed)]["structural_findings"] == []
+        assert by_file[str(malformed)]["herm"] is None
+        assert f"Input error: {malformed}: Failed to parse" in captured.err
+
     def test_min_severity_filter(self, capsys):
         exit_code = main([
             "scan",

@@ -10,7 +10,7 @@ from . import __version__
 from .parsers import parse_file
 from .patterns import PATTERNS as _PATTERNS
 from .report import compute_verdict, format_markdown, format_summary_table, format_terminal
-from .scanner import ScanResult, scan_config, scan_directory, scan_python_file
+from .scanner import ScanResult, input_error_result, scan_config, scan_directory, scan_python_file
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -122,7 +122,7 @@ def _cmd_scan(args: argparse.Namespace) -> int:
     for filepath in args.files:
         path = Path(filepath)
         if not path.exists():
-            print(f"Error: File not found: {filepath}", file=sys.stderr)
+            results[str(path)] = input_error_result(path, "File not found")
             continue
 
         if path.is_dir():
@@ -148,23 +148,35 @@ def _cmd_scan(args: argparse.Namespace) -> int:
             ]
             results[str(path)] = result
         except Exception as e:
-            print(f"Error parsing {filepath}: {e}", file=sys.stderr)
-            continue
+            results[str(path)] = input_error_result(path, f"Failed to parse: {e}")
+
+    input_errors = [result for result in results.values() if result.input_error is not None]
+    valid_results = {
+        path: result for path, result in results.items()
+        if result.input_error is None
+    }
+
+    for result in input_errors:
+        print(f"Error: Input error: {result.file}: {result.input_error}", file=sys.stderr)
 
     # Output
     if args.format == "terminal":
-        for result in results.values():
+        for result in valid_results.values():
             print(format_terminal(result, show_suggestions=not args.no_suggestions))
     elif args.format == "markdown":
         for result in results.values():
-            print(format_markdown(result, show_suggestions=not args.no_suggestions))
+            if result.input_error:
+                print(f"# Lintlang Input Error\n\n- **File:** `{result.file}`\n- **Error:** {result.input_error}\n")
+            else:
+                print(format_markdown(result, show_suggestions=not args.no_suggestions))
     elif args.format == "json":
         output = []
         for result in results.values():
-            verdict = compute_verdict(result.structural_findings)
+            verdict = "ERROR" if result.input_error else compute_verdict(result.structural_findings)
             output.append({
                 "file": result.file,
                 "verdict": verdict,
+                "input_error": result.input_error,
                 "structural_findings": [
                     {
                         "pattern_id": f.pattern_id,
@@ -178,7 +190,7 @@ def _cmd_scan(args: argparse.Namespace) -> int:
                     for f in result.structural_findings
                 ],
                 # Raw HERM data preserved for programmatic consumers
-                "herm": {
+                "herm": None if result.input_error else {
                     "score": result.score,
                     "dimensions": result.herm.dimension_scores,
                     "signal_counts": result.herm.signal_counts,
@@ -191,12 +203,17 @@ def _cmd_scan(args: argparse.Namespace) -> int:
         print(json_mod.dumps(output, indent=2))
 
     # Summary table for multi-file terminal scans
-    if args.format == "terminal" and len(results) > 1:
+    if args.format == "terminal" and len(valid_results) > 1:
         elapsed = time.monotonic() - t_start
-        print(format_summary_table(results, elapsed))
+        print(format_summary_table(valid_results, elapsed))
 
     if not results:
         print("Error: No files were successfully scanned.", file=sys.stderr)
+        return 1
+
+    # Input integrity is a fatal channel, independent of lint severity and
+    # --fail-on. Never let another valid input mask a requested input error.
+    if input_errors:
         return 1
 
     # Verdict-based exit
