@@ -23,8 +23,19 @@ def main(argv: list[str] | None = None) -> int:
     subparsers = parser.add_subparsers(dest="command")
 
     # ── scan command ───────────────────────────────────────────────
-    scan_parser = subparsers.add_parser("scan", help="Scan agent config files for linguistic issues")
-    scan_parser.add_argument("files", nargs="+", help="Config files to scan (YAML, JSON, or text)")
+    scan_parser = subparsers.add_parser(
+        "scan",
+        help="Scan agent configs and embedded language in Python pipelines",
+    )
+    scan_parser.add_argument(
+        "files",
+        nargs="+",
+        help=(
+            "Language-bearing inputs: YAML, JSON, text, or Python "
+            "(.py uses AST extraction for embedded prompts/pipeline artifacts; "
+            "not general Python code linting)"
+        ),
+    )
     scan_parser.add_argument(
         "--patterns", "-p",
         nargs="+",

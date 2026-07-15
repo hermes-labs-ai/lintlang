@@ -54,7 +54,7 @@ Use `lintlang` when you author or review AI agent tool descriptions, system prom
 - **Open-ended creative writing** — H1–H7 are calibrated for agent configs and system prompts, not prose.
 - **Auto-fix** — lintlang reports findings; it doesn't rewrite. Pair with a human or LLM for the fix step.
 - **Behavioral safety proofs** — a clean lintlang scan is a *necessary* but not *sufficient* condition for agent safety. Run a runtime evaluator (e.g., the rest of the Hermes Labs audit stack) for dynamic checks.
-- **Config formats we don't parse yet** — currently JSON, YAML, plain text, and `.prompt`. Markdown front-matter parses; arbitrary nested templates may not.
+- **Input boundaries** — JSON, YAML, plain text, `.prompt`, and Markdown are parsed as language-bearing inputs. Python files use AST extraction only for embedded prompts and agent-pipeline thresholds; lintlang does not lint general Python syntax, style, types, or program correctness. Arbitrary nested templates may not parse.
 
 ![lintlang preview](assets/preview.png)
 
@@ -83,7 +83,7 @@ Requires Python 3.10+. One dependency (`pyyaml`). No API keys. Default scans mak
 # Scan a single file
 lintlang scan agent_config.yaml
 
-# Scan a directory (finds .yaml, .json, .txt, .md, .prompt)
+# Scan a directory (finds .yaml, .json, .txt, .md, .prompt, and .py)
 lintlang scan configs/
 
 # JSON output for CI
@@ -247,6 +247,7 @@ lintlang auto-detects file format:
 - **YAML** (`.yaml`, `.yml`) — OpenAI function-calling format, tool definitions
 - **JSON** (`.json`) — OpenAI and Anthropic tool schemas, message arrays
 - **Plain text** (`.txt`, `.md`, `.prompt`) — System prompts, instruction docs
+- **Python source** (`.py`) — AST extraction of embedded prompts and language-bearing agent-pipeline thresholds. This is not Python code linting: lintlang does not judge style, types, control flow, or general program correctness. A Python parse error is reported only because the requested language-bearing input could not be extracted safely.
 
 Unknown extensions are tried as JSON → YAML → plain text.
 
