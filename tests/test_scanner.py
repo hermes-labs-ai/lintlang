@@ -137,9 +137,10 @@ class TestFileTypeFiltering:
         assert _is_non_prompt_file(Path(".pytest_cache/README.md"))
 
     def test_directory_scan_skips_non_prompt(self, tmp_path):
-        """scan_directory should skip CHANGELOG.md, README.md, etc."""
+        """Directory scans include Python but skip non-prompt documents."""
         # Create a mix of prompt and non-prompt files
         (tmp_path / "SKILL.md").write_text("You are an assistant. Use the tools.")
+        (tmp_path / "pipeline.py").write_text("CONFIDENCE_THRESHOLD = 0.75\n")
         (tmp_path / "CHANGELOG.md").write_text("# Changelog\n\n## v1.0\n- Always maintain backward compatibility.")
         (tmp_path / "README.md").write_text("# My Agent\n\nAn AI agent.")
         (tmp_path / "LICENSE.md").write_text("MIT License")
@@ -147,6 +148,9 @@ class TestFileTypeFiltering:
         results = scan_directory(tmp_path)
         scanned_names = {Path(p).name for p in results}
         assert "SKILL.md" in scanned_names
+        assert "pipeline.py" in scanned_names
+        python_result = next(result for path, result in results.items() if Path(path).name == "pipeline.py")
+        assert any(f.pattern_id == "P1" for f in python_result.structural_findings)
         assert "CHANGELOG.md" not in scanned_names
         assert "README.md" not in scanned_names
         assert "LICENSE.md" not in scanned_names

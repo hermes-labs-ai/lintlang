@@ -126,7 +126,12 @@ def _cmd_scan(args: argparse.Namespace) -> int:
             continue
 
         if path.is_dir():
-            dir_results = scan_directory(path, patterns=args.patterns, exclude=args.exclude)
+            dir_results = scan_directory(
+                path,
+                patterns=args.patterns,
+                exclude=args.exclude,
+                enable_embeddings=args.enable_embeddings,
+            )
             for fpath, result in dir_results.items():
                 result.structural_findings = [
                     f for f in result.structural_findings

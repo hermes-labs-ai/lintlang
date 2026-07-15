@@ -175,8 +175,9 @@ def scan_file(path: str | Path, patterns: list[str] | None = None) -> ScanResult
 def scan_directory(
     directory: str | Path,
     patterns: list[str] | None = None,
-    extensions: tuple[str, ...] = (".yaml", ".yml", ".json", ".txt", ".md", ".prompt"),
+    extensions: tuple[str, ...] = (".yaml", ".yml", ".json", ".txt", ".md", ".prompt", ".py"),
     exclude: list[str] | None = None,
+    enable_embeddings: bool = False,
 ) -> dict[str, ScanResult]:
     """Scan all matching files in a directory.
 
@@ -185,6 +186,7 @@ def scan_directory(
         patterns: Optional list of structural pattern IDs (H1-H7).
         extensions: File extensions to include.
         exclude: Glob patterns to exclude (e.g., ["CHANGELOG.md", "docs/**"]).
+        enable_embeddings: Enable the opt-in P3 check for Python files.
 
     Automatically skips:
         - Non-prompt files (README, CHANGELOG, LICENSE, etc.)
@@ -227,7 +229,14 @@ def scan_directory(
                     continue
 
             try:
-                results[str(filepath)] = scan_file(filepath, patterns=patterns)
+                if filepath.suffix == ".py":
+                    results[str(filepath)] = scan_python_file(
+                        filepath,
+                        patterns=patterns,
+                        enable_embeddings=enable_embeddings,
+                    )
+                else:
+                    results[str(filepath)] = scan_file(filepath, patterns=patterns)
             except Exception as e:
                 results[str(filepath)] = input_error_result(filepath, f"Failed to parse: {e}")
 
