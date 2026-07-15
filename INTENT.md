@@ -41,6 +41,6 @@ A static linter for AI agent tool descriptions, system prompts, and config files
 
 ## Verification contract
 
-- `pytest`: 156 tests collected, all passing.
+- `pytest`: 159 tests collected, all passing.
 - `lintlang scan samples/`: detects 4-of-5 known-bad sample files; 1 known-clean file PASSES.
 - HERM v1.1 reference parity: 28-file comparison set produces identical scores to the standalone HERM v1.1 implementation.
