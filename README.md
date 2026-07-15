@@ -20,7 +20,7 @@ lintlang scan samples/bad_tool_descriptions.yaml
 ```
 
 ```text
-LINTLANG v0.2.1
+LINTLANG v0.3.1
 samples/bad_tool_descriptions.yaml
 
 FAIL — 1 CRITICAL, 2 HIGH, 6 MEDIUM, 3 LOW
@@ -39,8 +39,8 @@ Most agent-config "review" tools call an LLM to grade your YAML. That makes the 
 | Wall time per file | 2–15 s | **~2 ms** |
 | Same input → same output | No (sampling-dependent) | **Yes (regex + AST)** |
 | Runs offline / in CI without keys | No | **Yes** |
-| Catches *vague* tool descriptions | Sometimes | **Always (H1)** |
-| Detects *missing* termination conditions | Rarely | **Always (H2)** |
+| Catches *vague* tool descriptions | Model-dependent | **Static H1 heuristic** |
+| Detects *missing* termination conditions | Model-dependent | **Static H2 heuristic** |
 
 Detection rules are static regex + structural heuristics. The same input produces the same output, every run, every CI.
 
@@ -99,7 +99,7 @@ lintlang scan config.yaml --fail-on review
 ### Example Output
 
 ```
-  LINTLANG v0.2.0
+  LINTLANG v0.3.1
   bad_tool_descriptions.yaml
   ──────────────────────────────────────────────────
 
@@ -126,7 +126,7 @@ lintlang scan config.yaml --fail-on review
       → Add: 'Maximum 5 tool calls per task. Stop and report after 2 failures.'
 
   ──────────────────────────────────────────────────
-  lintlang v0.2.0 | H1-H7 structural analysis | Zero LLM calls
+  lintlang v0.3.1 | H1-H7 structural analysis | Zero LLM calls
 ```
 
 ## How It Works
@@ -135,17 +135,23 @@ lintlang gives you a **verdict**, not a score:
 
 | Verdict | Meaning | When |
 |---------|---------|------|
-| ✅ **PASS** | Ship it | Only LOW/INFO findings or none |
-| ⚠️ **REVIEW** | Has blind spots | MEDIUM findings present |
-| ❌ **FAIL** | Will break in production | CRITICAL or HIGH findings |
+| ✅ **PASS** | No blocking structural finding detected | Only LOW/INFO findings or none |
+| ⚠️ **REVIEW** | Review structural warnings | MEDIUM findings present |
+| ❌ **FAIL** | Blocking structural finding detected | CRITICAL or HIGH findings |
 
 Each finding includes the **pattern** (H1-H7), **severity**, **location**, and a **concrete fix suggestion**. No vague "improve your prompt" — specific rewrites you can apply immediately.
 
 ## Why These 7 Detectors?
 
-These aren't arbitrary rules — they're the 7 structural failure modes that cause real agent breakdowns in production. We identified them across audits of 8 major AI frameworks (LangChain, Semantic Kernel, AutoGen, smolagents, LiteLLM, Anthropic SDK, OpenAI SDK, Agno) and 12 filed PRs. Each detector maps to a specific class of bug that no other linter catches because they're language problems, not code problems.
+These rules target seven recurring structural risks in agent configuration and
+prompt surfaces. They were developed from audits across major AI frameworks;
+each detector maps to a language-level condition that general code and schema
+linters do not evaluate.
 
-No existing tool covers this: yamllint checks syntax, semgrep checks code patterns, ruff checks Python style. None of them can tell you that your tool description is ambiguous enough to cause wrong-tool selection, or that your system prompt lacks termination conditions and will loop forever.
+Tools such as yamllint, semgrep, and ruff cover syntax or source-code patterns.
+lintlang focuses on a different layer: whether descriptions are ambiguous or
+whether an instruction surface omits explicit termination conditions. Those
+findings are structural warnings, not predictions of runtime behavior.
 
 ## Structural Detectors (H1-H7)
 

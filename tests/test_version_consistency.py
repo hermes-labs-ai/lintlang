@@ -32,6 +32,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 PYPROJECT = REPO_ROOT / "pyproject.toml"
 CHANGELOG = REPO_ROOT / "CHANGELOG.md"
 CITATION = REPO_ROOT / "CITATION.cff"
+README = REPO_ROOT / "README.md"
 
 
 def _pyproject_version() -> str:
@@ -68,6 +69,7 @@ def test_release_surfaces_match_pyproject():
     packaged = _pyproject_version()
     changelog = CHANGELOG.read_text(encoding="utf-8")
     citation = CITATION.read_text(encoding="utf-8")
+    readme = README.read_text(encoding="utf-8")
 
     changelog_match = re.search(
         r"(?m)^## \[([^]]+)\] - (\d{4}-\d{2}-\d{2})$", changelog
@@ -92,3 +94,6 @@ def test_release_surfaces_match_pyproject():
         f"CITATION.cff date {citation_date_match.group(1)!r} does not match "
         f"CHANGELOG release date {changelog_match.group(2)!r}"
     )
+    assert f"LINTLANG v{packaged}" in readme
+    assert "LINTLANG v0.2.0" not in readme
+    assert "LINTLANG v0.2.1" not in readme

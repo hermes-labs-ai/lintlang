@@ -15,6 +15,8 @@
 - **Fatal input-integrity channel:** missing, unreadable, or malformed requested inputs now produce explicit `ERROR` results and exit 1 regardless of `--fail-on`; another valid input can no longer mask omitted coverage.
 - JSON output includes `input_error` for every path and uses `verdict: ERROR` for input failures instead of converting parse errors to INFO/PASS lint findings.
 - Five release/input-integrity tests bring the suite to 159 tests total, all passing.
+- README examples now report 0.3.1, and verdict/detector language is scoped to
+  structural findings rather than runtime guarantees.
 
 ### Notes
 
