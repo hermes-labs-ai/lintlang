@@ -18,6 +18,7 @@ build/install step.
 
 from __future__ import annotations
 
+import json
 import re
 from pathlib import Path
 
@@ -33,6 +34,7 @@ PYPROJECT = REPO_ROOT / "pyproject.toml"
 CHANGELOG = REPO_ROOT / "CHANGELOG.md"
 CITATION = REPO_ROOT / "CITATION.cff"
 README = REPO_ROOT / "README.md"
+ZENODO = REPO_ROOT / ".zenodo.json"
 
 
 def _pyproject_version() -> str:
@@ -64,36 +66,44 @@ def test_dunder_version_matches_pyproject():
     )
 
 
-def test_release_surfaces_match_pyproject():
-    """Release-facing metadata must name the same version as the package."""
+def test_version_surfaces_match_pyproject_and_release_state():
+    """Metadata must name the package version without inventing a release date."""
     packaged = _pyproject_version()
     changelog = CHANGELOG.read_text(encoding="utf-8")
     citation = CITATION.read_text(encoding="utf-8")
     readme = README.read_text(encoding="utf-8")
+    zenodo = json.loads(ZENODO.read_text(encoding="utf-8"))
 
-    changelog_match = re.search(
-        r"(?m)^## \[([^]]+)\] - (\d{4}-\d{2}-\d{2})$", changelog
-    )
+    changelog_match = re.search(r"(?m)^## \[([^]]+)\] - (Unreleased|\d{4}-\d{2}-\d{2})$", changelog)
     citation_match = re.search(r'(?m)^version:\s*["\']?([^"\'\s]+)', citation)
-    citation_date_match = re.search(
-        r'(?m)^date-released:\s*["\']?([^"\'\s]+)', citation
-    )
+    citation_date_match = re.search(r'(?m)^date-released:\s*["\']?([^"\'\s]+)', citation)
 
     assert changelog_match, "CHANGELOG.md has no release heading"
     assert citation_match, "CITATION.cff has no version field"
-    assert citation_date_match, "CITATION.cff has no date-released field"
     assert changelog_match.group(1) == packaged, (
-        f"CHANGELOG latest version {changelog_match.group(1)!r} does not match "
-        f"pyproject version {packaged!r}"
+        f"CHANGELOG latest version {changelog_match.group(1)!r} does not match pyproject version {packaged!r}"
     )
     assert citation_match.group(1) == packaged, (
-        f"CITATION.cff version {citation_match.group(1)!r} does not match "
+        f"CITATION.cff version {citation_match.group(1)!r} does not match pyproject version {packaged!r}"
+    )
+    assert zenodo["version"] == packaged, (
+        f".zenodo.json version {zenodo['version']!r} does not match "
         f"pyproject version {packaged!r}"
     )
-    assert citation_date_match.group(1) == changelog_match.group(2), (
-        f"CITATION.cff date {citation_date_match.group(1)!r} does not match "
-        f"CHANGELOG release date {changelog_match.group(2)!r}"
-    )
+    release_state = changelog_match.group(2)
+    if release_state == "Unreleased":
+        assert citation_date_match is None, (
+            "CITATION.cff must not contain date-released while the latest CHANGELOG entry is Unreleased"
+        )
+        readme_lower = readme.lower()
+        assert f"unreleased `{packaged}` candidate" in readme_lower
+        assert "latest public pypi release remains `0.2.2`" in readme_lower
+    else:
+        assert citation_date_match, "released CITATION.cff has no date-released field"
+        assert citation_date_match.group(1) == release_state, (
+            f"CITATION.cff date {citation_date_match.group(1)!r} does not match "
+            f"CHANGELOG release date {release_state!r}"
+        )
     assert f"LINTLANG v{packaged}" in readme
     assert "LINTLANG v0.2.0" not in readme
     assert "LINTLANG v0.2.1" not in readme

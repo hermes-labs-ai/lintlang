@@ -1,27 +1,25 @@
 # Changelog
 
-## [0.3.1] - 2026-07-12
+## [0.3.1] - Unreleased
 
 ### Changed
 
-- **P3 scaffold quality check is now opt-in** (`--enable-embeddings` CLI flag; `enable_embeddings=True` in the Python API). Previously `detect_scaffold_quality()` ran automatically during `.py` file scans, making a localhost Ollama network call even in zero-network CI environments. The flag defaults to `False`, restoring the zero-LLM, zero-network invariant stated in `INTENT.md`. Existing CI pipelines using `lintlang scan *.py` are unaffected — P3 findings simply won't appear until `--enable-embeddings` is passed. Users who relied on P3 must add the flag explicitly.
+- Python source scanning uses AST extraction for embedded prompts and the P1/P2 pipeline checks while preserving the offline, deterministic scan contract.
+- An unsupported embedding experiment was removed from the candidate before release because an unavailable backend could not be distinguished from a clean result.
 
 ### Added
 
-- `--enable-embeddings` flag on `lintlang scan`. Activates P3 (nomic-embed-text similarity check against known-good scaffold centroid). When enabled and Ollama is unavailable at runtime, P3 fails open (returns no findings). Requires Ollama running locally with `nomic-embed-text` model pulled.
-- `enable_embeddings` keyword argument on `scan_python_file()` and `detect_scaffold_quality()` for programmatic users.
-- `test_disabled_by_default` test: asserts no network call and no findings when the flag is absent.
 - **Version-of-record consistency gate** (`tests/test_version_consistency.py`): asserts `lintlang.__version__` equals `pyproject.toml`'s `[project].version`, reading source directly so it holds in a fresh clone. Fixes and guards against the prior drift where `__version__` reported `0.2.1` while the published artifact was `0.2.2`. This is the "separate gate" that `test_docs_consistency.py` names as out of its scope.
 - **Fatal input-integrity channel:** missing, unreadable, or malformed requested inputs now produce explicit `ERROR` results and exit 1 regardless of `--fail-on`; another valid input can no longer mask omitted coverage.
 - JSON output includes `input_error` for every path and uses `verdict: ERROR` for input failures instead of converting parse errors to INFO/PASS lint findings.
-- Five release/input-integrity tests bring the suite to 159 tests total, all passing.
 - README examples now report 0.3.1, and verdict/detector language is scoped to
   structural findings rather than runtime guarantees.
+- Documentation consistency checks now forbid brittle suite-size claims and
+  scope the bundled samples as regression fixtures rather than accuracy evidence.
 
 ### Notes
 
-- Zero runtime dependency change — `pyyaml` remains the only runtime dep. The Ollama call is opt-in at invocation time, not a package dependency.
-- `INTENT.md` updated to document the P3 opt-in contract and the `--enable-embeddings` flag.
+- Zero runtime dependency change — `pyyaml` remains the only runtime dependency.
 - `0.3.0` was never published to PyPI or created as a GitHub Release. A public
   `v0.3.0` Git tag already points to an older, pre-fix commit, so this release
   advances to `0.3.1` rather than moving or reusing that immutable tag.
@@ -31,18 +29,18 @@
 ### Added
 
 - **`INTENT.md`** at repo root — Hermes Labs convention; one-page invariants doc covering accepts/refuses/non-goals + verification contract.
-- **`evals/sample-detection-rate.sh`** — runnable detection-rate check that scans the bundled samples and asserts the expected outcome (4 known-bad files flagged, 1 known-clean file passes). The smallest reproducible eval surface for the README's flagship claims.
+- **`evals/sample-detection-rate.sh`** — runnable regression check that scans the bundled samples and asserts the expected outcomes. This fixture is not an external accuracy evaluation.
 - **`tests/test_docs_consistency.py`** — mechanical CI gate (three assertions) that fails the build if the README opener / latest CHANGELOG entry / `pytest --collect-only` count drift apart. Catches the fabrication-class pattern where a chisel pass updates one surface but leaves a stale figure on another. Replaces manual eyeball-grep audits with `pip install lintlang && pytest tests/test_docs_consistency.py`-checkable invariant.
 
 ### Changed
 
-- **README chiseled to Hermes Labs Flagship Standard v1.** Quantified opener with named benchmarks (154 tests, 7 H1–H7 detectors, 6 HERM v1.1 dimensions, validated against 28 comparison files, ~2ms per file scan). Added a "How it differs from LLM-based config review" anti-pattern section with concrete cost/time/determinism comparison. Expanded "When NOT to use" to 5 named scenarios. Added a reproduce-yourself line pointing at `evals/sample-detection-rate.sh`.
+- **README refreshed for Hermes Labs Flagship Standard v1.** Added detector scope, a comparison with model-based review, explicit non-goals, and a reproduce-yourself line pointing at `evals/sample-detection-rate.sh`.
 
 ### Notes
 
 - Chisel pass — README + structural docs only. No detector changes.
 - Tier B coverage against `flagship-standard.md`: 6/7 (B6 plugin path is the acknowledged miss; queued for v0.3 when a formal `Protocol`/`register()` extension surface lands).
-- An in-progress E1–E5 epistemic-failure detector set lives on local branch `wip/eseries-integration` (commit `b199987`, session `0214f811` 2026-04-22). Merge into v0.3 requires (a) porting six broader E1 sycophancy patterns from the older `epistemic.py` into the canonical `detectors_epistemic.py`, (b) stripping the in-session-invented "B09 adversarial-school / attack V16" framework references from code comments (they reference no external corpus), (c) adding a `--include-epistemic` opt-in flag so existing CIs are not surprised by new default detectors.
+- Experimental E-series detector work was not shipped. Any future integration requires a public evidence corpus, hard-negative tests, and an explicit opt-in contract before it can affect existing CI results.
 
 ## [0.2.1] - 2026-04-13
 
@@ -58,7 +56,7 @@
 
 ### Changed
 - Development status upgraded from Alpha to Production/Stable
-- Author email updated to rbosch@lpci.ai
+- Author metadata updated.
 
 ## [0.2.0] - 2026-03-25
 
@@ -94,7 +92,7 @@
 ## [0.1.1] - 2026-03-02
 
 ### Fixed
-- Standardized package metadata (author: Hermes Labs, email: lpcisystems@gmail.com)
+- Standardized package metadata for Hermes Labs.
 - Fixed publish workflow to use API token authentication
 - Added community health files (CONTRIBUTING.md, SECURITY.md, CODE_OF_CONDUCT.md)
 - Added dependabot configuration

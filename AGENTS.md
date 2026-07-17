@@ -8,7 +8,6 @@
 - checking prompts and configs for missing constraints, schema mismatches, and role confusion
 - running a zero-LLM CI gate over YAML, JSON, prompt text, and Python source files
 - scanning `.py` files to find embedded prompts and uncalibrated thresholds (P1/P2 detectors)
-- opt-in embedding-based scaffold quality check (`--enable-embeddings`, P3) when Ollama is available
 
 ## Do not use it for
 
@@ -41,11 +40,11 @@ ruff check src/ tests/
 ## Common failure cases
 
 - users expect lintlang to judge runtime model behavior
-- configs are syntactically valid but still too underspecified to be safe
-- teams gate only on syntax linters and miss language-level failure modes
+- configs are syntactically valid but still underspecified for their intended use
+- teams gate only on syntax and do not review language-level instruction risks
 
 ## Maintainer notes
 
-- keep detector language aligned with actual failure modes in the samples
+- keep detector language aligned with the exact patterns exercised by the samples
 - keep CLI examples and severity semantics aligned with README
 - keep the tool fully offline and deterministic

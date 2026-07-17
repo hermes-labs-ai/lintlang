@@ -3,6 +3,8 @@
 import json
 from pathlib import Path
 
+import pytest
+
 from lintlang.cli import main
 
 SAMPLES_DIR = Path(__file__).parent.parent / "samples"
@@ -20,6 +22,37 @@ class TestCLI:
     def test_scan_with_pattern_filter(self):
         exit_code = main(["scan", str(SAMPLES_DIR / "bad_tool_descriptions.yaml"), "--patterns", "H1"])
         assert exit_code == 0
+
+    def test_scan_help_does_not_expose_embeddings(self, capsys):
+        with pytest.raises(SystemExit) as exc_info:
+            main(["scan", "--help"])
+
+        assert exc_info.value.code == 0
+        captured = capsys.readouterr()
+        assert "--enable-embeddings" not in captured.out
+
+    def test_removed_embedding_flag_is_rejected(self):
+        with pytest.raises(SystemExit) as exc_info:
+            main([
+                "scan",
+                str(SAMPLES_DIR / "clean_config.yaml"),
+                "--enable-embeddings",
+            ])
+
+        assert exc_info.value.code == 2
+
+    def test_direct_python_file_inside_venv_is_scannable(self, tmp_path, capsys):
+        py_file = tmp_path / ".venv" / "pipeline.py"
+        py_file.parent.mkdir()
+        py_file.write_text("CONFIDENCE_THRESHOLD = 0.75\n")
+
+        exit_code = main(["scan", str(py_file), "--format", "json"])
+
+        assert exit_code == 0
+        captured = capsys.readouterr()
+        [result] = json.loads(captured.out)
+        assert result["file"] == str(py_file)
+        assert any(finding["pattern_id"] == "P1" for finding in result["structural_findings"])
 
     def test_scan_json_format(self, capsys):
         exit_code = main(["scan", str(SAMPLES_DIR / "clean_config.yaml"), "--format", "json"])

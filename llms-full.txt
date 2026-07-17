@@ -6,9 +6,9 @@
 
 ## What It Does
 
-lintlang treats agent configs as lintable artifacts — the same way eslint lints JavaScript or ruff lints Python. It catches language-level failures that cause agents to pick wrong tools, loop infinitely, break structured output, or leak state across tasks.
+lintlang treats agent configs as lintable artifacts — the same way eslint lints JavaScript or ruff lints Python. It flags language patterns associated with ambiguous tool selection, missing termination conditions, structured-output problems, and context-boundary risk.
 
-No LLM calls. No API keys. No network access. Pure static analysis via regex + heuristics.
+No LLM calls. No API keys. No network access. Static analysis uses regex, structural heuristics, and Python AST extraction.
 
 ## Install
 
@@ -48,9 +48,9 @@ for finding in result.structural_findings:
 
 | Verdict | Meaning | Trigger |
 |---------|---------|---------|
-| PASS | Ship it | Only LOW/INFO findings or none |
-| REVIEW | Has blind spots | MEDIUM findings present |
-| FAIL | Will break in production | CRITICAL or HIGH findings |
+| PASS | No blocking structural finding detected | Only LOW/INFO findings or none |
+| REVIEW | Review structural warnings | MEDIUM findings present |
+| FAIL | Blocking structural finding detected | CRITICAL or HIGH findings |
 
 ## Structural Detectors (H1-H7)
 
@@ -85,6 +85,7 @@ Catches: multiple system messages, system messages not at position 0, consecutiv
 - YAML (.yaml, .yml) — OpenAI function-calling format, tool definitions
 - JSON (.json) — OpenAI and Anthropic tool schemas, message arrays
 - Plain text (.txt, .md, .prompt) — System prompts, instruction docs
+- Python source (.py) — AST extraction of embedded prompts and P1/P2 pipeline checks
 
 Auto-detects format. Unknown extensions tried as JSON -> YAML -> plain text.
 

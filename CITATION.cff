@@ -8,7 +8,6 @@ authors:
     orcid: "https://orcid.org/0009-0005-4896-1112"
     affiliation: "Hermes Labs"
 version: "0.3.1"
-date-released: "2026-07-12"
 license: "Apache-2.0"
 repository-code: "https://github.com/hermes-labs-ai/lintlang"
 url: "https://github.com/hermes-labs-ai/lintlang"
@@ -16,9 +15,9 @@ abstract: >
   lintlang is a zero-LLM static linter for AI agent configurations, tool descriptions,
   and system prompts. It combines HERM v1.1 dimensional scoring (6 dimensions,
   8 signal categories) with 7 structural detectors (H1-H7) and pipeline detectors
-  (P1-P3) that catch language-level failures — vague instructions, missing constraints,
-  uncalibrated thresholds — before they reach runtime. Deterministic, 0 LLM calls
-  per default scan, ~2ms per file.
+  (P1-P2) that flag patterns such as vague instructions, missing constraints, and
+  uncalibrated thresholds before runtime. Scans are deterministic and make no LLM
+  or network calls.
 keywords:
   - "AI reliability"
   - "LLM reliability"

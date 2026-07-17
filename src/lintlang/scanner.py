@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -43,7 +44,8 @@ NON_PROMPT_PATTERNS = [
 # Directory paths that indicate non-prompt content
 NON_PROMPT_DIRS = {
     "egg-info", ".pytest_cache", "node_modules", "__pycache__",
-    ".git", ".tox", ".mypy_cache", ".ruff_cache",
+    ".git", ".tox", ".venv", "venv", "site-packages", "__pypackages__",
+    ".mypy_cache", ".ruff_cache",
     "dist", "build", "htmlcov",
 }
 
@@ -177,7 +179,6 @@ def scan_directory(
     patterns: list[str] | None = None,
     extensions: tuple[str, ...] = (".yaml", ".yml", ".json", ".txt", ".md", ".prompt", ".py"),
     exclude: list[str] | None = None,
-    enable_embeddings: bool = False,
 ) -> dict[str, ScanResult]:
     """Scan all matching files in a directory.
 
@@ -186,7 +187,6 @@ def scan_directory(
         patterns: Optional list of structural pattern IDs (H1-H7).
         extensions: File extensions to include.
         exclude: Glob patterns to exclude (e.g., ["CHANGELOG.md", "docs/**"]).
-        enable_embeddings: Enable the opt-in P3 check for Python files.
 
     Automatically skips:
         - Non-prompt files (README, CHANGELOG, LICENSE, etc.)
@@ -197,6 +197,13 @@ def scan_directory(
         Dict mapping file paths to ScanResults.
     """
     directory = Path(directory)
+    if not directory.exists():
+        message = f"Directory not found: {directory}"
+        return {str(directory): input_error_result(directory, message)}
+    if not directory.is_dir():
+        message = f"Directory scan requires a directory: {directory}"
+        return {str(directory): input_error_result(directory, message)}
+
     results: dict[str, ScanResult] = {}
 
     # Load .lintlangignore
@@ -212,35 +219,55 @@ def scan_directory(
             except re.error:
                 continue
 
-    for ext in extensions:
-        for filepath in directory.rglob(f"*{ext}"):
-            # Skip non-prompt files (CHANGELOG, README, etc.)
-            if _is_non_prompt_file(filepath):
+    extension_set = set(extensions)
+    candidates: list[Path] = []
+    traversal_errors: list[OSError] = []
+
+    def record_traversal_error(error: OSError) -> None:
+        traversal_errors.append(error)
+
+    for root, dirnames, filenames in os.walk(directory, followlinks=False, onerror=record_traversal_error):
+        # Prune dependency/cache trees before traversal. File-level rejection
+        # alone would still enumerate every file in a local virtualenv.
+        dirnames[:] = sorted(
+            name
+            for name in dirnames
+            if name.lower() not in NON_PROMPT_DIRS and not name.lower().endswith(".egg-info")
+            and not (Path(root) / name).is_symlink()
+        )
+        for filename in sorted(filenames):
+            filepath = Path(root) / filename
+            if filepath.suffix in extension_set and not filepath.is_symlink():
+                candidates.append(filepath)
+
+    for filepath in sorted(candidates, key=str):
+        # Skip non-prompt files (CHANGELOG, README, etc.)
+        if _is_non_prompt_file(filepath):
+            continue
+
+        # Skip .lintlangignore matches
+        if _is_ignored(filepath, directory, ignore_patterns):
+            continue
+
+        # Skip --exclude matches
+        if exclude_patterns:
+            relative = str(filepath.relative_to(directory))
+            if any(p.search(relative) for p in exclude_patterns):
                 continue
 
-            # Skip .lintlangignore matches
-            if _is_ignored(filepath, directory, ignore_patterns):
-                continue
+        try:
+            if filepath.suffix == ".py":
+                results[str(filepath)] = scan_python_file(filepath, patterns=patterns)
+            else:
+                results[str(filepath)] = scan_file(filepath, patterns=patterns)
+        except Exception as e:
+            results[str(filepath)] = input_error_result(filepath, f"Failed to parse: {e}")
 
-            # Skip --exclude matches
-            if exclude_patterns:
-                relative = str(filepath.relative_to(directory))
-                if any(p.search(relative) for p in exclude_patterns):
-                    continue
+    for error in sorted(traversal_errors, key=lambda item: str(item.filename or directory)):
+        failed_path = Path(error.filename) if error.filename else directory
+        results[str(failed_path)] = input_error_result(failed_path, f"Failed to traverse: {error}")
 
-            try:
-                if filepath.suffix == ".py":
-                    results[str(filepath)] = scan_python_file(
-                        filepath,
-                        patterns=patterns,
-                        enable_embeddings=enable_embeddings,
-                    )
-                else:
-                    results[str(filepath)] = scan_file(filepath, patterns=patterns)
-            except Exception as e:
-                results[str(filepath)] = input_error_result(filepath, f"Failed to parse: {e}")
-
-    return results
+    return {path: results[path] for path in sorted(results)}
 
 
 def compute_health_score(findings: list[Finding]) -> float:
@@ -261,7 +288,6 @@ def compute_health_score(findings: list[Finding]) -> float:
 def scan_python_file(
     path: str | Path,
     patterns: list[str] | None = None,
-    enable_embeddings: bool = False,
 ) -> ScanResult:
     """Scan a Python file for embedded prompts, thresholds, and pipeline issues.
 
@@ -275,15 +301,11 @@ def scan_python_file(
     Args:
         path: Path to the Python file to scan.
         patterns: Optional list of structural pattern IDs (H1-H7) to run.
-        enable_embeddings: Enable P3 scaffold quality check via nomic-embed-text
-            (requires Ollama running locally). Defaults to False to preserve the
-            zero-LLM, zero-network invariant.
 
     Returns a single ScanResult aggregating all findings.
     """
     from .extractors import (
         detect_scaffold_in_code,
-        detect_scaffold_quality,
         detect_uncalibrated_thresholds,
         extract_from_python_file,
         extracted_prompts_to_configs,
@@ -292,11 +314,10 @@ def scan_python_file(
     path = Path(path)
     extraction = extract_from_python_file(path)
 
-    # Pipeline-specific detectors (P1, P2, P3)
+    # Pipeline-specific detectors (P1, P2)
     all_findings: list[Finding] = []
     all_findings.extend(detect_uncalibrated_thresholds(extraction))
     all_findings.extend(detect_scaffold_in_code(extraction))
-    all_findings.extend(detect_scaffold_quality(extraction, enable_embeddings=enable_embeddings))
 
     # Run H1-H7 on each extracted prompt
     configs = extracted_prompts_to_configs(extraction)
