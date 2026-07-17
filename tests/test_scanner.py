@@ -3,6 +3,7 @@
 from pathlib import Path
 
 from lintlang.patterns import Finding, Severity
+from lintlang.report import compute_verdict
 from lintlang.scanner import (
     ScanResult,
     _is_non_prompt_file,
@@ -55,6 +56,33 @@ class TestScanConfig:
 
 
 class TestScanFile:
+    def test_missing_file_returns_error_result(self, tmp_path):
+        missing = tmp_path / "missing.yaml"
+
+        result = scan_file(missing)
+
+        assert result.input_error == "File not found"
+        assert compute_verdict(result) == "ERROR"
+
+    def test_malformed_file_returns_error_result(self, tmp_path):
+        malformed = tmp_path / "broken.json"
+        malformed.write_text('{"system_prompt": "unterminated"')
+
+        result = scan_file(malformed)
+
+        assert result.input_error is not None
+        assert result.input_error.startswith("Failed to parse:")
+        assert compute_verdict(result) == "ERROR"
+
+    def test_python_file_uses_ast_scanner(self, tmp_path):
+        python_file = tmp_path / "pipeline.py"
+        python_file.write_text("CONFIDENCE_THRESHOLD = 0.75\n")
+
+        result = scan_file(python_file)
+
+        assert result.input_error is None
+        assert any(finding.pattern_id == "P1" for finding in result.structural_findings)
+
     def test_scan_yaml_file(self):
         result = scan_file(SAMPLES_DIR / "bad_tool_descriptions.yaml")
         assert len(result.structural_findings) > 0

@@ -7,10 +7,9 @@ import sys
 from pathlib import Path
 
 from . import __version__
-from .parsers import parse_file
 from .patterns import PATTERNS as _PATTERNS
 from .report import compute_verdict, format_markdown, format_summary_table, format_terminal
-from .scanner import ScanResult, input_error_result, scan_config, scan_directory, scan_python_file
+from .scanner import ScanResult, input_error_result, scan_directory, scan_file
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -140,12 +139,7 @@ def _cmd_scan(args: argparse.Namespace) -> int:
             continue
 
         try:
-            # Use Python extractor for .py files
-            if path.suffix == ".py":
-                result = scan_python_file(path, patterns=args.patterns)
-            else:
-                config = parse_file(path)
-                result = scan_config(config, patterns=args.patterns)
+            result = scan_file(path, patterns=args.patterns)
             result.structural_findings = [
                 f for f in result.structural_findings
                 if severity_order.get(f.severity.value, 4) <= min_sev

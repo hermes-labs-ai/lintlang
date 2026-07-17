@@ -168,10 +168,22 @@ def scan_file(path: str | Path, patterns: list[str] | None = None) -> ScanResult
     """Parse a file and produce a full scan result.
 
     Uses HERM v1.1 as the primary scorer with structural detectors
-    (H1-H7) providing supplementary findings.
+    (H1-H7) providing supplementary findings. Input failures are returned on
+    the fatal ``input_error`` channel rather than raised or reported as clean.
     """
-    config = parse_file(path)
-    return scan_config(config, patterns=patterns)
+    path = Path(path)
+    if not path.exists():
+        return input_error_result(path, "File not found")
+    if not path.is_file():
+        return input_error_result(path, f"File scan requires a file: {path}")
+
+    try:
+        if path.suffix == ".py":
+            return scan_python_file(path, patterns=patterns)
+        config = parse_file(path)
+        return scan_config(config, patterns=patterns)
+    except Exception as error:
+        return input_error_result(path, f"Failed to parse: {error}")
 
 
 def scan_directory(
