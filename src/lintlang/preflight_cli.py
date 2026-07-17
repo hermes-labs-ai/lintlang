@@ -232,9 +232,14 @@ def _boundary_result(
     context_bytes: bytes,
     language: str,
 ) -> PreflightResult:
+    try:
+        input_codepoints = len(prompt_bytes.decode("utf-8", errors="strict"))
+    except UnicodeDecodeError:
+        input_codepoints = 0
     return boundary_error(
         code,
         input_sha256=_sha256(prompt_bytes),
+        input_codepoints=input_codepoints,
         input_utf8_bytes=len(prompt_bytes),
         context_sha256=_sha256(context_bytes),
         context_utf8_bytes=len(context_bytes),

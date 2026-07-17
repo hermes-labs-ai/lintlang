@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import io
 import json
 import sys
@@ -224,6 +225,22 @@ def test_empty_language_is_schema_coherent_error(monkeypatch, capsys):
     assert payload["status"] == "ERROR"
     assert payload["diagnostics"][0]["code"] == "INVALID_LANGUAGE"
     assert payload["input"]["language"] == "und"
+
+
+def test_context_read_error_preserves_valid_prompt_metadata(monkeypatch, capsys, tmp_path):
+    prompt = "🐊hello"
+    missing_context = tmp_path / "missing-context.json"
+    _stdin(monkeypatch, prompt)
+
+    exit_code = main(["preflight", "-", "--context", str(missing_context), "--format", "json"])
+    payload = json.loads(capsys.readouterr().out)
+
+    assert exit_code == 2
+    assert payload["status"] == "ERROR"
+    assert payload["diagnostics"][0]["code"] == "CONTEXT_READ_FAILED"
+    assert payload["input"]["sha256"] == hashlib.sha256(prompt.encode()).hexdigest()
+    assert payload["input"]["codepoints"] == len(prompt)
+    assert payload["input"]["utf8_bytes"] == len(prompt.encode())
 
 
 def test_scan_and_preflight_help_remain_separate(capsys):

@@ -609,8 +609,6 @@ def _validate_policy(
             all_rules,
             ("INVALID_POLICY", "rule selections must be immutable tuples"),
         )
-    enabled = set(enabled_values)
-    required = set(required_values)
     if any(not isinstance(item, str) or item not in all_rules for item in enabled_values):
         return (
             policy,
@@ -618,6 +616,7 @@ def _validate_policy(
             all_rules,
             ("UNKNOWN_RULE", "policy contains an unsupported rule identifier"),
         )
+    enabled = set(enabled_values)
     if any(not isinstance(item, str) or item not in all_rules for item in required_values):
         return (
             policy,
@@ -625,6 +624,7 @@ def _validate_policy(
             enabled,
             ("UNKNOWN_REQUIRED_RULE", "policy requires an unsupported rule identifier"),
         )
+    required = set(required_values)
     if not required.issubset(enabled):
         return (
             policy,
@@ -648,7 +648,13 @@ def _validate_policy(
                 required,
                 ("INVALID_OVERRIDE", "override must use the typed model"),
             )
-        if not _FINDING_ID_PATTERN.fullmatch(override.finding_id) or not override.reason.strip():
+        if (
+            not isinstance(override.finding_id, str)
+            or not _FINDING_ID_PATTERN.fullmatch(override.finding_id)
+            or not isinstance(override.reason, str)
+            or not override.reason.strip()
+            or not _is_utf8_text(override.reason)
+        ):
             return (
                 policy,
                 enabled,

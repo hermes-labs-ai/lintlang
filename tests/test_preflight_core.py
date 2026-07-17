@@ -15,6 +15,7 @@ from lintlang.preflight import (
     ContextSource,
     CorrectionError,
     Delivery,
+    Override,
     PreflightPolicy,
     PreflightRequest,
     Status,
@@ -339,6 +340,31 @@ class InvalidAndBoundaryTests(unittest.TestCase):
 
         boundary = boundary_error(BoundaryErrorCode.INPUT_READ_FAILED, language="")
         self.assertEqual(boundary.to_dict()["input"]["language"], "und")
+
+    def test_invalid_override_fields_return_error_without_crashing(self) -> None:
+        invalid_overrides = (
+            Override(123, "reason"),  # type: ignore[arg-type]
+            Override("pf_00000000000000000000", "\ud800"),
+        )
+        for override in invalid_overrides:
+            with self.subTest(override=override):
+                result = preflight_text(
+                    PreflightRequest(
+                        "Assess the evidence.",
+                        policy=PreflightPolicy(overrides=(override,)),
+                    )
+                )
+                self.assertIs(result.status, Status.ERROR)
+                self.assertEqual(result.diagnostics[0].code, "INVALID_OVERRIDE")
+                self.assertTrue(all(not item.available for item in result.actions))
+                result.to_json()
+
+    def test_unhashable_policy_rule_selection_returns_error(self) -> None:
+        policy = PreflightPolicy(enabled_rules=(["PF001"],))  # type: ignore[arg-type,list-item]
+        result = preflight_text(PreflightRequest("Assess the evidence.", policy=policy))
+
+        self.assertIs(result.status, Status.ERROR)
+        self.assertEqual(result.diagnostics[0].code, "UNKNOWN_RULE")
 
     def test_boundary_error_uses_static_redacted_message(self) -> None:
         raw = b"\xffTOP_SECRET"
