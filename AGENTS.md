@@ -27,8 +27,8 @@ ruff check src/ tests/
 
 ## Output shape
 
-- terminal verdicts: `PASS`, `REVIEW`, or `FAIL`
-- structural findings by pattern `H1` through `H7`
+- repository scan outcomes: `ERROR`, `PASS`, `REVIEW`, or `FAIL`
+- structural findings by pattern `H1` through `H7`, plus Python pipeline findings `P1` and `P2`
 - JSON output for CI via `--format json`
 
 ## Success means
