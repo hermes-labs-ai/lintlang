@@ -17,6 +17,16 @@ _NEGATED_CUE = re.compile(
     r"\b(?:do\s+not|don['’]t|never)\s+(?:ask|say|claim|write|use|phrase)\b",
     re.IGNORECASE,
 )
+_COUNTERFACTUAL_REQUIREMENT_REGION = re.compile(
+    r"\bif\b(?=[^,;.!?\n]{0,128}\bwere\s+required\s+to\b)"
+    r"[^,;.!?\n]*(?=[,;.!?\n]|$)",
+    re.IGNORECASE,
+)
+_NEGATED_REQUIREMENT_REGION = re.compile(
+    r"\b(?:do\s+not|don['’]t|never)\s+require\b"
+    r"[^,;.!?\n]*(?=[,;.!?\n]|$)",
+    re.IGNORECASE,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -152,6 +162,14 @@ def analyze_scope(text: str) -> ScopeAnalysis:
     reason = _validate_nesting(text, scopes)
     if reason:
         return ScopeAnalysis(tuple(scopes), reason)
+
+    for pattern, kind in (
+        (_COUNTERFACTUAL_REQUIREMENT_REGION, ScopeKind.HYPOTHETICAL),
+        (_NEGATED_REQUIREMENT_REGION, ScopeKind.NEGATED),
+    ):
+        for match in pattern.finditer(text):
+            if scopes[match.start()] is ScopeKind.DIRECT:
+                _mark(scopes, match.start(), match.end(), kind)
 
     for pattern, kind in (
         (_HYPOTHETICAL_CUE, ScopeKind.HYPOTHETICAL),

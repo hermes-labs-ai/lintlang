@@ -26,11 +26,11 @@ and respond with a structured JSON output containing your analysis."""
         assert any("you are" in p.text.lower() for p in result.prompts)
 
     def test_short_strings_ignored(self):
-        source = '''
+        source = """
 x = "hello world"
 y = "short"
 name = "not a prompt"
-'''
+"""
         result = extract_from_python(source)
         assert len(result.prompts) == 0
 
@@ -111,27 +111,27 @@ class TestThresholdExtraction:
     """Test extraction of hardcoded thresholds from Python source."""
 
     def test_confidence_threshold_detected(self):
-        source = '''
+        source = """
 CONFIDENCE_THRESHOLD = 0.75
-'''
+"""
         result = extract_from_python(source)
         assert len(result.thresholds) == 1
         assert result.thresholds[0].name == "CONFIDENCE_THRESHOLD"
         assert result.thresholds[0].value == 0.75
 
     def test_calibrated_threshold_has_comment(self):
-        source = '''
+        source = """
 # Calibrated on 470-question dev set
 FLAGSHIP_SCORE_THRESHOLD = 0.65
-'''
+"""
         result = extract_from_python(source)
         assert len(result.thresholds) == 1
         assert result.thresholds[0].has_comment is True
 
     def test_uncalibrated_threshold_no_comment(self):
-        source = '''
+        source = """
 min_score = 0.8
-'''
+"""
         result = extract_from_python(source)
         # min_score matches _score pattern
         thresholds = [t for t in result.thresholds if t.name == "min_score"]
@@ -139,20 +139,20 @@ min_score = 0.8
             assert thresholds[0].has_comment is False
 
     def test_non_threshold_variable_ignored(self):
-        source = '''
+        source = """
 MAX_RETRIES = 5
 name = "hello"
 items = [1, 2, 3]
-'''
+"""
         result = extract_from_python(source)
         assert len(result.thresholds) == 0
 
     def test_multiple_thresholds(self):
-        source = '''
+        source = """
 FLAGSHIP_SCORE_THRESHOLD = 0.65
 FLAGSHIP_GAP_THRESHOLD = 0.03
 BOOST_WEIGHT = 1.5
-'''
+"""
         result = extract_from_python(source)
         assert len(result.thresholds) == 3
 
@@ -161,25 +161,45 @@ class TestUncalibratedThresholdDetector:
     """Test P1: Uncalibrated Threshold detector."""
 
     def test_uncalibrated_flagged(self):
-        result = ExtractionResult(thresholds=[
-            ExtractedThreshold(name="confidence_threshold", value=0.75, source_file="test.py", line=10),
-        ])
+        result = ExtractionResult(
+            thresholds=[
+                ExtractedThreshold(name="confidence_threshold", value=0.75, source_file="test.py", line=10),
+            ]
+        )
         findings = detect_uncalibrated_thresholds(result)
         assert len(findings) == 1
         assert findings[0].pattern_id == "P1"
         assert findings[0].severity == Severity.MEDIUM
 
     def test_calibrated_not_flagged(self):
-        result = ExtractionResult(thresholds=[
-            ExtractedThreshold(name="confidence_threshold", value=0.75, source_file="test.py", line=10, has_comment=True, comment_text="Calibrated on 470 questions"),
-        ])
+        result = ExtractionResult(
+            thresholds=[
+                ExtractedThreshold(
+                    name="confidence_threshold",
+                    value=0.75,
+                    source_file="test.py",
+                    line=10,
+                    has_comment=True,
+                    comment_text="Calibrated on 470 questions",
+                ),
+            ]
+        )
         findings = detect_uncalibrated_thresholds(result)
         assert len(findings) == 0
 
     def test_vague_calibration_flagged_low(self):
-        result = ExtractionResult(thresholds=[
-            ExtractedThreshold(name="confidence_threshold", value=0.75, source_file="test.py", line=10, has_comment=True, comment_text="TODO: probably need to tune this"),
-        ])
+        result = ExtractionResult(
+            thresholds=[
+                ExtractedThreshold(
+                    name="confidence_threshold",
+                    value=0.75,
+                    source_file="test.py",
+                    line=10,
+                    has_comment=True,
+                    comment_text="TODO: probably need to tune this",
+                ),
+            ]
+        )
         findings = detect_uncalibrated_thresholds(result)
         assert len(findings) == 1
         assert findings[0].severity == Severity.LOW
@@ -190,9 +210,13 @@ class TestEmbeddedScaffoldDetector:
 
     def test_large_prompt_flagged(self):
         long_text = "You are an assistant. " * 30 + "Analyze the user message carefully."
-        result = ExtractionResult(prompts=[
-            ExtractedPrompt(text=long_text, source_file="pipe.py", line_start=5, line_end=15, signal_matches=["role assignment"]),
-        ])
+        result = ExtractionResult(
+            prompts=[
+                ExtractedPrompt(
+                    text=long_text, source_file="pipe.py", line_start=5, line_end=15, signal_matches=["role assignment"]
+                ),
+            ]
+        )
         findings = detect_scaffold_in_code(result)
         assert len(findings) == 1
         assert findings[0].pattern_id == "P2"
@@ -200,18 +224,30 @@ class TestEmbeddedScaffoldDetector:
 
     def test_medium_prompt_flagged_low(self):
         medium_text = "You are an assistant. " * 12 + "Respond with analysis."
-        result = ExtractionResult(prompts=[
-            ExtractedPrompt(text=medium_text, source_file="pipe.py", line_start=5, line_end=8, signal_matches=["role assignment"]),
-        ])
+        result = ExtractionResult(
+            prompts=[
+                ExtractedPrompt(
+                    text=medium_text,
+                    source_file="pipe.py",
+                    line_start=5,
+                    line_end=8,
+                    signal_matches=["role assignment"],
+                ),
+            ]
+        )
         findings = detect_scaffold_in_code(result)
         assert len(findings) == 1
         assert findings[0].severity == Severity.LOW
 
     def test_short_prompt_not_flagged(self):
         short_text = "You are an assistant. Respond briefly."
-        result = ExtractionResult(prompts=[
-            ExtractedPrompt(text=short_text, source_file="pipe.py", line_start=5, line_end=5, signal_matches=["role assignment"]),
-        ])
+        result = ExtractionResult(
+            prompts=[
+                ExtractedPrompt(
+                    text=short_text, source_file="pipe.py", line_start=5, line_end=5, signal_matches=["role assignment"]
+                ),
+            ]
+        )
         findings = detect_scaffold_in_code(result)
         assert len(findings) == 0
 
@@ -220,9 +256,17 @@ class TestExtractedPromptsToConfigs:
     """Test the bridge from extracted prompts to AgentConfig."""
 
     def test_converts_to_agent_configs(self):
-        result = ExtractionResult(prompts=[
-            ExtractedPrompt(text="You are a helpful assistant.", source_file="test.py", line_start=5, line_end=5, signal_matches=["role assignment"]),
-        ])
+        result = ExtractionResult(
+            prompts=[
+                ExtractedPrompt(
+                    text="You are a helpful assistant.",
+                    source_file="test.py",
+                    line_start=5,
+                    line_end=5,
+                    signal_matches=["role assignment"],
+                ),
+            ]
+        )
         configs = extracted_prompts_to_configs(result)
         assert len(configs) == 1
         assert configs[0].system_prompt == "You are a helpful assistant."
@@ -271,12 +315,12 @@ def run_pipeline():
 
     def test_scan_clean_python_no_prompts(self, tmp_path):
         py_file = tmp_path / "clean.py"
-        py_file.write_text('''
+        py_file.write_text("""
 def add(a, b):
     return a + b
 
 MAX_RETRIES = 5
-''')
+""")
         result = scan_python_file(py_file)
         assert len(result.structural_findings) == 0
 

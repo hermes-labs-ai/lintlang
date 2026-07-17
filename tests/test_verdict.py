@@ -59,8 +59,5 @@ class TestVerdict:
 
     def test_many_lows_still_pass(self):
         """Even many LOW findings should not escalate to REVIEW."""
-        findings = [
-            Finding(f"H{i}", "Test", Severity.LOW, "loc", "desc", "fix")
-            for i in range(10)
-        ]
+        findings = [Finding(f"H{i}", "Test", Severity.LOW, "loc", "desc", "fix") for i in range(10)]
         assert compute_verdict(findings) == "PASS"

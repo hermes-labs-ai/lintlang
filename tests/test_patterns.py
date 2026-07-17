@@ -1,6 +1,5 @@
 """Tests for H1-H7 pattern detectors."""
 
-
 from lintlang.patterns import (
     AgentConfig,
     Severity,
@@ -37,15 +36,19 @@ class TestH1:
         assert any(f.severity == Severity.HIGH and "very short" in f.description for f in findings)
 
     def test_vague_leading_verb(self):
-        config = AgentConfig(tools=[ToolDef(name="handler", description="Handle the user request and process it accordingly")])
+        config = AgentConfig(
+            tools=[ToolDef(name="handler", description="Handle the user request and process it accordingly")]
+        )
         findings = detect_h1(config)
         assert any("vague verb" in f.description for f in findings)
 
     def test_overlapping_descriptions(self):
-        config = AgentConfig(tools=[
-            ToolDef(name="get_user", description="Get user data from the database system"),
-            ToolDef(name="fetch_user", description="Get user data from the database"),
-        ])
+        config = AgentConfig(
+            tools=[
+                ToolDef(name="get_user", description="Get user data from the database system"),
+                ToolDef(name="fetch_user", description="Get user data from the database"),
+            ]
+        )
         findings = detect_h1(config)
         assert any("overlap" in f.description.lower() for f in findings)
 
@@ -62,19 +65,23 @@ class TestH1:
 
     def test_duplicate_tool_names(self):
         """Two tools with the same name should be flagged as CRITICAL."""
-        config = AgentConfig(tools=[
-            ToolDef(name="search", description="Search for users in the database by email"),
-            ToolDef(name="search", description="Search for products in the catalog by name"),
-        ])
+        config = AgentConfig(
+            tools=[
+                ToolDef(name="search", description="Search for users in the database by email"),
+                ToolDef(name="search", description="Search for products in the catalog by name"),
+            ]
+        )
         findings = detect_h1(config)
         assert any("duplicate" in f.description.lower() and f.severity == Severity.CRITICAL for f in findings)
 
     def test_stopwords_dont_inflate_overlap(self):
         """Common stopwords should not inflate overlap score."""
-        config = AgentConfig(tools=[
-            ToolDef(name="create_user", description="Create a new user in the system database"),
-            ToolDef(name="delete_user", description="Delete an existing user from the system database"),
-        ])
+        config = AgentConfig(
+            tools=[
+                ToolDef(name="create_user", description="Create a new user in the system database"),
+                ToolDef(name="delete_user", description="Delete an existing user from the system database"),
+            ]
+        )
         findings = detect_h1(config)
         overlap_findings = [f for f in findings if "overlap" in f.description.lower()]
         assert len(overlap_findings) == 0
@@ -150,71 +157,101 @@ class TestH3:
         assert len(critical) == 0
 
     def test_missing_param_description(self):
-        config = AgentConfig(tools=[
-            ToolDef(name="tool", description="A tool", parameters={
-                "type": "object",
-                "properties": {"query": {"type": "string"}},
-            }),
-        ])
+        config = AgentConfig(
+            tools=[
+                ToolDef(
+                    name="tool",
+                    description="A tool",
+                    parameters={
+                        "type": "object",
+                        "properties": {"query": {"type": "string"}},
+                    },
+                ),
+            ]
+        )
         findings = detect_h3(config)
         assert any("no description" in f.description for f in findings)
 
     def test_generic_param_names(self):
-        config = AgentConfig(tools=[
-            ToolDef(name="tool", description="A tool", parameters={
-                "type": "object",
-                "properties": {"data": {"type": "string"}},
-            }),
-        ])
+        config = AgentConfig(
+            tools=[
+                ToolDef(
+                    name="tool",
+                    description="A tool",
+                    parameters={
+                        "type": "object",
+                        "properties": {"data": {"type": "string"}},
+                    },
+                ),
+            ]
+        )
         findings = detect_h3(config)
         assert any("generic name" in f.description for f in findings)
 
     def test_undescribed_anyof_variants(self):
-        config = AgentConfig(tools=[
-            ToolDef(name="tool", description="A tool", parameters={
-                "type": "object",
-                "properties": {
-                    "input": {
-                        "anyOf": [
-                            {"type": "string"},
-                            {"type": "object"},
-                        ],
+        config = AgentConfig(
+            tools=[
+                ToolDef(
+                    name="tool",
+                    description="A tool",
+                    parameters={
+                        "type": "object",
+                        "properties": {
+                            "input": {
+                                "anyOf": [
+                                    {"type": "string"},
+                                    {"type": "object"},
+                                ],
+                            },
+                        },
                     },
-                },
-            }),
-        ])
+                ),
+            ]
+        )
         findings = detect_h3(config)
         assert any("anyOf" in f.description and "undescribed" in f.description for f in findings)
 
     def test_nested_object_properties_checked(self):
         """Nested object properties should also be checked for missing descriptions."""
-        config = AgentConfig(tools=[
-            ToolDef(name="tool", description="A tool", parameters={
-                "type": "object",
-                "properties": {
-                    "filter": {
+        config = AgentConfig(
+            tools=[
+                ToolDef(
+                    name="tool",
+                    description="A tool",
+                    parameters={
                         "type": "object",
-                        "description": "Filter criteria",
                         "properties": {
-                            "data": {"type": "string"},  # generic + no description
+                            "filter": {
+                                "type": "object",
+                                "description": "Filter criteria",
+                                "properties": {
+                                    "data": {"type": "string"},  # generic + no description
+                                },
+                            },
                         },
                     },
-                },
-            }),
-        ])
+                ),
+            ]
+        )
         findings = detect_h3(config)
         assert any("data" in f.description and "generic" in f.description for f in findings)
         assert any("data" in f.description and "no description" in f.description for f in findings)
 
     def test_phantom_required_field(self):
         """Required field not in properties should be flagged."""
-        config = AgentConfig(tools=[
-            ToolDef(name="tool", description="A tool", parameters={
-                "type": "object",
-                "properties": {"name": {"type": "string", "description": "User name"}},
-                "required": ["name", "ghost_field"],
-            }),
-        ])
+        config = AgentConfig(
+            tools=[
+                ToolDef(
+                    name="tool",
+                    description="A tool",
+                    parameters={
+                        "type": "object",
+                        "properties": {"name": {"type": "string", "description": "User name"}},
+                        "required": ["name", "ghost_field"],
+                    },
+                ),
+            ]
+        )
         findings = detect_h3(config)
         assert any("ghost_field" in f.description and "does not exist" in f.description for f in findings)
 
@@ -236,7 +273,9 @@ class TestH4:
         assert any("unbounded memory" in f.description.lower() for f in findings)
 
     def test_use_all_history_pattern(self):
-        config = AgentConfig(system_prompt="Use all conversation history to maintain context and provide better answers.")
+        config = AgentConfig(
+            system_prompt="Use all conversation history to maintain context and provide better answers."
+        )
         findings = detect_h4(config)
         assert any("entire history" in f.description.lower() for f in findings)
 
@@ -252,7 +291,9 @@ class TestH4:
             messages.append({"role": role, "content": f"msg {i}"})
         config = AgentConfig(messages=messages)
         findings = detect_h4(config)
-        assert any("boundary marker" in f.description.lower() or "no task boundary" in f.description.lower() for f in findings)
+        assert any(
+            "boundary marker" in f.description.lower() or "no task boundary" in f.description.lower() for f in findings
+        )
 
     def test_substring_false_negative_microscope(self):
         """Word 'microscope' should NOT suppress boundary warning (it's not 'scope')."""
@@ -346,12 +387,14 @@ class TestH7:
         assert any("tool result" in f.description.lower() and "without" in f.description.lower() for f in findings)
 
     def test_clean_messages(self):
-        config = AgentConfig(messages=[
-            {"role": "system", "content": "You are helpful."},
-            {"role": "user", "content": "Hello"},
-            {"role": "assistant", "content": "Hi there!"},
-            {"role": "user", "content": "Thanks"},
-            {"role": "assistant", "content": "You're welcome!"},
-        ])
+        config = AgentConfig(
+            messages=[
+                {"role": "system", "content": "You are helpful."},
+                {"role": "user", "content": "Hello"},
+                {"role": "assistant", "content": "Hi there!"},
+                {"role": "user", "content": "Thanks"},
+                {"role": "assistant", "content": "You're welcome!"},
+            ]
+        )
         findings = detect_h7(config)
         assert len(findings) == 0

@@ -95,3 +95,15 @@ def test_every_status_keeps_four_ordered_action_descriptors():
         assert [action["id"] for action in payload["actions"]] == expected
         if payload["status"] == "ERROR":
             assert all(not action["available"] for action in payload["actions"])
+
+
+def test_invalid_language_error_respects_schema_minimum_length():
+    schema = _schema()
+    result = preflight_text(PreflightRequest(prompt="Assess evidence.", language=""))
+    payload = result.to_dict()
+    minimum = schema["properties"]["input"]["properties"]["language"]["minLength"]
+
+    assert result.status is Status.ERROR
+    assert result.diagnostics[0].code == "INVALID_LANGUAGE"
+    assert payload["input"]["language"] == "und"
+    assert len(payload["input"]["language"]) >= minimum

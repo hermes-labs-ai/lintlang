@@ -170,6 +170,62 @@ def test_invalid_utf8_is_schema_coherent_redacted_error(capsys, tmp_path):
     assert PROMPT_CANARY not in captured.err
 
 
+def test_context_surrogate_is_schema_coherent_redacted_error(monkeypatch, capsys, tmp_path):
+    context = tmp_path / "surrogate-context.json"
+    context.write_text(
+        json.dumps(
+            {
+                "requirements": [{"key": "usual_format", "required": True}],
+                "bindings": [
+                    {
+                        "key": "usual_format",
+                        "value": CONTEXT_CANARY + "\ud800",
+                        "source": "user",
+                        "delivery": "IN_PROMPT",
+                    }
+                ],
+                "constraints": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    _stdin(monkeypatch, "Make a video about alligators.")
+
+    exit_code = main(
+        [
+            "preflight",
+            "-",
+            "--context",
+            str(context),
+            "--format",
+            "json",
+            "--include-snippets",
+        ]
+    )
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+
+    assert exit_code == 2
+    assert payload["status"] == "ERROR"
+    assert payload["diagnostics"][0]["code"] == "INVALID_BINDING"
+    assert all(not action["available"] for action in payload["actions"])
+    assert CONTEXT_CANARY not in captured.out + captured.err
+    assert "\\ud800" not in captured.out + captured.err
+    assert "Traceback" not in captured.out + captured.err
+
+
+def test_empty_language_is_schema_coherent_error(monkeypatch, capsys):
+    _stdin(monkeypatch, "Assess the evidence for and against X.")
+
+    exit_code = main(["preflight", "-", "--language", "", "--format", "json"])
+    payload = json.loads(capsys.readouterr().out)
+
+    assert exit_code == 2
+    assert payload["status"] == "ERROR"
+    assert payload["diagnostics"][0]["code"] == "INVALID_LANGUAGE"
+    assert payload["input"]["language"] == "und"
+
+
 def test_scan_and_preflight_help_remain_separate(capsys):
     with pytest.raises(SystemExit) as preflight_help:
         main(["preflight", "--help"])

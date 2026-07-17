@@ -16,19 +16,35 @@ _PIPELINE_DETECTORS_LOADED = False
 
 # Files that are never agent configs — skip during directory scans
 NON_PROMPT_FILENAMES = {
-    "changelog.md", "changes.md", "history.md",
-    "readme.md", "readme.txt",
-    "contributing.md", "contributors.md",
-    "code_of_conduct.md", "conduct.md",
-    "security.md", "security.txt",
-    "license.md", "license.txt", "license",
-    "authors.md", "authors.txt",
-    "thanks.md", "acknowledgments.md",
-    "funding.md", "sponsors.md",
-    "todo.md", "todo.txt",
-    "requirements.txt", "setup.cfg",
-    "manifest.in", "sources.txt",
-    "dependency_links.txt", "top_level.txt", "requires.txt",
+    "changelog.md",
+    "changes.md",
+    "history.md",
+    "readme.md",
+    "readme.txt",
+    "contributing.md",
+    "contributors.md",
+    "code_of_conduct.md",
+    "conduct.md",
+    "security.md",
+    "security.txt",
+    "license.md",
+    "license.txt",
+    "license",
+    "authors.md",
+    "authors.txt",
+    "thanks.md",
+    "acknowledgments.md",
+    "funding.md",
+    "sponsors.md",
+    "todo.md",
+    "todo.txt",
+    "requirements.txt",
+    "setup.cfg",
+    "manifest.in",
+    "sources.txt",
+    "dependency_links.txt",
+    "top_level.txt",
+    "requires.txt",
 }
 
 # Regex patterns for filenames that are clearly non-prompt
@@ -43,10 +59,21 @@ NON_PROMPT_PATTERNS = [
 
 # Directory paths that indicate non-prompt content
 NON_PROMPT_DIRS = {
-    "egg-info", ".pytest_cache", "node_modules", "__pycache__",
-    ".git", ".tox", ".venv", "venv", "site-packages", "__pypackages__",
-    ".mypy_cache", ".ruff_cache",
-    "dist", "build", "htmlcov",
+    "egg-info",
+    ".pytest_cache",
+    "node_modules",
+    "__pycache__",
+    ".git",
+    ".tox",
+    ".venv",
+    "venv",
+    "site-packages",
+    "__pypackages__",
+    ".mypy_cache",
+    ".ruff_cache",
+    "dist",
+    "build",
+    "htmlcov",
 }
 
 
@@ -98,11 +125,12 @@ def _is_ignored(filepath: Path, base_dir: Path, patterns: list[re.Pattern]) -> b
 @dataclass
 class ScanResult:
     """Combined HERM score + structural findings for a file."""
+
     file: str
-    score: float                                    # HERM hermeneutical score (0-100)
-    herm: HermResult                                # Full HERM result
+    score: float  # HERM hermeneutical score (0-100)
+    herm: HermResult  # Full HERM result
     structural_findings: list[Finding] = field(default_factory=list)
-    input_error: str | None = None                  # Fatal load/parse failure, separate from lint severity
+    input_error: str | None = None  # Fatal load/parse failure, separate from lint severity
 
 
 def input_error_result(path: str | Path, message: str) -> ScanResult:
@@ -244,7 +272,8 @@ def scan_directory(
         dirnames[:] = sorted(
             name
             for name in dirnames
-            if name.lower() not in NON_PROMPT_DIRS and not name.lower().endswith(".egg-info")
+            if name.lower() not in NON_PROMPT_DIRS
+            and not name.lower().endswith(".egg-info")
             and not (Path(root) / name).is_symlink()
         )
         for filename in sorted(filenames):

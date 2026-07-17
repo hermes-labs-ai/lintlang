@@ -202,6 +202,22 @@ def _sha_text(value: str) -> str:
     return _sha_bytes(value.encode("utf-8"))
 
 
+def _is_utf8_text(value: Any) -> bool:
+    if not isinstance(value, str):
+        return False
+    try:
+        value.encode("utf-8")
+    except UnicodeEncodeError:
+        return False
+    return True
+
+
+def _wire_language(value: Any) -> str:
+    if isinstance(value, str) and value.strip() and _is_utf8_text(value):
+        return value
+    return "und"
+
+
 def _canonical_bytes(value: Any) -> bytes:
     return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
 
@@ -271,7 +287,7 @@ def _input_metadata(request: Any) -> InputMetadata:
         utf8_bytes=len(prompt_bytes),
         context_sha256=_sha_bytes(context_bytes),
         context_utf8_bytes=len(context_bytes),
-        language=language if isinstance(language, str) else "",
+        language=_wire_language(language),
     )
 
 
@@ -424,7 +440,7 @@ def boundary_error(
         max(0, input_utf8_bytes),
         safe_context_hash,
         max(0, context_utf8_bytes),
-        language if isinstance(language, str) else "",
+        _wire_language(language),
     )
     if not isinstance(code, BoundaryErrorCode):
         code = BoundaryErrorCode.INPUT_READ_FAILED
@@ -684,7 +700,7 @@ def _validate_context(
             not isinstance(requirement.key, str)
             or not _KEY_PATTERN.fullmatch(requirement.key)
             or not isinstance(requirement.required, bool)
-            or (requirement.description is not None and not isinstance(requirement.description, str))
+            or (requirement.description is not None and not _is_utf8_text(requirement.description))
         ):
             return None, (
                 "INVALID_REQUIREMENT",
@@ -714,6 +730,7 @@ def _validate_context(
             or not _KEY_PATTERN.fullmatch(binding.key)
             or not isinstance(binding.value, str)
             or not binding.value.strip()
+            or not _is_utf8_text(binding.value)
         ):
             return None, ("INVALID_BINDING", "binding fields are invalid", pointer)
         if not isinstance(binding.source, ContextSource) or not isinstance(binding.delivery, Delivery):
@@ -742,7 +759,11 @@ def _validate_context(
                 "constraint must use the typed model",
                 pointer,
             )
-        if not isinstance(constraint.kind, ConstraintKind) or not isinstance(constraint.value, str):
+        if (
+            not isinstance(constraint.kind, ConstraintKind)
+            or not isinstance(constraint.value, str)
+            or not _is_utf8_text(constraint.value)
+        ):
             return None, (
                 "INVALID_CONSTRAINT",
                 "constraint fields are invalid",
@@ -1089,7 +1110,7 @@ def _preflight(
             snippets_authorized=snippets_authorized,
             **lineage,
         )
-    if not isinstance(request.language, str) or not request.language.strip():
+    if not isinstance(request.language, str) or not request.language.strip() or not _is_utf8_text(request.language):
         return _early(
             metadata,
             Status.ERROR,

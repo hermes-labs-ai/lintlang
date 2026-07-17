@@ -351,9 +351,6 @@ class TestHealthScore:
         assert score == 100  # INFO has 0 penalty
 
     def test_score_never_negative(self):
-        findings = [
-            Finding(f"H{i}", "Test", Severity.CRITICAL, "loc", "desc", "fix")
-            for i in range(20)
-        ]
+        findings = [Finding(f"H{i}", "Test", Severity.CRITICAL, "loc", "desc", "fix") for i in range(20)]
         score = compute_health_score(findings)
         assert score >= 0

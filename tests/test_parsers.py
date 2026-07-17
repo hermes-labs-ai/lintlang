@@ -39,45 +39,57 @@ system_prompt: "You are a helpful assistant."
 
 class TestParseJson:
     def test_openai_function_format(self):
-        config = parse_json(json.dumps({
-            "tools": [
+        config = parse_json(
+            json.dumps(
                 {
-                    "type": "function",
-                    "function": {
-                        "name": "get_weather",
-                        "description": "Get current weather",
-                        "parameters": {"type": "object", "properties": {}},
-                    },
+                    "tools": [
+                        {
+                            "type": "function",
+                            "function": {
+                                "name": "get_weather",
+                                "description": "Get current weather",
+                                "parameters": {"type": "object", "properties": {}},
+                            },
+                        }
+                    ],
                 }
-            ],
-        }))
+            )
+        )
         assert len(config.tools) == 1
         assert config.tools[0].name == "get_weather"
 
     def test_messages_extraction(self):
-        config = parse_json(json.dumps({
-            "messages": [
-                {"role": "system", "content": "You are helpful."},
-                {"role": "user", "content": "Hello"},
-            ],
-        }))
+        config = parse_json(
+            json.dumps(
+                {
+                    "messages": [
+                        {"role": "system", "content": "You are helpful."},
+                        {"role": "user", "content": "Hello"},
+                    ],
+                }
+            )
+        )
         assert len(config.messages) == 2
         assert config.system_prompt == "You are helpful."
 
     def test_anthropic_format(self):
-        config = parse_json(json.dumps({
-            "system": "You are a coding assistant.",
-            "tools": [
+        config = parse_json(
+            json.dumps(
                 {
-                    "name": "run_code",
-                    "description": "Execute Python code in a sandbox",
-                    "input_schema": {
-                        "type": "object",
-                        "properties": {"code": {"type": "string"}},
-                    },
+                    "system": "You are a coding assistant.",
+                    "tools": [
+                        {
+                            "name": "run_code",
+                            "description": "Execute Python code in a sandbox",
+                            "input_schema": {
+                                "type": "object",
+                                "properties": {"code": {"type": "string"}},
+                            },
+                        }
+                    ],
                 }
-            ],
-        }))
+            )
+        )
         assert config.system_prompt == "You are a coding assistant."
         assert len(config.tools) == 1
         assert config.tools[0].name == "run_code"

@@ -39,7 +39,12 @@ PROMPT_SIGNALS: list[tuple[re.Pattern, str]] = [
     (re.compile(r"\b(thought|action|observation)\s*:", re.I), "ReAct scaffold marker"),
     (re.compile(r"\brole\s*:", re.I), "role marker"),
     (re.compile(r"\b(answer|reply|respond)\s+(only|exclusively|strictly)\b", re.I), "strict instruction"),
-    (re.compile(r"\b(do not|don't|never|always)\b.*\b(respond|answer|output|generate|hallucinate|fabricate)\b", re.I), "behavioral constraint"),
+    (
+        re.compile(
+            r"\b(do not|don't|never|always)\b.*\b(respond|answer|output|generate|hallucinate|fabricate)\b", re.I
+        ),
+        "behavioral constraint",
+    ),
     (re.compile(r"\bJSON\s*(output|format|response|schema)\b", re.I), "output format spec"),
     (re.compile(r"\b(step\s+\d|first|then|finally)\s*[,:]\s*\w", re.I), "sequential instruction"),
     (re.compile(r"#{1,3}\s*(instructions|rules|constraints|guidelines|context|task)\b", re.I), "prompt section header"),
@@ -73,29 +78,32 @@ COUNTER_PATTERNS: list[re.Pattern] = [
 @dataclass
 class ExtractedPrompt:
     """A prompt extracted from source code."""
+
     text: str
     source_file: str
     line_start: int
     line_end: int
     variable_name: str = ""  # e.g., "SYSTEM_PROMPT", or "" if inline
-    context: str = ""        # e.g., "argument to client.chat()", "module-level constant"
+    context: str = ""  # e.g., "argument to client.chat()", "module-level constant"
     signal_matches: list[str] = field(default_factory=list)
 
 
 @dataclass
 class ExtractedThreshold:
     """A hardcoded threshold/confidence value found in source."""
+
     name: str
     value: float
     source_file: str
     line: int
-    has_comment: bool = False    # Whether there's a calibration comment nearby
+    has_comment: bool = False  # Whether there's a calibration comment nearby
     comment_text: str = ""
 
 
 @dataclass
 class ExtractionResult:
     """Result of extracting prompts and thresholds from a source file."""
+
     prompts: list[ExtractedPrompt] = field(default_factory=list)
     thresholds: list[ExtractedThreshold] = field(default_factory=list)
     source_file: str = ""
@@ -142,7 +150,18 @@ def _get_assignment_target(node: ast.Assign) -> str:
 
 def _has_calibration_comment(source_lines: list[str], line_idx: int) -> tuple[bool, str]:
     """Check if there's a calibration/justification comment near a threshold assignment."""
-    calibration_words = {"calibrat", "tuned", "measured", "empirical", "validated", "tested", "experiment", "ablation", "from distribution", "derived"}
+    calibration_words = {
+        "calibrat",
+        "tuned",
+        "measured",
+        "empirical",
+        "validated",
+        "tested",
+        "experiment",
+        "ablation",
+        "from distribution",
+        "derived",
+    }
     # Check 3 lines before and the line itself
     for offset in range(-3, 2):
         idx = line_idx + offset
@@ -212,7 +231,11 @@ def extract_from_python(source: str, source_file: str = "") -> ExtractionResult:
 
             # Check if value is a non-zero number (0.0 is typically an initializer)
             value_node = node.value
-            if isinstance(value_node, ast.Constant) and isinstance(value_node.value, (int, float)) and value_node.value != 0:
+            if (
+                isinstance(value_node, ast.Constant)
+                and isinstance(value_node.value, (int, float))
+                and value_node.value != 0
+            ):
                 line_idx = (node.lineno or 1) - 1
                 has_cal, cal_text = _has_calibration_comment(source_lines, line_idx)
                 threshold = ExtractedThreshold(
@@ -248,6 +271,7 @@ def extract_from_python_file(path: str | Path) -> ExtractionResult:
 # ── Pipeline-specific detectors ──────────────────────────────────────
 # These produce Finding objects directly, complementing H1-H7.
 
+
 def detect_uncalibrated_thresholds(result: ExtractionResult) -> list[Finding]:
     """P1: Detect hardcoded thresholds without calibration justification.
 
@@ -258,28 +282,32 @@ def detect_uncalibrated_thresholds(result: ExtractionResult) -> list[Finding]:
     findings: list[Finding] = []
     for t in result.thresholds:
         if not t.has_comment:
-            findings.append(Finding(
-                pattern_id="P1",
-                pattern_name="Uncalibrated Threshold",
-                severity=Severity.MEDIUM,
-                location=f"{t.source_file}:{t.line}" if t.source_file else f"line:{t.line}",
-                description=f"Threshold '{t.name} = {t.value}' has no calibration comment. Magic numbers in LLM pipelines cause silent drift.",
-                suggestion=f"Add a comment explaining how '{t.name}' was calibrated: distribution analysis, ablation study, or empirical testing. Example: '# Calibrated on 470-question dev set, fires on ~10% of queries'.",
-                evidence=f"{t.name} = {t.value}",
-            ))
+            findings.append(
+                Finding(
+                    pattern_id="P1",
+                    pattern_name="Uncalibrated Threshold",
+                    severity=Severity.MEDIUM,
+                    location=f"{t.source_file}:{t.line}" if t.source_file else f"line:{t.line}",
+                    description=f"Threshold '{t.name} = {t.value}' has no calibration comment. Magic numbers in LLM pipelines cause silent drift.",
+                    suggestion=f"Add a comment explaining how '{t.name}' was calibrated: distribution analysis, ablation study, or empirical testing. Example: '# Calibrated on 470-question dev set, fires on ~10% of queries'.",
+                    evidence=f"{t.name} = {t.value}",
+                )
+            )
         else:
             # Has comment but check if it's vague
             vague_words = {"todo", "fixme", "arbitrary", "guess", "probably", "maybe"}
             if any(w in t.comment_text.lower() for w in vague_words):
-                findings.append(Finding(
-                    pattern_id="P1",
-                    pattern_name="Uncalibrated Threshold",
-                    severity=Severity.LOW,
-                    location=f"{t.source_file}:{t.line}" if t.source_file else f"line:{t.line}",
-                    description=f"Threshold '{t.name} = {t.value}' has a calibration comment but it suggests uncertainty: '{t.comment_text}'.",
-                    suggestion="Replace vague calibration comment with specific evidence (dataset, sample size, measured distribution).",
-                    evidence=f"{t.name} = {t.value}  # {t.comment_text}",
-                ))
+                findings.append(
+                    Finding(
+                        pattern_id="P1",
+                        pattern_name="Uncalibrated Threshold",
+                        severity=Severity.LOW,
+                        location=f"{t.source_file}:{t.line}" if t.source_file else f"line:{t.line}",
+                        description=f"Threshold '{t.name} = {t.value}' has a calibration comment but it suggests uncertainty: '{t.comment_text}'.",
+                        suggestion="Replace vague calibration comment with specific evidence (dataset, sample size, measured distribution).",
+                        evidence=f"{t.name} = {t.value}  # {t.comment_text}",
+                    )
+                )
     return findings
 
 
@@ -298,25 +326,33 @@ def detect_scaffold_in_code(result: ExtractionResult) -> list[Finding]:
         line_count = p.line_end - p.line_start + 1
 
         if char_count > 500:
-            findings.append(Finding(
-                pattern_id="P2",
-                pattern_name="Embedded Scaffold",
-                severity=Severity.MEDIUM,
-                location=f"{p.source_file}:{p.line_start}-{p.line_end}" if p.source_file else f"lines:{p.line_start}-{p.line_end}",
-                description=f"Large prompt ({char_count} chars, {line_count} lines) embedded in Python source. Signals: {', '.join(p.signal_matches[:3])}.",
-                suggestion="Externalize to a .prompt or .txt file, loaded at runtime. Enables independent versioning, A/B testing, and non-engineer editing.",
-                evidence=p.text[:120] + "..." if len(p.text) > 120 else p.text,
-            ))
+            findings.append(
+                Finding(
+                    pattern_id="P2",
+                    pattern_name="Embedded Scaffold",
+                    severity=Severity.MEDIUM,
+                    location=f"{p.source_file}:{p.line_start}-{p.line_end}"
+                    if p.source_file
+                    else f"lines:{p.line_start}-{p.line_end}",
+                    description=f"Large prompt ({char_count} chars, {line_count} lines) embedded in Python source. Signals: {', '.join(p.signal_matches[:3])}.",
+                    suggestion="Externalize to a .prompt or .txt file, loaded at runtime. Enables independent versioning, A/B testing, and non-engineer editing.",
+                    evidence=p.text[:120] + "..." if len(p.text) > 120 else p.text,
+                )
+            )
         elif char_count > 200:
-            findings.append(Finding(
-                pattern_id="P2",
-                pattern_name="Embedded Scaffold",
-                severity=Severity.LOW,
-                location=f"{p.source_file}:{p.line_start}-{p.line_end}" if p.source_file else f"lines:{p.line_start}-{p.line_end}",
-                description=f"Medium prompt ({char_count} chars) embedded in source. Signals: {', '.join(p.signal_matches[:3])}.",
-                suggestion="Consider externalizing if this prompt is expected to change frequently.",
-                evidence=p.text[:80] + "..." if len(p.text) > 80 else p.text,
-            ))
+            findings.append(
+                Finding(
+                    pattern_id="P2",
+                    pattern_name="Embedded Scaffold",
+                    severity=Severity.LOW,
+                    location=f"{p.source_file}:{p.line_start}-{p.line_end}"
+                    if p.source_file
+                    else f"lines:{p.line_start}-{p.line_end}",
+                    description=f"Medium prompt ({char_count} chars) embedded in source. Signals: {', '.join(p.signal_matches[:3])}.",
+                    suggestion="Consider externalizing if this prompt is expected to change frequently.",
+                    evidence=p.text[:80] + "..." if len(p.text) > 80 else p.text,
+                )
+            )
     return findings
 
 

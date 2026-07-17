@@ -53,11 +53,13 @@ class TestCLI:
 
     def test_removed_embedding_flag_is_rejected(self):
         with pytest.raises(SystemExit) as exc_info:
-            main([
-                "scan",
-                str(SAMPLES_DIR / "clean_config.yaml"),
-                "--enable-embeddings",
-            ])
+            main(
+                [
+                    "scan",
+                    str(SAMPLES_DIR / "clean_config.yaml"),
+                    "--enable-embeddings",
+                ]
+            )
 
         assert exc_info.value.code == 2
 
@@ -149,11 +151,13 @@ class TestCLI:
         assert exit_code == 0
 
     def test_multiple_files(self):
-        exit_code = main([
-            "scan",
-            str(SAMPLES_DIR / "clean_config.yaml"),
-            str(SAMPLES_DIR / "bad_tool_descriptions.yaml"),
-        ])
+        exit_code = main(
+            [
+                "scan",
+                str(SAMPLES_DIR / "clean_config.yaml"),
+                str(SAMPLES_DIR / "bad_tool_descriptions.yaml"),
+            ]
+        )
         assert exit_code == 0
 
     def test_missing_file_returns_error(self):
@@ -172,9 +176,17 @@ class TestCLI:
         valid.write_text("system_prompt: You are helpful.")
         missing = tmp_path / "missing.yaml"
 
-        exit_code = main([
-            "scan", str(valid), str(missing), "--format", "json", "--fail-on", "fail",
-        ])
+        exit_code = main(
+            [
+                "scan",
+                str(valid),
+                str(missing),
+                "--format",
+                "json",
+                "--fail-on",
+                "fail",
+            ]
+        )
 
         assert exit_code == 1
         captured = capsys.readouterr()
@@ -208,9 +220,16 @@ class TestCLI:
         malformed = tmp_path / "broken.json"
         malformed.write_text('{"system_prompt": "unterminated"')
 
-        exit_code = main([
-            "scan", str(tmp_path), "--format", "json", "--fail-on", "fail",
-        ])
+        exit_code = main(
+            [
+                "scan",
+                str(tmp_path),
+                "--format",
+                "json",
+                "--fail-on",
+                "fail",
+            ]
+        )
 
         assert exit_code == 1
         captured = capsys.readouterr()
@@ -223,12 +242,16 @@ class TestCLI:
         assert f"Input error: {malformed}: Failed to parse" in captured.err
 
     def test_min_severity_filter(self, capsys):
-        exit_code = main([
-            "scan",
-            str(SAMPLES_DIR / "bad_system_prompt.txt"),
-            "--min-severity", "high",
-            "--format", "json",
-        ])
+        exit_code = main(
+            [
+                "scan",
+                str(SAMPLES_DIR / "bad_system_prompt.txt"),
+                "--min-severity",
+                "high",
+                "--format",
+                "json",
+            ]
+        )
         assert exit_code == 0
         captured = capsys.readouterr()
         data = json.loads(captured.out)

@@ -23,14 +23,15 @@ def _ansi_len(s: str) -> int:
     """Return the visible length of a string, ignoring ANSI escape codes."""
     return len(_ANSI_ESCAPE.sub("", s))
 
+
 # ── ANSI Colors ────────────────────────────────────────────────────
 
 COLORS = {
     Severity.CRITICAL: "\033[91m",  # bright red
-    Severity.HIGH: "\033[31m",      # red
-    Severity.MEDIUM: "\033[33m",    # yellow
-    Severity.LOW: "\033[36m",       # cyan
-    Severity.INFO: "\033[90m",      # gray
+    Severity.HIGH: "\033[31m",  # red
+    Severity.MEDIUM: "\033[33m",  # yellow
+    Severity.LOW: "\033[36m",  # cyan
+    Severity.INFO: "\033[90m",  # gray
 }
 RESET = "\033[0m"
 BOLD = "\033[1m"
@@ -147,7 +148,7 @@ def format_terminal(
                 lines.append(f"    {color}{icon_f} [{f.severity.value.upper()}]{RESET} {f.location}")
                 lines.append(f"      {f.description}")
                 if f.evidence:
-                    lines.append(f"      {DIM}Evidence: \"{f.evidence}\"{RESET}")
+                    lines.append(f'      {DIM}Evidence: "{f.evidence}"{RESET}')
                 if show_suggestions:
                     lines.append(f"      {DIM}→ {f.suggestion}{RESET}")
                 lines.append("")
@@ -218,7 +219,7 @@ def format_markdown(
                 lines.append(f"{f.description}")
                 lines.append("")
                 if f.evidence:
-                    lines.append(f"> Evidence: *\"{f.evidence}\"*")
+                    lines.append(f'> Evidence: *"{f.evidence}"*')
                     lines.append("")
                 if show_suggestions:
                     lines.append(f"**Fix:** {f.suggestion}")
@@ -275,7 +276,9 @@ def format_summary_table(results: dict[str, ScanResult], elapsed: float) -> str:
         verdict = compute_verdict(result)
         verdict_counts[verdict] = verdict_counts.get(verdict, 0) + 1
         display, color = _verdict_short(verdict)
-        findings_str = "input error" if result.input_error is not None else _findings_compact(result.structural_findings)
+        findings_str = (
+            "input error" if result.input_error is not None else _findings_compact(result.structural_findings)
+        )
         rows.append((fpath, display, color, findings_str))
 
     # Column widths

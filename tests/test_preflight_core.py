@@ -32,9 +32,7 @@ class StatusAndRuleTests(unittest.TestCase):
             (
                 PreflightRequest(
                     "Create the asset.",
-                    context=ContextContract(
-                        requirements=(ContextRequirement("usual_format"),)
-                    ),
+                    context=ContextContract(requirements=(ContextRequirement("usual_format"),)),
                 ),
                 Status.HOLD,
                 1,
@@ -88,9 +86,7 @@ class StatusAndRuleTests(unittest.TestCase):
         result = preflight_text(
             PreflightRequest(
                 "Create a video.",
-                context=ContextContract(
-                    requirements=(ContextRequirement("usual_format"),)
-                ),
+                context=ContextContract(requirements=(ContextRequirement("usual_format"),)),
             )
         )
         finding = result.findings[0]
@@ -118,9 +114,7 @@ class StatusAndRuleTests(unittest.TestCase):
         self.assertEqual(len(result.corrections), 1)
 
     def test_pf005_typed_constraint_has_prompt_and_context_evidence(self) -> None:
-        context = ContextContract(
-            constraints=(ContextConstraint(ConstraintKind.OUTPUT_FORMAT, "markdown"),)
-        )
+        context = ContextContract(constraints=(ContextConstraint(ConstraintKind.OUTPUT_FORMAT, "markdown"),))
         result = preflight_text(PreflightRequest("Return JSON.", context=context))
         self.assertIs(result.status, Status.HOLD)
         finding = result.to_dict()["findings"][0]
@@ -129,9 +123,7 @@ class StatusAndRuleTests(unittest.TestCase):
         self.assertEqual(finding["proposition"]["json_pointer"], "/constraints/0/value")
 
     def test_pf005_intrinsic_structural_conflict(self) -> None:
-        result = preflight_text(
-            PreflightRequest("Use exactly one sentence and at least three paragraphs.")
-        )
+        result = preflight_text(PreflightRequest("Use exactly one sentence and at least three paragraphs."))
         self.assertIs(result.status, Status.HOLD)
         self.assertEqual([item.rule_id for item in result.findings], ["PF005"])
 
@@ -148,9 +140,7 @@ class ScopeTests(unittest.TestCase):
         )
         for prompt in prompts:
             with self.subTest(prompt=prompt):
-                self.assertIs(
-                    preflight_text(PreflightRequest(prompt)).status, Status.ALLOW
-                )
+                self.assertIs(preflight_text(PreflightRequest(prompt)).status, Status.ALLOW)
 
     def test_unbalanced_scope_is_unavailable_never_allow(self) -> None:
         for prompt in ('"Is it true that X?', "```Is it true that X?", "Explain (this"):
@@ -158,13 +148,7 @@ class ScopeTests(unittest.TestCase):
                 result = preflight_text(PreflightRequest(prompt))
                 self.assertIs(result.status, Status.UNAVAILABLE)
                 self.assertEqual(result.diagnostics[0].code, "UNSAFE_SCOPE")
-                self.assertFalse(
-                    next(
-                        item
-                        for item in result.actions
-                        if item.id is ActionId.PASS_AS_IS
-                    ).available
-                )
+                self.assertFalse(next(item for item in result.actions if item.id is ActionId.PASS_AS_IS).available)
 
     def test_contractions_and_possessives_are_not_unbalanced_quotes(self) -> None:
         prompts = (
@@ -173,9 +157,40 @@ class ScopeTests(unittest.TestCase):
         )
         for prompt in prompts:
             with self.subTest(prompt=prompt):
-                self.assertIs(
-                    preflight_text(PreflightRequest(prompt)).status, Status.ALLOW
-                )
+                self.assertIs(preflight_text(PreflightRequest(prompt)).status, Status.ALLOW)
+
+    def test_counterfactual_and_negated_requirements_are_not_operational(self) -> None:
+        prompts = (
+            "If the seed vault inventory were required to use exactly one sentence and at least three paragraphs, identify why that hypothetical requirement would be inconsistent.",
+            "Do not require exactly one sentence or at least three paragraphs for canoe launch guide; those are prohibited examples.",
+        )
+        for prompt in prompts:
+            with self.subTest(prompt=prompt):
+                result = preflight_text(PreflightRequest(prompt))
+                self.assertIs(result.status, Status.ALLOW)
+                self.assertEqual(result.findings, ())
+
+    def test_bounded_requirement_scope_keeps_direct_conflicts_operative(self) -> None:
+        prompts = (
+            "If possible, use exactly one sentence and at least three paragraphs.",
+            "If the title were required, use exactly one sentence and at least three paragraphs.",
+            "Do not require a title; use exactly one sentence and at least three paragraphs.",
+            "Do not require a title, but use exactly one sentence and at least three paragraphs.",
+        )
+        for prompt in prompts:
+            with self.subTest(prompt=prompt):
+                result = preflight_text(PreflightRequest(prompt))
+                self.assertIs(result.status, Status.HOLD)
+                self.assertEqual([item.rule_id for item in result.findings], ["PF005"])
+
+        result = preflight_text(
+            PreflightRequest(
+                "Do not require a title; return JSON.",
+                context=ContextContract(constraints=(ContextConstraint(ConstraintKind.OUTPUT_FORMAT, "markdown"),)),
+            )
+        )
+        self.assertIs(result.status, Status.HOLD)
+        self.assertEqual([item.rule_id for item in result.findings], ["PF005"])
 
 
 class PrivacyAndDeterminismTests(unittest.TestCase):
@@ -226,9 +241,7 @@ class PrivacyAndDeterminismTests(unittest.TestCase):
             repeated = preflight_text(request)
             self.assertEqual(repeated.fingerprint, first.fingerprint)
             self.assertEqual(repeated.to_json(), first.to_json())
-            self.assertEqual(
-                repeated.findings[0].finding_id, first.findings[0].finding_id
-            )
+            self.assertEqual(repeated.findings[0].finding_id, first.findings[0].finding_id)
 
     def test_network_and_storage_are_explicitly_false(self) -> None:
         result = preflight_text(PreflightRequest("Summarize this."))
@@ -242,9 +255,7 @@ class CorrectionTests(unittest.TestCase):
     def test_hash_bound_patch_and_single_relint(self) -> None:
         request = PreflightRequest("Is it true that X? Is it true that Y?")
         result = preflight_text(request)
-        corrected, relint = apply_correction(
-            request, result, result.corrections[0].correction_id
-        )
+        corrected, relint = apply_correction(request, result, result.corrections[0].correction_id)
         self.assertNotEqual(corrected, request.prompt)
         self.assertEqual(relint.parent_fingerprint, result.fingerprint)
         self.assertEqual(relint.relint_depth, 1)
@@ -277,26 +288,57 @@ class InvalidAndBoundaryTests(unittest.TestCase):
 
     def test_invalid_typed_context_is_error(self) -> None:
         bad_constraint = ContextContract(constraints=("output_format:json",))  # type: ignore[arg-type]
-        result = preflight_text(
-            PreflightRequest("Return JSON.", context=bad_constraint)
-        )
+        result = preflight_text(PreflightRequest("Return JSON.", context=bad_constraint))
         self.assertIs(result.status, Status.ERROR)
         self.assertEqual(result.diagnostics[0].code, "INVALID_CONSTRAINT")
 
     def test_unequal_duplicate_bindings_are_error(self) -> None:
         context = ContextContract(
             bindings=(
-                ContextBinding(
-                    "usual_format", "A", ContextSource.USER, Delivery.SIDE_CHANNEL
-                ),
-                ContextBinding(
-                    "usual_format", "B", ContextSource.USER, Delivery.SIDE_CHANNEL
-                ),
+                ContextBinding("usual_format", "A", ContextSource.USER, Delivery.SIDE_CHANNEL),
+                ContextBinding("usual_format", "B", ContextSource.USER, Delivery.SIDE_CHANNEL),
             )
         )
         result = preflight_text(PreflightRequest("Create it.", context=context))
         self.assertIs(result.status, Status.ERROR)
         self.assertEqual(result.diagnostics[0].code, "CONFLICTING_BINDINGS")
+
+    def test_unpaired_surrogate_binding_is_deterministic_redacted_error(self) -> None:
+        canary = "PRIVATE_CONTEXT_CANARY_0f31a"
+        context = ContextContract(
+            requirements=(ContextRequirement("usual_format"),),
+            bindings=(
+                ContextBinding(
+                    "usual_format",
+                    canary + "\ud800",
+                    ContextSource.USER,
+                    Delivery.IN_PROMPT,
+                ),
+            ),
+        )
+        request = PreflightRequest("Create a video.", context=context)
+        result = preflight_text(request)
+        repeated = preflight_text(request)
+
+        self.assertIs(result.status, Status.ERROR)
+        self.assertEqual(result.exit_code, 2)
+        self.assertEqual(result.diagnostics[0].code, "INVALID_BINDING")
+        self.assertEqual(result.fingerprint, repeated.fingerprint)
+        self.assertTrue(all(not item.available for item in result.actions))
+        for wire in (result.to_json(), result.to_json(include_snippets=True)):
+            self.assertNotIn(canary, wire)
+            self.assertNotIn("\\ud800", wire)
+
+    def test_invalid_language_uses_schema_safe_wire_metadata(self) -> None:
+        result = preflight_text(PreflightRequest("Assess the evidence.", language=""))
+        payload = result.to_dict()
+
+        self.assertIs(result.status, Status.ERROR)
+        self.assertEqual(result.diagnostics[0].code, "INVALID_LANGUAGE")
+        self.assertEqual(payload["input"]["language"], "und")
+
+        boundary = boundary_error(BoundaryErrorCode.INPUT_READ_FAILED, language="")
+        self.assertEqual(boundary.to_dict()["input"]["language"], "und")
 
     def test_boundary_error_uses_static_redacted_message(self) -> None:
         raw = b"\xffTOP_SECRET"

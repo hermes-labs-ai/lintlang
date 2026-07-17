@@ -87,8 +87,7 @@ def test_version_surfaces_match_pyproject_and_release_state():
         f"CITATION.cff version {citation_match.group(1)!r} does not match pyproject version {packaged!r}"
     )
     assert zenodo["version"] == packaged, (
-        f".zenodo.json version {zenodo['version']!r} does not match "
-        f"pyproject version {packaged!r}"
+        f".zenodo.json version {zenodo['version']!r} does not match pyproject version {packaged!r}"
     )
     release_state = changelog_match.group(2)
     if release_state == "Unreleased":
