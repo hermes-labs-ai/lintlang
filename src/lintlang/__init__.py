@@ -8,8 +8,8 @@ Quick start::
     from lintlang import scan_file, compute_verdict
 
     result = scan_file("config.yaml")
-    verdict = compute_verdict(result.structural_findings)
-    print(f"Verdict: {verdict}")  # PASS, REVIEW, or FAIL
+    verdict = compute_verdict(result)
+    print(f"Verdict: {verdict}")  # ERROR, PASS, REVIEW, or FAIL
     for f in result.structural_findings:
         print(f"  [{f.severity.value}] {f.description}")
 """

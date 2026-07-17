@@ -1,10 +1,16 @@
-"""Tests for the verdict system (PASS/REVIEW/FAIL)."""
+"""Tests for the verdict system (ERROR/PASS/REVIEW/FAIL)."""
 
 from lintlang.patterns import Finding, Severity
 from lintlang.report import compute_verdict
+from lintlang.scanner import input_error_result
 
 
 class TestVerdict:
+    def test_input_error_result_is_error(self, tmp_path):
+        result = input_error_result(tmp_path / "missing.yaml", "File not found")
+
+        assert compute_verdict(result) == "ERROR"
+
     def test_no_findings_is_pass(self):
         assert compute_verdict([]) == "PASS"
 

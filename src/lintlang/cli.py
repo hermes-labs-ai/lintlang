@@ -176,7 +176,7 @@ def _cmd_scan(args: argparse.Namespace) -> int:
     elif args.format == "json":
         output = []
         for result in results.values():
-            verdict = "ERROR" if result.input_error else compute_verdict(result.structural_findings)
+            verdict = compute_verdict(result)
             output.append({
                 "file": result.file,
                 "verdict": verdict,
@@ -222,9 +222,9 @@ def _cmd_scan(args: argparse.Namespace) -> int:
 
     # Verdict-based exit
     if args.fail_on:
-        verdicts = [compute_verdict(r.structural_findings) for r in results.values()]
+        verdicts = [compute_verdict(r) for r in results.values()]
         if args.fail_on == "fail" and "FAIL" in verdicts:
-            worst = next(r for r in results.values() if compute_verdict(r.structural_findings) == "FAIL")
+            worst = next(r for r in results.values() if compute_verdict(r) == "FAIL")
             print(f"\nVerdict: FAIL — {worst.file} has CRITICAL/HIGH findings", file=sys.stderr)
             return 1
         if args.fail_on == "review" and any(v in ("FAIL", "REVIEW") for v in verdicts):

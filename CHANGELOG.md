@@ -11,6 +11,7 @@
 
 - **Version-of-record consistency gate** (`tests/test_version_consistency.py`): asserts `lintlang.__version__` equals `pyproject.toml`'s `[project].version`, reading source directly so it holds in a fresh clone. Fixes and guards against the prior drift where `__version__` reported `0.2.1` while the published artifact was `0.2.2`. This is the "separate gate" that `test_docs_consistency.py` names as out of its scope.
 - **Fatal input-integrity channel:** missing, unreadable, or malformed requested inputs now produce explicit `ERROR` results and exit 1 regardless of `--fail-on`; another valid input can no longer mask omitted coverage.
+- `compute_verdict(result)` and the public terminal/Markdown formatters preserve that `ERROR` state instead of treating an unread input with zero findings as clean; passing a findings list remains compatible after successful input.
 - JSON output includes `input_error` for every path and uses `verdict: ERROR` for input failures instead of converting parse errors to INFO/PASS lint findings.
 - README examples now report 0.3.1, and verdict/detector language is scoped to
   structural findings rather than runtime guarantees.

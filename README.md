@@ -222,8 +222,8 @@ from lintlang import scan_file, compute_verdict
 result = scan_file("config.yaml")
 if result.input_error:
     raise ValueError(f"lintlang could not scan the input: {result.input_error}")
-verdict = compute_verdict(result.structural_findings)
-print(f"Verdict: {verdict}")  # PASS, REVIEW, or FAIL
+verdict = compute_verdict(result)  # ERROR, PASS, REVIEW, or FAIL
+print(f"Verdict: {verdict}")  # ERROR, PASS, REVIEW, or FAIL
 
 for finding in result.structural_findings:
     print(f"  [{finding.severity.value}] {finding.description}")
@@ -239,7 +239,7 @@ for path, result in results.items():
     if result.input_error:
         print(f"{path}: ERROR — {result.input_error}")
         continue
-    verdict = compute_verdict(result.structural_findings)
+    verdict = compute_verdict(result)
     print(f"{path}: {verdict}")
 ```
 

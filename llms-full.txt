@@ -37,7 +37,7 @@ lintlang patterns                      # List all detectors
 from lintlang import scan_file, scan_directory, compute_verdict
 
 result = scan_file("config.yaml")
-verdict = compute_verdict(result.structural_findings)  # PASS, REVIEW, or FAIL
+verdict = compute_verdict(result)  # ERROR, PASS, REVIEW, or FAIL
 
 for finding in result.structural_findings:
     print(f"[{finding.severity.value}] {finding.pattern}: {finding.description}")

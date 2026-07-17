@@ -6,11 +6,31 @@ from pathlib import Path
 import pytest
 
 from lintlang.cli import main
+from lintlang.report import format_markdown, format_summary_table, format_terminal
+from lintlang.scanner import input_error_result
 
 SAMPLES_DIR = Path(__file__).parent.parent / "samples"
 
 
 class TestCLI:
+    def test_public_formatters_never_render_input_error_as_clean(self, tmp_path):
+        result = input_error_result(tmp_path / "missing.yaml", "File not found")
+
+        terminal = format_terminal(result)
+        markdown = format_markdown(result)
+        assert "ERROR" in terminal
+        assert "Input error: File not found" in terminal
+        assert "No structural issues found" not in terminal
+        assert "**ERROR**" in markdown
+        assert "**Input error:** File not found" in markdown
+        assert "No structural issues found" not in markdown
+
+        summary = format_summary_table({"one": result, "two": result}, elapsed=0.01)
+        assert "2 ERROR" in summary
+        assert "0 FAIL" in summary
+        assert "input error" in summary
+        assert "clean" not in summary
+
     def test_scan_clean_config(self):
         exit_code = main(["scan", str(SAMPLES_DIR / "clean_config.yaml")])
         assert exit_code == 0

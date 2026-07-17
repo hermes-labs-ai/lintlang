@@ -51,13 +51,24 @@ def _severity_icon(severity: Severity) -> str:
     }[severity]
 
 
-def compute_verdict(findings: list[Finding]) -> str:
-    """Compute PASS/REVIEW/FAIL verdict from structural findings.
+def compute_verdict(value: ScanResult | list[Finding]) -> str:
+    """Compute ERROR/PASS/REVIEW/FAIL without losing input-integrity state.
 
+    Pass a :class:`ScanResult` when the input operation may have failed. A
+    findings list remains accepted for compatibility after successful input.
+
+    - ERROR: the ScanResult records an input error
     - FAIL: any CRITICAL or HIGH finding
     - REVIEW: any MEDIUM finding (no CRITICAL/HIGH)
     - PASS: only LOW/INFO findings or none
     """
+    if isinstance(value, ScanResult):
+        if value.input_error is not None:
+            return "ERROR"
+        findings = value.structural_findings
+    else:
+        findings = value
+
     for f in findings:
         if f.severity in (Severity.CRITICAL, Severity.HIGH):
             return "FAIL"
@@ -100,7 +111,7 @@ def format_terminal(
     """Format a ScanResult for terminal output with ANSI colors."""
     lines: list[str] = []
     findings = result.structural_findings
-    verdict = compute_verdict(findings)
+    verdict = compute_verdict(result)
     icon, vcolor = _verdict_display(verdict)
 
     # Header
@@ -115,8 +126,11 @@ def format_terminal(
     lines.append(f"  {icon} {BOLD}{vcolor}{verdict}{RESET} — {_severity_summary(findings)}")
     lines.append("")
 
+    if result.input_error is not None:
+        lines.append(f"  {BRIGHT_RED}Input error: {result.input_error}{RESET}")
+        lines.append("")
     # Structural findings (H1-H7) — the main output
-    if findings:
+    elif findings:
         by_pattern: dict[str, list[Finding]] = {}
         for f in findings:
             by_pattern.setdefault(f.pattern_id, []).append(f)
@@ -158,14 +172,16 @@ def format_markdown(
     """Format a ScanResult as a Markdown document."""
     lines: list[str] = []
     findings = result.structural_findings
-    verdict = compute_verdict(findings)
+    verdict = compute_verdict(result)
 
     if verdict == "PASS":
         verdict_md = "✅ **PASS**"
     elif verdict == "REVIEW":
         verdict_md = "⚠️ **REVIEW**"
-    else:
+    elif verdict == "FAIL":
         verdict_md = "❌ **FAIL**"
+    else:
+        verdict_md = "❌ **ERROR**"
 
     lines.append("# Lintlang Report")
     lines.append("")
@@ -178,7 +194,10 @@ def format_markdown(
     lines.append("")
 
     # Structural findings
-    if findings:
+    if result.input_error is not None:
+        lines.append(f"**Input error:** {result.input_error}")
+        lines.append("")
+    elif findings:
         lines.append("## Findings")
         lines.append("")
 
@@ -233,12 +252,12 @@ def _findings_compact(findings: list[Finding]) -> str:
 
 def _verdict_short(verdict: str) -> tuple[str, str]:
     """Return (display_text, color) for summary table verdict column."""
-    if verdict == "PASS":
-        return "\u2705 PASS", GREEN
-    elif verdict == "REVIEW":
-        return "\u26a0\ufe0f  REV", YELLOW
-    else:
-        return "\u274c FAIL", BRIGHT_RED
+    return {
+        "PASS": ("\u2705 PASS", GREEN),
+        "REVIEW": ("\u26a0\ufe0f  REV", YELLOW),
+        "FAIL": ("\u274c FAIL", BRIGHT_RED),
+        "ERROR": ("\u274c ERROR", BRIGHT_RED),
+    }.get(verdict, ("\u274c ERROR", BRIGHT_RED))
 
 
 def format_summary_table(results: dict[str, ScanResult], elapsed: float) -> str:
@@ -250,13 +269,13 @@ def format_summary_table(results: dict[str, ScanResult], elapsed: float) -> str:
         return ""
 
     rows: list[tuple[str, str, str, str]] = []  # (file, verdict, color, findings)
-    verdict_counts = {"PASS": 0, "REVIEW": 0, "FAIL": 0}
+    verdict_counts = {"PASS": 0, "REVIEW": 0, "FAIL": 0, "ERROR": 0}
 
     for fpath, result in results.items():
-        verdict = compute_verdict(result.structural_findings)
+        verdict = compute_verdict(result)
         verdict_counts[verdict] = verdict_counts.get(verdict, 0) + 1
         display, color = _verdict_short(verdict)
-        findings_str = _findings_compact(result.structural_findings)
+        findings_str = "input error" if result.input_error is not None else _findings_compact(result.structural_findings)
         rows.append((fpath, display, color, findings_str))
 
     # Column widths
@@ -302,6 +321,7 @@ def format_summary_table(results: dict[str, ScanResult], elapsed: float) -> str:
     pass_str = f"{GREEN}{verdict_counts['PASS']} PASS{RESET}"
     rev_str = f"{YELLOW}{verdict_counts['REVIEW']} REV{RESET}"
     fail_str = f"{BRIGHT_RED}{verdict_counts['FAIL']} FAIL{RESET}"
+    error_str = f"{BRIGHT_RED}{verdict_counts['ERROR']} ERROR{RESET}"
 
     # Row 1: file count + PASS + cost
     cost_str = "$0.00 | 0 LLM calls"
@@ -322,6 +342,12 @@ def format_summary_table(results: dict[str, ScanResult], elapsed: float) -> str:
         f"\u2502 {fail_str}{' ' * (col_verdict - _ansi_len(fail_str))} "
         f"\u2502 {'':<{col_findings}} \u2502"
     )
+    if verdict_counts["ERROR"]:
+        lines.append(
+            f"  \u2502 {'':<{col_file}} "
+            f"\u2502 {error_str}{' ' * (col_verdict - _ansi_len(error_str))} "
+            f"\u2502 {'':<{col_findings}} \u2502"
+        )
 
     # Bottom border
     lines.append(f"  \u2514{'─' * (col_file + 2)}\u2534{'─' * (col_verdict + 2)}\u2534{'─' * (col_findings + 2)}\u2518")
