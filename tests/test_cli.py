@@ -186,6 +186,22 @@ class TestCLI:
         assert by_file[str(missing)]["input_error"] == "File not found"
         assert f"Input error: {missing}: File not found" in captured.err
 
+    def test_terminal_reports_and_counts_valid_and_missing_inputs(self, tmp_path, capsys):
+        valid = tmp_path / "valid.yaml"
+        valid.write_text("system_prompt: You are helpful.")
+        missing = tmp_path / "missing.yaml"
+
+        exit_code = main(["scan", str(valid), str(missing)])
+
+        assert exit_code == 1
+        captured = capsys.readouterr()
+        assert str(valid) in captured.out
+        assert str(missing) in captured.out
+        assert "ERROR" in captured.out
+        assert "2 files scanned" in captured.out
+        assert "1 ERROR" in captured.out
+        assert "Input error" in captured.err
+
     def test_fail_on_with_directory_parse_error_is_input_error(self, tmp_path, capsys):
         """A malformed supported file found in a directory must fail closed."""
         (tmp_path / "valid.yaml").write_text("system_prompt: You are helpful.")

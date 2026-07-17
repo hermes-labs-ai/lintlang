@@ -149,17 +149,13 @@ def _cmd_scan(args: argparse.Namespace) -> int:
             results[str(path)] = input_error_result(path, f"Failed to parse: {e}")
 
     input_errors = [result for result in results.values() if result.input_error is not None]
-    valid_results = {
-        path: result for path, result in results.items()
-        if result.input_error is None
-    }
 
     for result in input_errors:
         print(f"Error: Input error: {result.file}: {result.input_error}", file=sys.stderr)
 
     # Output
     if args.format == "terminal":
-        for result in valid_results.values():
+        for result in results.values():
             print(format_terminal(result, show_suggestions=not args.no_suggestions))
     elif args.format == "markdown":
         for result in results.values():
@@ -201,9 +197,9 @@ def _cmd_scan(args: argparse.Namespace) -> int:
         print(json_mod.dumps(output, indent=2))
 
     # Summary table for multi-file terminal scans
-    if args.format == "terminal" and len(valid_results) > 1:
+    if args.format == "terminal" and len(results) > 1:
         elapsed = time.monotonic() - t_start
-        print(format_summary_table(valid_results, elapsed))
+        print(format_summary_table(results, elapsed))
 
     if not results:
         print("Error: No files were successfully scanned.", file=sys.stderr)
