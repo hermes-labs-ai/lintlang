@@ -29,7 +29,12 @@ lintlang scan config.yaml --fail-on review  # CI gate: fail on MEDIUM+
 lintlang scan config.yaml --min-severity high  # Only show HIGH+
 lintlang scan config.yaml --patterns H1 H3     # Only run specific detectors
 lintlang patterns                      # List all detectors
+printf '%s' 'Is it true that X?' | lintlang preflight - --format json
 ```
+
+`preflight` is separate from repository scanning. It examines only the present
+instruction and explicit caller-supplied context. It never retrieves history,
+calls a provider/model, silently applies a patch, or sends the result.
 
 ## Programmatic API
 
@@ -43,6 +48,21 @@ for finding in result.structural_findings:
     print(f"[{finding.severity.value}] {finding.pattern}: {finding.description}")
     print(f"  -> {finding.suggestion}")
 ```
+
+Provider-neutral preflight:
+
+```python
+from lintlang import PreflightRequest, preflight_text
+
+result = preflight_text(PreflightRequest(prompt="Is it true that X?"))
+print(result.status.value)  # NOTICE
+print(result.to_json())     # raw prompt/context/patch text redacted by default
+```
+
+Preflight states are `ALLOW`, `NOTICE`, `HOLD`, `UNAVAILABLE`, and `ERROR`.
+Heuristic input-framing findings are notice-only. Only exact typed missing-context
+or mechanical-conflict findings may hold. `ALLOW` is not proof of truth, safety,
+quality, or provider compatibility.
 
 ## Verdict System
 

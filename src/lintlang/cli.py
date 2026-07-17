@@ -8,6 +8,7 @@ from pathlib import Path
 
 from . import __version__
 from .patterns import PATTERNS as _PATTERNS
+from .preflight_cli import configure_preflight_parser, run_preflight
 from .report import compute_verdict, format_markdown, format_summary_table, format_terminal
 from .scanner import ScanResult, input_error_result, scan_directory, scan_file
 
@@ -36,13 +37,15 @@ def main(argv: list[str] | None = None) -> int:
         ),
     )
     scan_parser.add_argument(
-        "--patterns", "-p",
+        "--patterns",
+        "-p",
         nargs="+",
         choices=sorted(_PATTERNS.keys()),
         help="Only check specific structural patterns (default: all)",
     )
     scan_parser.add_argument(
-        "--format", "-f",
+        "--format",
+        "-f",
         choices=["terminal", "markdown", "json"],
         default="terminal",
         help="Output format (default: terminal)",
@@ -78,6 +81,9 @@ def main(argv: list[str] | None = None) -> int:
     )
     # ── patterns command ───────────────────────────────────────────
     subparsers.add_parser("patterns", help="List all diagnostic patterns")
+    # Preflight is a separate provider-neutral surface; it does not alter the
+    # scan parser, structural verdicts, or existing exit behavior.
+    configure_preflight_parser(subparsers)
 
     args = parser.parse_args(argv)
 
@@ -85,6 +91,8 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_patterns()
     elif args.command == "scan":
         return _cmd_scan(args)
+    elif args.command == "preflight":
+        return run_preflight(args)
     else:
         parser.print_help()
         return 0
@@ -132,8 +140,7 @@ def _cmd_scan(args: argparse.Namespace) -> int:
             )
             for fpath, result in dir_results.items():
                 result.structural_findings = [
-                    f for f in result.structural_findings
-                    if severity_order.get(f.severity.value, 4) <= min_sev
+                    f for f in result.structural_findings if severity_order.get(f.severity.value, 4) <= min_sev
                 ]
                 results[fpath] = result
             continue
@@ -141,8 +148,7 @@ def _cmd_scan(args: argparse.Namespace) -> int:
         try:
             result = scan_file(path, patterns=args.patterns)
             result.structural_findings = [
-                f for f in result.structural_findings
-                if severity_order.get(f.severity.value, 4) <= min_sev
+                f for f in result.structural_findings if severity_order.get(f.severity.value, 4) <= min_sev
             ]
             results[str(path)] = result
         except Exception as e:
@@ -167,33 +173,37 @@ def _cmd_scan(args: argparse.Namespace) -> int:
         output = []
         for result in results.values():
             verdict = compute_verdict(result)
-            output.append({
-                "file": result.file,
-                "verdict": verdict,
-                "input_error": result.input_error,
-                "structural_findings": [
-                    {
-                        "pattern_id": f.pattern_id,
-                        "pattern_name": f.pattern_name,
-                        "severity": f.severity.value,
-                        "location": f.location,
-                        "description": f.description,
-                        "suggestion": f.suggestion,
-                        "evidence": f.evidence,
-                    }
-                    for f in result.structural_findings
-                ],
-                # Raw HERM data preserved for programmatic consumers
-                "herm": None if result.input_error else {
-                    "score": result.score,
-                    "dimensions": result.herm.dimension_scores,
-                    "signal_counts": result.herm.signal_counts,
-                    "coverage": result.herm.coverage,
-                    "confidence": result.herm.confidence,
-                    "findings": result.herm.findings,
-                    "context_flags": result.herm.context_flags,
-                },
-            })
+            output.append(
+                {
+                    "file": result.file,
+                    "verdict": verdict,
+                    "input_error": result.input_error,
+                    "structural_findings": [
+                        {
+                            "pattern_id": f.pattern_id,
+                            "pattern_name": f.pattern_name,
+                            "severity": f.severity.value,
+                            "location": f.location,
+                            "description": f.description,
+                            "suggestion": f.suggestion,
+                            "evidence": f.evidence,
+                        }
+                        for f in result.structural_findings
+                    ],
+                    # Raw HERM data preserved for programmatic consumers
+                    "herm": None
+                    if result.input_error
+                    else {
+                        "score": result.score,
+                        "dimensions": result.herm.dimension_scores,
+                        "signal_counts": result.herm.signal_counts,
+                        "coverage": result.herm.coverage,
+                        "confidence": result.herm.confidence,
+                        "findings": result.herm.findings,
+                        "context_flags": result.herm.context_flags,
+                    },
+                }
+            )
         print(json_mod.dumps(output, indent=2))
 
     # Summary table for multi-file terminal scans

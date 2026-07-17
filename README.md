@@ -4,6 +4,9 @@
 
 > Release status: this checkout is the unreleased `0.3.1` candidate. The latest public PyPI release remains `0.2.2`.
 
+The candidate also includes a separate provider-neutral `preflight` surface for
+one present instruction plus explicit context. See [Provider-neutral preflight](docs/preflight.md).
+
 Run `bash evals/sample-detection-rate.sh` to check the bundled regression fixtures: four deliberately broken samples must be flagged and one designated clean sample must pass. This is a repository regression check, not an accuracy estimate or validation corpus.
 
 AI agent configs can be syntactically valid while their language remains vague, unbounded, or structurally inconsistent.
@@ -56,7 +59,7 @@ Use `lintlang` when you author or review AI agent tool descriptions, system prom
 
 - **Semantic correctness** — lintlang is structural. It catches *vague* tool descriptions, not *wrong* ones. ("delete_user" with empty description fails; "delete_user" pointing at the wrong table is invisible to lintlang.)
 - **Open-ended creative writing** — H1–H7 are calibrated for agent configs and system prompts, not prose.
-- **Auto-fix** — lintlang reports findings; it doesn't rewrite. Pair with a human or LLM for the fix step.
+- **Silent auto-fix or sending** — repository scans do not rewrite; preflight corrections require an explicit source-bound preview/apply action and never contact a provider.
 - **Behavioral safety proofs** — a clean lintlang scan is not evidence that an agent is safe or correct. Use runtime evaluation and domain review for behavioral claims.
 - **Input boundaries** — JSON, YAML, plain text, `.prompt`, and Markdown are parsed as language-bearing inputs. Python files use AST extraction only for embedded prompts and agent-pipeline thresholds; lintlang does not lint general Python syntax, style, types, or program correctness. Arbitrary nested templates may not parse.
 
@@ -98,6 +101,13 @@ lintlang scan config.yaml --fail-on fail
 lintlang scan config.yaml --fail-on review
 ```
 
+Preflight one present instruction without sending it anywhere:
+
+```bash
+printf '%s' 'Is it true that remote work always reduces productivity?' \
+  | lintlang preflight - --include-snippets
+```
+
 ### Example Output
 
 ```
@@ -137,11 +147,12 @@ lintlang gives you a **verdict**, not a score:
 
 | Verdict | Meaning | When |
 |---------|---------|------|
+| ❌ **ERROR** | A requested input could not be scanned | Missing, unreadable, or malformed input |
 | ✅ **PASS** | No blocking structural finding detected | Only LOW/INFO findings or none |
 | ⚠️ **REVIEW** | Review structural warnings | MEDIUM findings present |
 | ❌ **FAIL** | Blocking structural finding detected | CRITICAL or HIGH findings |
 
-Each finding includes the **pattern** (H1-H7), **severity**, **location**, and a concrete suggestion. Suggestions are review aids, not guaranteed meaning-preserving fixes.
+Each finding includes the **pattern** (H1-H7, plus P1/P2 for Python pipeline checks), **severity**, **location**, and a concrete suggestion. Suggestions are review aids, not guaranteed meaning-preserving fixes.
 
 ## Why These 7 Detectors?
 

@@ -18,6 +18,26 @@ __version__ = "0.3.1"
 
 from lintlang.herm import HermResult, score_text
 from lintlang.patterns import AgentConfig, Finding, Severity
+from lintlang.preflight import (
+    ConstraintKind,
+    ContextBinding,
+    ContextConstraint,
+    ContextContract,
+    ContextRequirement,
+    ContextSource,
+    Correction,
+    CorrectionError,
+    Delivery,
+    Override,
+    PreflightPolicy,
+    PreflightRequest,
+    PreflightResult,
+    apply_correction,
+    preflight_text,
+)
+from lintlang.preflight import (
+    Status as PreflightStatus,
+)
 from lintlang.report import compute_verdict
 from lintlang.scanner import ScanResult, scan_config, scan_directory, scan_file, scan_python_file
 
@@ -34,4 +54,20 @@ __all__ = [
     "Finding",
     "Severity",
     "score_text",
+    "ConstraintKind",
+    "ContextBinding",
+    "ContextConstraint",
+    "ContextContract",
+    "ContextRequirement",
+    "ContextSource",
+    "Correction",
+    "CorrectionError",
+    "Delivery",
+    "Override",
+    "PreflightPolicy",
+    "PreflightRequest",
+    "PreflightResult",
+    "PreflightStatus",
+    "apply_correction",
+    "preflight_text",
 ]
