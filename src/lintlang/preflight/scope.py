@@ -17,6 +17,11 @@ _NEGATED_CUE = re.compile(
     r"\b(?:do\s+not|don['’]t|never)\s+(?:ask|say|claim|write|use|phrase)\b",
     re.IGNORECASE,
 )
+_NEGATED_OUTPUT_REGION = re.compile(
+    r"\b(?:do\s+not|don['’]t|never)\s+(?:return|respond(?:\s+with)?|output|format)\b"
+    r"[^,;.!?\n]*(?=[,;.!?\n]|$)",
+    re.IGNORECASE,
+)
 _COUNTERFACTUAL_REQUIREMENT_REGION = re.compile(
     r"\bif\b(?=[^,;.!?\n]{0,128}\bwere\s+required\s+to\b)"
     r"[^,;.!?\n]*(?=[,;.!?\n]|$)",
@@ -166,6 +171,7 @@ def analyze_scope(text: str) -> ScopeAnalysis:
     for pattern, kind in (
         (_COUNTERFACTUAL_REQUIREMENT_REGION, ScopeKind.HYPOTHETICAL),
         (_NEGATED_REQUIREMENT_REGION, ScopeKind.NEGATED),
+        (_NEGATED_OUTPUT_REGION, ScopeKind.NEGATED),
     ):
         for match in pattern.finditer(text):
             if scopes[match.start()] is ScopeKind.DIRECT:

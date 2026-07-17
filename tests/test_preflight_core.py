@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import unittest
 
 from lintlang.preflight import (
@@ -23,6 +24,71 @@ from lintlang.preflight import (
     boundary_error,
     preflight_text,
 )
+
+_HUNK_HEADER = re.compile(
+    r"^@@ -(?P<old_start>\d+)(?:,(?P<old_count>\d+))? "
+    r"\+(?P<new_start>\d+)(?:,(?P<new_count>\d+))? @@(?: .*)?\n$"
+)
+_NO_NEWLINE_MARKER = "\\ No newline at end of file\n"
+
+
+def _apply_unified_diff(source: str, diff: str, *, reverse: bool = False) -> str:
+    """Apply the bounded single-file diff format emitted by preflight."""
+
+    source_lines = source.splitlines(keepends=True)
+    diff_lines = diff.splitlines(keepends=True)
+    if diff_lines[:2] != ["--- prompt\n", "+++ corrected\n"]:
+        raise AssertionError("unexpected unified diff headers")
+
+    output: list[str] = []
+    source_index = 0
+    index = 2
+    while index < len(diff_lines):
+        header = _HUNK_HEADER.fullmatch(diff_lines[index])
+        if header is None:
+            raise AssertionError("invalid unified diff hunk header")
+        old_start = int(header.group("old_start"))
+        new_start = int(header.group("new_start"))
+        old_count = int(header.group("old_count") or 1)
+        new_count = int(header.group("new_count") or 1)
+        input_start = new_start if reverse else old_start
+        input_count = new_count if reverse else old_count
+        input_index = input_start if input_count == 0 else input_start - 1
+        output.extend(source_lines[source_index:input_index])
+        source_index = input_index
+        index += 1
+
+        old_seen = 0
+        new_seen = 0
+        while index < len(diff_lines) and not diff_lines[index].startswith("@@"):
+            line = diff_lines[index]
+            if line == _NO_NEWLINE_MARKER or line[:1] not in {" ", "-", "+"}:
+                raise AssertionError("invalid unified diff record")
+            prefix = line[0]
+            payload = line[1:]
+            if index + 1 < len(diff_lines) and diff_lines[index + 1] == _NO_NEWLINE_MARKER:
+                if not payload.endswith("\n"):
+                    raise AssertionError("newline marker has no synthetic newline")
+                payload = payload[:-1]
+                index += 1
+
+            old_seen += prefix in {" ", "-"}
+            new_seen += prefix in {" ", "+"}
+            consumes = prefix in ({" ", "+"} if reverse else {" ", "-"})
+            emits = prefix in ({" ", "-"} if reverse else {" ", "+"})
+            if consumes:
+                if source_index >= len(source_lines) or source_lines[source_index] != payload:
+                    raise AssertionError("unified diff does not match source bytes")
+                source_index += 1
+            if emits:
+                output.append(payload)
+            index += 1
+
+        if (old_seen, new_seen) != (old_count, new_count):
+            raise AssertionError("unified diff hunk counts do not match records")
+
+    output.extend(source_lines[source_index:])
+    return "".join(output)
 
 
 class StatusAndRuleTests(unittest.TestCase):
@@ -193,6 +259,51 @@ class ScopeTests(unittest.TestCase):
         self.assertIs(result.status, Status.HOLD)
         self.assertEqual([item.rule_id for item in result.findings], ["PF005"])
 
+    def test_negated_output_format_clauses_are_not_operational(self) -> None:
+        cases = (
+            ("Do not return JSON. Return markdown.", "markdown"),
+            ("Don't respond with JSON; return markdown.", "markdown"),
+            ("Never output JSON, but return markdown.", "markdown"),
+            ("Do not format the answer as JSON\nReturn markdown.", "markdown"),
+            ("Do not return markdown; return JSON.", "json"),
+        )
+        for prompt, expected_format in cases:
+            with self.subTest(prompt=prompt):
+                result = preflight_text(
+                    PreflightRequest(
+                        prompt,
+                        context=ContextContract(
+                            constraints=(ContextConstraint(ConstraintKind.OUTPUT_FORMAT, expected_format),)
+                        ),
+                    )
+                )
+                self.assertIs(result.status, Status.ALLOW)
+                self.assertEqual(result.findings, ())
+
+    def test_later_output_format_conflicts_remain_operational(self) -> None:
+        prompts = (
+            "Do not return JSON; return JSON.",
+            "Do not return JSON, but return JSON.",
+            "Do not return JSON. Return JSON.",
+            "Do not return JSON\nReturn JSON.",
+            "Do not format markdown; respond with JSON.",
+            "Return a concise, valid JSON object.",
+        )
+        for prompt in prompts:
+            with self.subTest(prompt=prompt):
+                result = preflight_text(
+                    PreflightRequest(
+                        prompt,
+                        context=ContextContract(
+                            constraints=(ContextConstraint(ConstraintKind.OUTPUT_FORMAT, "markdown"),)
+                        ),
+                    )
+                )
+                self.assertIs(result.status, Status.HOLD)
+                self.assertEqual([item.rule_id for item in result.findings], ["PF005"])
+                span = result.findings[0].trigger.span
+                self.assertEqual((span.start, span.end), (prompt.rindex("JSON"), prompt.rindex("JSON") + 4))
+
 
 class PrivacyAndDeterminismTests(unittest.TestCase):
     def test_default_wire_and_repr_redact_prompt_context_replacement_and_diff(
@@ -280,6 +391,51 @@ class CorrectionTests(unittest.TestCase):
         with self.assertRaisesRegex(CorrectionError, "unknown correction"):
             apply_correction(request, result, "pc_00000000000000000000")
 
+    def test_unterminated_correction_diff_is_canonical_and_round_trips(self) -> None:
+        prompt = "Is it true that X?"
+        request = PreflightRequest(prompt)
+        result = preflight_text(request)
+        correction = result.corrections[0]
+        corrected, _ = apply_correction(request, result, correction.correction_id)
+        serialized = result.to_dict(include_snippets=True)["corrections"][0]["diff"]
+        diff = serialized["text"]
+
+        self.assertEqual(correction.correction_id, "pc_fab390648096b9fed140")
+        self.assertEqual(
+            diff,
+            "--- prompt\n"
+            "+++ corrected\n"
+            "@@ -1 +1 @@\n"
+            "-Is it true that X?\n"
+            "\\ No newline at end of file\n"
+            "+What evidence supports or refutes whether X?\n"
+            "\\ No newline at end of file\n",
+        )
+        self.assertEqual(_apply_unified_diff(prompt, diff), corrected)
+        self.assertEqual(_apply_unified_diff(corrected, diff, reverse=True), prompt)
+        self.assertEqual(serialized["sha256"], hashlib.sha256(diff.encode()).hexdigest())
+        self.assertEqual(serialized["utf8_bytes"], len(diff.encode()))
+
+    def test_terminated_and_multiline_unicode_diffs_preserve_exact_bytes(self) -> None:
+        prompts = ("Is it true that X?\n", "Header\nIs it true that 🐊?")
+        for prompt in prompts:
+            with self.subTest(prompt=prompt):
+                request = PreflightRequest(prompt)
+                result = preflight_text(request)
+                correction = result.corrections[0]
+                corrected, _ = apply_correction(request, result, correction.correction_id)
+                serialized = result.to_dict(include_snippets=True)["corrections"][0]["diff"]
+                diff = serialized["text"]
+
+                self.assertEqual(_apply_unified_diff(prompt, diff).encode(), corrected.encode())
+                self.assertEqual(_apply_unified_diff(corrected, diff, reverse=True).encode(), prompt.encode())
+                self.assertEqual(serialized["sha256"], hashlib.sha256(diff.encode()).hexdigest())
+                self.assertEqual(serialized["utf8_bytes"], len(diff.encode()))
+                if prompt.endswith("\n"):
+                    self.assertNotIn(_NO_NEWLINE_MARKER, diff)
+                else:
+                    self.assertEqual(diff.count(_NO_NEWLINE_MARKER), 2)
+
 
 class InvalidAndBoundaryTests(unittest.TestCase):
     def test_invalid_or_oversize_inputs_are_error(self) -> None:
@@ -303,6 +459,39 @@ class InvalidAndBoundaryTests(unittest.TestCase):
         result = preflight_text(PreflightRequest("Create it.", context=context))
         self.assertIs(result.status, Status.ERROR)
         self.assertEqual(result.diagnostics[0].code, "CONFLICTING_BINDINGS")
+
+    def test_all_duplicate_binding_keys_are_error_without_order_dependence(self) -> None:
+        user_side = ContextBinding("usual_format", "A", ContextSource.USER, Delivery.SIDE_CHANNEL)
+        user_prompt = ContextBinding("usual_format", "A", ContextSource.USER, Delivery.IN_PROMPT)
+        host_side = ContextBinding("usual_format", "A", ContextSource.HOST, Delivery.SIDE_CHANNEL)
+        cases = (
+            (user_side, user_side),
+            (user_side, user_prompt),
+            (user_prompt, user_side),
+            (user_side, host_side),
+        )
+        for bindings in cases:
+            with self.subTest(bindings=bindings):
+                result = preflight_text(
+                    PreflightRequest(
+                        "Create it.",
+                        context=ContextContract(
+                            requirements=(ContextRequirement("usual_format"),),
+                            bindings=bindings,
+                        ),
+                    )
+                )
+                self.assertIs(result.status, Status.ERROR)
+                self.assertEqual(result.diagnostics[0].code, "CONFLICTING_BINDINGS")
+                self.assertEqual(result.diagnostics[0].context_pointer, "/bindings/1")
+
+        distinct = ContextContract(
+            bindings=(
+                ContextBinding("usual_format", "A", ContextSource.USER, Delivery.SIDE_CHANNEL),
+                ContextBinding("video_format", "A", ContextSource.USER, Delivery.SIDE_CHANNEL),
+            )
+        )
+        self.assertIs(preflight_text(PreflightRequest("Create it.", context=distinct)).status, Status.ALLOW)
 
     def test_unpaired_surrogate_binding_is_deterministic_redacted_error(self) -> None:
         canary = "PRIVATE_CONTEXT_CANARY_0f31a"

@@ -99,8 +99,8 @@ _PF003_PATTERNS = (
     ),
 )
 _FORMAT_PATTERN = re.compile(
-    r"\b(?:return|respond(?:\s+with)?|output|format)\b[^?!.\n]{0,48}"
-    r"\b(?P<format>json|markdown)\b",
+    r"\b(?:return|respond(?:\s+with)?|output|format)\b"
+    r"(?=[^?!.\n]{0,48}\b(?P<format>json|markdown)\b)",
     re.IGNORECASE,
 )
 _ONE_SENTENCE_PATTERN = re.compile(r"\bexactly\s+one\s+sentence\b", re.IGNORECASE)
@@ -538,15 +538,18 @@ def _make_correction(prompt: str, finding_id: str, seed: _FindingSeed) -> Correc
             )
         )[:20]
     )
-    diff = "".join(
-        difflib.unified_diff(
-            prompt.splitlines(keepends=True),
-            corrected.splitlines(keepends=True),
-            fromfile="prompt",
-            tofile="corrected",
-            lineterm="\n",
-        )
-    )
+    diff_parts: list[str] = []
+    for line in difflib.unified_diff(
+        prompt.splitlines(keepends=True),
+        corrected.splitlines(keepends=True),
+        fromfile="prompt",
+        tofile="corrected",
+        lineterm="\n",
+    ):
+        diff_parts.append(line)
+        if line[:1] in {" ", "-", "+"} and not line.endswith("\n"):
+            diff_parts.extend(("\n", "\\ No newline at end of file\n"))
+    diff = "".join(diff_parts)
     diff_bytes = diff.encode("utf-8")
     return Correction(
         correction_id,
@@ -745,15 +748,13 @@ def _validate_context(
                 "binding source or delivery is invalid",
                 pointer,
             )
-        existing = bindings.get(binding.key)
-        if existing is not None and existing[0].value != binding.value:
+        if binding.key in bindings:
             return None, (
                 "CONFLICTING_BINDINGS",
-                "duplicate binding keys have unequal values",
+                "binding keys must be unique",
                 pointer,
             )
-        if existing is None:
-            bindings[binding.key] = (binding, index)
+        bindings[binding.key] = (binding, index)
 
     constraints: list[tuple[ContextConstraint, int]] = []
     output_format: str | None = None
@@ -947,7 +948,7 @@ def _detect(
             expected_format = constraint.value.strip().casefold()
             context_evidence = _context_evidence(f"/constraints/{constraint_index}/value", constraint.value)
             for match in _FORMAT_PATTERN.finditer(prompt):
-                if not scope.is_direct(match.start(), match.end()):
+                if not scope.is_direct(match.start(), match.end("format")):
                     continue
                 requested = match.group("format").casefold()
                 if requested == expected_format:
