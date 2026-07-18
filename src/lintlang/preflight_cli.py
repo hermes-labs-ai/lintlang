@@ -289,6 +289,16 @@ def _emit_result(result: PreflightResult, *, output_format: str, include_snippet
 
 
 def _run_request(args: argparse.Namespace, prompt_bytes: bytes, context_bytes: bytes) -> int:
+    if len(prompt_bytes) > MAX_PROMPT_UTF8_BYTES:
+        result = _boundary_result(
+            BoundaryErrorCode.INPUT_TOO_LARGE,
+            prompt_bytes=prompt_bytes,
+            context_bytes=context_bytes,
+            language=args.language,
+        )
+        _emit_result(result, output_format=args.format, include_snippets=False)
+        return result.exit_code
+
     try:
         prompt = prompt_bytes.decode("utf-8", errors="strict")
     except UnicodeDecodeError:

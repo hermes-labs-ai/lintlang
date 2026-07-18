@@ -180,6 +180,42 @@ class StatusAndRuleTests(unittest.TestCase):
         self.assertEqual(result.findings[0].rule_id, "PF004")
         self.assertEqual(len(result.corrections), 1)
 
+    def test_pf004_short_values_require_explicit_boundary_safe_materialization(self) -> None:
+        context = ContextContract(
+            requirements=(ContextRequirement("country"),),
+            bindings=(ContextBinding("country", "US", ContextSource.USER, Delivery.IN_PROMPT),),
+        )
+        for prompt in ("Use the standard process.", "Follow instructions for us."):
+            with self.subTest(prompt=prompt):
+                request = PreflightRequest(prompt, context=context)
+                result = preflight_text(request)
+                self.assertIs(result.status, Status.NOTICE)
+                self.assertEqual([item.rule_id for item in result.findings], ["PF004"])
+                corrected, post = apply_correction(request, result, result.corrections[0].correction_id)
+                self.assertIn("Context (country): US", corrected)
+                self.assertIs(post.status, Status.ALLOW)
+
+        for prompt in ("Country: US.", "The country code is us.", "Context (country): US"):
+            with self.subTest(prompt=prompt):
+                result = preflight_text(PreflightRequest(prompt, context=context))
+                self.assertIs(result.status, Status.ALLOW)
+                self.assertEqual(result.findings, ())
+
+    def test_pf004_long_values_keep_casefolded_unicode_word_boundaries(self) -> None:
+        cases = (
+            ("street", "STRASSE", "Street value: Straße.", Status.ALLOW),
+            ("destination", "Mars", "Destination: MARS.", Status.ALLOW),
+            ("destination", "Mars", "Use marsh data.", Status.NOTICE),
+        )
+        for key, value, prompt, expected in cases:
+            with self.subTest(prompt=prompt):
+                context = ContextContract(
+                    requirements=(ContextRequirement(key),),
+                    bindings=(ContextBinding(key, value, ContextSource.USER, Delivery.IN_PROMPT),),
+                )
+                result = preflight_text(PreflightRequest(prompt, context=context))
+                self.assertIs(result.status, expected)
+
     def test_pf005_typed_constraint_has_prompt_and_context_evidence(self) -> None:
         context = ContextContract(constraints=(ContextConstraint(ConstraintKind.OUTPUT_FORMAT, "markdown"),))
         result = preflight_text(PreflightRequest("Return JSON.", context=context))

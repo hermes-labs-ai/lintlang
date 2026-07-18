@@ -10,6 +10,7 @@ import sys
 import pytest
 
 from lintlang.cli import main
+from lintlang.preflight.models import MAX_PROMPT_UTF8_BYTES
 
 PROMPT_CANARY = "PRIVATE_PROMPT_CANARY_7d912"
 CONTEXT_CANARY = "PRIVATE_CONTEXT_CANARY_8a441"
@@ -17,6 +18,18 @@ CONTEXT_CANARY = "PRIVATE_CONTEXT_CANARY_8a441"
 
 def _stdin(monkeypatch: pytest.MonkeyPatch, value: str) -> None:
     monkeypatch.setattr(sys, "stdin", io.StringIO(value))
+
+
+class _BinaryStdin:
+    def __init__(self, value: bytes) -> None:
+        self.buffer = io.BytesIO(value)
+
+    def isatty(self) -> bool:
+        return False
+
+
+def _stdin_bytes(monkeypatch: pytest.MonkeyPatch, value: bytes) -> None:
+    monkeypatch.setattr(sys, "stdin", _BinaryStdin(value))
 
 
 def test_cli_hero_and_matched_hard_negative(monkeypatch, capsys):
@@ -169,6 +182,36 @@ def test_invalid_utf8_is_schema_coherent_redacted_error(capsys, tmp_path):
     assert all(not action["available"] for action in payload["actions"])
     assert PROMPT_CANARY not in captured.out
     assert PROMPT_CANARY not in captured.err
+
+
+def test_cli_oversize_precedes_decode_at_bounded_utf8_boundary(monkeypatch, capsys):
+    valid_oversize = b"a" * MAX_PROMPT_UTF8_BYTES + "🐊".encode()
+    assert valid_oversize.decode("utf-8").endswith("🐊")
+    _stdin_bytes(monkeypatch, valid_oversize)
+
+    exit_code = main(["preflight", "-", "--format", "json", "--include-snippets"])
+    payload = json.loads(capsys.readouterr().out)
+
+    assert exit_code == 2
+    assert payload["status"] == "ERROR"
+    assert payload["diagnostics"][0]["code"] == "INPUT_TOO_LARGE"
+    assert payload["input"]["utf8_bytes"] == MAX_PROMPT_UTF8_BYTES + 1
+    assert payload["input"]["snippets_included"] is False
+
+
+def test_cli_utf8_and_size_boundary_controls(monkeypatch, capsys):
+    exactly_bounded = b"a" * (MAX_PROMPT_UTF8_BYTES - 4) + "🐊".encode()
+    _stdin_bytes(monkeypatch, exactly_bounded)
+    assert main(["preflight", "-", "--format", "json"]) == 0
+    assert json.loads(capsys.readouterr().out)["status"] == "ALLOW"
+
+    _stdin_bytes(monkeypatch, b"a" * MAX_PROMPT_UTF8_BYTES + b"b")
+    assert main(["preflight", "-", "--format", "json"]) == 2
+    assert json.loads(capsys.readouterr().out)["diagnostics"][0]["code"] == "INPUT_TOO_LARGE"
+
+    _stdin_bytes(monkeypatch, b"a\xf0")
+    assert main(["preflight", "-", "--format", "json"]) == 2
+    assert json.loads(capsys.readouterr().out)["diagnostics"][0]["code"] == "INVALID_UTF8"
 
 
 def test_context_surrogate_is_schema_coherent_redacted_error(monkeypatch, capsys, tmp_path):

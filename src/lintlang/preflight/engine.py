@@ -213,6 +213,59 @@ def _is_utf8_text(value: Any) -> bool:
     return True
 
 
+def _materialization_word_char(value: str) -> bool:
+    return value.isalnum() or value == "_"
+
+
+def _explicit_short_value_label(prefix: str, key: str) -> bool:
+    folded_key = key.casefold()
+    key_forms = {folded_key, re.sub(r"[._-]+", " ", folded_key).strip()}
+    for key_form in sorted(key_forms, key=len, reverse=True):
+        if not key_form:
+            continue
+        index = prefix.rfind(key_form)
+        if index < 0:
+            continue
+        before = prefix[index - 1] if index else ""
+        after_index = index + len(key_form)
+        after = prefix[after_index : after_index + 1]
+        if (before and _materialization_word_char(before)) or (after and _materialization_word_char(after)):
+            continue
+        suffix = prefix[after_index:]
+        if re.fullmatch(
+            r"\s*[)\]}]?\s*(?:(?:code|value)\s*)?(?:(?:is)\s*|[:=\-]\s*)?",
+            suffix,
+            re.IGNORECASE,
+        ):
+            return True
+    return False
+
+
+def _binding_value_is_materialized(prompt: str, binding: ContextBinding) -> bool:
+    folded_prompt = prompt.casefold()
+    folded_value = binding.value.casefold()
+    start = folded_prompt.find(folded_value)
+    while start >= 0:
+        end = start + len(folded_value)
+        left_ok = (
+            not _materialization_word_char(folded_value[0])
+            or start == 0
+            or not _materialization_word_char(folded_prompt[start - 1])
+        )
+        right_ok = (
+            not _materialization_word_char(folded_value[-1])
+            or end == len(folded_prompt)
+            or not _materialization_word_char(folded_prompt[end])
+        )
+        if left_ok and right_ok:
+            short_alphanumeric = len(folded_value) <= 3 and folded_value.isalnum()
+            prefix = folded_prompt[max(0, start - 64) : start]
+            if not short_alphanumeric or _explicit_short_value_label(prefix, binding.key):
+                return True
+        start = folded_prompt.find(folded_value, start + 1)
+    return False
+
+
 def _wire_language(value: Any) -> str:
     if isinstance(value, str) and value.strip() and _is_utf8_text(value):
         return value
@@ -447,6 +500,7 @@ def _coverage_unavailable(
 
 _BOUNDARY_MESSAGES = {
     BoundaryErrorCode.INVALID_UTF8: "input is not valid UTF-8",
+    BoundaryErrorCode.INPUT_TOO_LARGE: "input exceeds 32 KiB",
     BoundaryErrorCode.INVALID_CONTEXT_JSON: "context is not valid JSON",
     BoundaryErrorCode.INPUT_READ_FAILED: "input could not be read",
     BoundaryErrorCode.CONTEXT_READ_FAILED: "context could not be read",
@@ -958,7 +1012,7 @@ def _detect(
                 )
                 continue
             binding, binding_index = binding_entry
-            if binding.delivery is Delivery.IN_PROMPT and binding.value.casefold() not in prompt.casefold():
+            if binding.delivery is Delivery.IN_PROMPT and not _binding_value_is_materialized(prompt, binding):
                 binding_evidence = _context_evidence(f"/bindings/{binding_index}/value", binding.value)
                 insertion = f"\n\nContext ({binding.key}): {binding.value}"
                 seeds.append(
