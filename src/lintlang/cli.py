@@ -7,10 +7,10 @@ import sys
 from pathlib import Path
 
 from . import __version__
-from .parsers import parse_file
 from .patterns import PATTERNS as _PATTERNS
+from .preflight_cli import configure_preflight_parser, run_preflight
 from .report import compute_verdict, format_markdown, format_summary_table, format_terminal
-from .scanner import ScanResult, scan_config, scan_directory, scan_python_file
+from .scanner import ScanResult, input_error_result, scan_directory, scan_file
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -23,16 +23,29 @@ def main(argv: list[str] | None = None) -> int:
     subparsers = parser.add_subparsers(dest="command")
 
     # ── scan command ───────────────────────────────────────────────
-    scan_parser = subparsers.add_parser("scan", help="Scan agent config files for linguistic issues")
-    scan_parser.add_argument("files", nargs="+", help="Config files to scan (YAML, JSON, or text)")
+    scan_parser = subparsers.add_parser(
+        "scan",
+        help="Scan agent configs and embedded language in Python pipelines",
+    )
     scan_parser.add_argument(
-        "--patterns", "-p",
+        "files",
+        nargs="+",
+        help=(
+            "Language-bearing inputs: YAML, JSON, text, or Python "
+            "(.py uses AST extraction for embedded prompts/pipeline artifacts; "
+            "not general Python code linting)"
+        ),
+    )
+    scan_parser.add_argument(
+        "--patterns",
+        "-p",
         nargs="+",
         choices=sorted(_PATTERNS.keys()),
         help="Only check specific structural patterns (default: all)",
     )
     scan_parser.add_argument(
-        "--format", "-f",
+        "--format",
+        "-f",
         choices=["terminal", "markdown", "json"],
         default="terminal",
         help="Output format (default: terminal)",
@@ -66,9 +79,11 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="Glob patterns to exclude (e.g., 'CHANGELOG.md' 'docs/**'). Non-prompt files (README, LICENSE, etc.) are skipped automatically.",
     )
-
     # ── patterns command ───────────────────────────────────────────
     subparsers.add_parser("patterns", help="List all diagnostic patterns")
+    # Preflight is a separate provider-neutral surface; it does not alter the
+    # scan parser, structural verdicts, or existing exit behavior.
+    configure_preflight_parser(subparsers)
 
     args = parser.parse_args(argv)
 
@@ -76,6 +91,8 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_patterns()
     elif args.command == "scan":
         return _cmd_scan(args)
+    elif args.command == "preflight":
+        return run_preflight(args)
     else:
         parser.print_help()
         return 0
@@ -112,34 +129,35 @@ def _cmd_scan(args: argparse.Namespace) -> int:
     for filepath in args.files:
         path = Path(filepath)
         if not path.exists():
-            print(f"Error: File not found: {filepath}", file=sys.stderr)
+            results[str(path)] = input_error_result(path, "File not found")
             continue
 
         if path.is_dir():
-            dir_results = scan_directory(path, patterns=args.patterns, exclude=args.exclude)
+            dir_results = scan_directory(
+                path,
+                patterns=args.patterns,
+                exclude=args.exclude,
+            )
             for fpath, result in dir_results.items():
                 result.structural_findings = [
-                    f for f in result.structural_findings
-                    if severity_order.get(f.severity.value, 4) <= min_sev
+                    f for f in result.structural_findings if severity_order.get(f.severity.value, 4) <= min_sev
                 ]
                 results[fpath] = result
             continue
 
         try:
-            # Use Python extractor for .py files
-            if path.suffix == ".py":
-                result = scan_python_file(path, patterns=args.patterns)
-            else:
-                config = parse_file(path)
-                result = scan_config(config, patterns=args.patterns)
+            result = scan_file(path, patterns=args.patterns)
             result.structural_findings = [
-                f for f in result.structural_findings
-                if severity_order.get(f.severity.value, 4) <= min_sev
+                f for f in result.structural_findings if severity_order.get(f.severity.value, 4) <= min_sev
             ]
             results[str(path)] = result
         except Exception as e:
-            print(f"Error parsing {filepath}: {e}", file=sys.stderr)
-            continue
+            results[str(path)] = input_error_result(path, f"Failed to parse: {e}")
+
+    input_errors = [result for result in results.values() if result.input_error is not None]
+
+    for result in input_errors:
+        print(f"Error: Input error: {result.file}: {result.input_error}", file=sys.stderr)
 
     # Output
     if args.format == "terminal":
@@ -147,37 +165,45 @@ def _cmd_scan(args: argparse.Namespace) -> int:
             print(format_terminal(result, show_suggestions=not args.no_suggestions))
     elif args.format == "markdown":
         for result in results.values():
-            print(format_markdown(result, show_suggestions=not args.no_suggestions))
+            if result.input_error:
+                print(f"# Lintlang Input Error\n\n- **File:** `{result.file}`\n- **Error:** {result.input_error}\n")
+            else:
+                print(format_markdown(result, show_suggestions=not args.no_suggestions))
     elif args.format == "json":
         output = []
         for result in results.values():
-            verdict = compute_verdict(result.structural_findings)
-            output.append({
-                "file": result.file,
-                "verdict": verdict,
-                "structural_findings": [
-                    {
-                        "pattern_id": f.pattern_id,
-                        "pattern_name": f.pattern_name,
-                        "severity": f.severity.value,
-                        "location": f.location,
-                        "description": f.description,
-                        "suggestion": f.suggestion,
-                        "evidence": f.evidence,
-                    }
-                    for f in result.structural_findings
-                ],
-                # Raw HERM data preserved for programmatic consumers
-                "herm": {
-                    "score": result.score,
-                    "dimensions": result.herm.dimension_scores,
-                    "signal_counts": result.herm.signal_counts,
-                    "coverage": result.herm.coverage,
-                    "confidence": result.herm.confidence,
-                    "findings": result.herm.findings,
-                    "context_flags": result.herm.context_flags,
-                },
-            })
+            verdict = compute_verdict(result)
+            output.append(
+                {
+                    "file": result.file,
+                    "verdict": verdict,
+                    "input_error": result.input_error,
+                    "structural_findings": [
+                        {
+                            "pattern_id": f.pattern_id,
+                            "pattern_name": f.pattern_name,
+                            "severity": f.severity.value,
+                            "location": f.location,
+                            "description": f.description,
+                            "suggestion": f.suggestion,
+                            "evidence": f.evidence,
+                        }
+                        for f in result.structural_findings
+                    ],
+                    # Raw HERM data preserved for programmatic consumers
+                    "herm": None
+                    if result.input_error
+                    else {
+                        "score": result.score,
+                        "dimensions": result.herm.dimension_scores,
+                        "signal_counts": result.herm.signal_counts,
+                        "coverage": result.herm.coverage,
+                        "confidence": result.herm.confidence,
+                        "findings": result.herm.findings,
+                        "context_flags": result.herm.context_flags,
+                    },
+                }
+            )
         print(json_mod.dumps(output, indent=2))
 
     # Summary table for multi-file terminal scans
@@ -189,11 +215,16 @@ def _cmd_scan(args: argparse.Namespace) -> int:
         print("Error: No files were successfully scanned.", file=sys.stderr)
         return 1
 
+    # Input integrity is a fatal channel, independent of lint severity and
+    # --fail-on. Never let another valid input mask a requested input error.
+    if input_errors:
+        return 1
+
     # Verdict-based exit
     if args.fail_on:
-        verdicts = [compute_verdict(r.structural_findings) for r in results.values()]
+        verdicts = [compute_verdict(r) for r in results.values()]
         if args.fail_on == "fail" and "FAIL" in verdicts:
-            worst = next(r for r in results.values() if compute_verdict(r.structural_findings) == "FAIL")
+            worst = next(r for r in results.values() if compute_verdict(r) == "FAIL")
             print(f"\nVerdict: FAIL — {worst.file} has CRITICAL/HIGH findings", file=sys.stderr)
             return 1
         if args.fail_on == "review" and any(v in ("FAIL", "REVIEW") for v in verdicts):

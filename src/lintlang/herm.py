@@ -30,11 +30,18 @@ DIMENSIONS = [
 
 SIGNALS = {
     "ambiguous_qualifiers": [
-        r"\bas needed\b", r"\bwhen appropriate\b", r"\bif relevant\b",
-        r"\bbest effort\b", r"\breasonable\b", r"\bwhere possible\b",
+        r"\bas needed\b",
+        r"\bwhen appropriate\b",
+        r"\bif relevant\b",
+        r"\bbest effort\b",
+        r"\breasonable\b",
+        r"\bwhere possible\b",
     ],
     "negative_directives": [
-        r"\bdon'?t\b", r"\bdo not\b", r"\bnever\b", r"\bavoid\b",
+        r"\bdon'?t\b",
+        r"\bdo not\b",
+        r"\bnever\b",
+        r"\bavoid\b",
     ],
     "hijack": [
         r"ignore all previous instructions",
@@ -46,19 +53,28 @@ SIGNALS = {
         r"must give your absolute best",
     ],
     "repeat_unbounded": [
-        r"repeat\s+N\s*times", r"can\s+repeat", r"repeat\s+indefinitely",
+        r"repeat\s+N\s*times",
+        r"can\s+repeat",
+        r"repeat\s+indefinitely",
     ],
     "boundary": [
-        r"task boundary", r"independent task",
-        r"do not carry state", r"new task",
+        r"task boundary",
+        r"independent task",
+        r"do not carry state",
+        r"new task",
     ],
     "priority": [
-        r"priority\s*\d", r"most important",
-        r"override", r"when conflict",
+        r"priority\s*\d",
+        r"most important",
+        r"override",
+        r"when conflict",
     ],
     "input_surface": [
-        r"user input", r"user message",
-        r"untrusted", r"quoted", r"free-form",
+        r"user input",
+        r"user message",
+        r"untrusted",
+        r"quoted",
+        r"free-form",
     ],
 }
 
@@ -66,12 +82,13 @@ SIGNALS = {
 @dataclass
 class HermResult:
     """Result from HERM v1.1 scoring."""
-    score: float                              # 0-100 final score
-    dimension_scores: dict[str, float]        # 6 dimensions, each 0-100
-    signal_counts: dict[str, int]             # 8 signal categories
-    coverage: float                           # 0.55-1.0
-    confidence: str                           # "high", "medium", "low"
-    findings: list[str]                       # E1/E2/E3 + structural gap notes
+
+    score: float  # 0-100 final score
+    dimension_scores: dict[str, float]  # 6 dimensions, each 0-100
+    signal_counts: dict[str, int]  # 8 signal categories
+    coverage: float  # 0.55-1.0
+    confidence: str  # "high", "medium", "low"
+    findings: list[str]  # E1/E2/E3 + structural gap notes
     context_flags: dict[str, bool] = field(default_factory=dict)
 
 
@@ -86,10 +103,13 @@ def _detect_context(path: str, text: str) -> dict[str, bool]:
     return {
         "is_cassette": "cassettes" in s,
         "is_test": ".test." in s or "/tests/" in s,
-        "is_prompt_like": bool(re.search(
-            r"you are|system prompt|thought:|action:|observation:|description:|^##?\s*purpose|role:|skill\.md",
-            text, re.I,
-        )),
+        "is_prompt_like": bool(
+            re.search(
+                r"you are|system prompt|thought:|action:|observation:|description:|^##?\s*purpose|role:|skill\.md",
+                text,
+                re.I,
+            )
+        ),
     }
 
 
@@ -117,12 +137,18 @@ def score_text(text: str, source_path: str = "") -> HermResult:
 
     # Dimension scoring (0-100 each)
     d: dict[str, float] = {}
-    d[DIMENSIONS[0]] = max(0, 100 - (counts["ambiguous_qualifiers"] * 8) - (max(0, counts["negative_directives"] - 3) * 2))
+    d[DIMENSIONS[0]] = max(
+        0, 100 - (counts["ambiguous_qualifiers"] * 8) - (max(0, counts["negative_directives"] - 3) * 2)
+    )
     d[DIMENSIONS[1]] = max(0, 100 - (counts["ambiguous_qualifiers"] * 5) - (0 if counts["priority"] else 12))
     d[DIMENSIONS[2]] = max(0, 100 - (0 if counts["input_surface"] else 10) - (0 if counts["boundary"] else 10))
     d[DIMENSIONS[3]] = max(0, 100 - (max(0, counts["negative_directives"] - 6) * 3) - (0 if counts["priority"] else 8))
-    d[DIMENSIONS[4]] = max(0, 100 - (counts["ambiguous_qualifiers"] * 5) - (max(0, counts["negative_directives"] - 5) * 2))
-    d[DIMENSIONS[5]] = max(0, 100 - (counts["hijack"] * 30) - (counts["pressure"] * 18) - (counts["repeat_unbounded"] * 14))
+    d[DIMENSIONS[4]] = max(
+        0, 100 - (counts["ambiguous_qualifiers"] * 5) - (max(0, counts["negative_directives"] - 5) * 2)
+    )
+    d[DIMENSIONS[5]] = max(
+        0, 100 - (counts["hijack"] * 30) - (counts["pressure"] * 18) - (counts["repeat_unbounded"] * 14)
+    )
 
     base = mean(d.values())
 

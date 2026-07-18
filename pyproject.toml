@@ -4,14 +4,14 @@ build-backend = "hatchling.build"
 
 [project]
 name = "lintlang"
-version = "0.2.2"
+version = "0.3.1"
 description = "Static linter for AI agent configs, tool descriptions, and system prompts with zero-LLM CI gating"
 readme = "README.md"
 license = {text = "Apache-2.0"}
 license-files = ["LICENSE"]
 requires-python = ">=3.10"
 authors = [
-    {name = "Hermes Labs", email = "rbosch@lpci.ai"},
+    {name = "Hermes Labs", email = "roli@hermes-labs.ai"},
 ]
 keywords = [
     "linter", "ai-agents", "llm", "tool-calling", "function-calling",

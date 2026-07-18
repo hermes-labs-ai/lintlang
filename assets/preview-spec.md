@@ -1,5 +1,8 @@
 # Preview Spec
 
+> Archived public-release preview for `0.2.1`. It is retained as historical
+> source material and is not referenced by the unreleased candidate README.
+
 - Dimensions: `1600x900`
 - Format: static terminal-style PNG
 - Background: page `#0b1020`, terminal panel `#111827`, header bar `#0f172a`

@@ -6,9 +6,9 @@
 
 ## What It Does
 
-lintlang treats agent configs as lintable artifacts — the same way eslint lints JavaScript or ruff lints Python. It catches language-level failures that cause agents to pick wrong tools, loop infinitely, break structured output, or leak state across tasks.
+lintlang treats agent configs as lintable artifacts — the same way eslint lints JavaScript or ruff lints Python. It flags language patterns associated with ambiguous tool selection, missing termination conditions, structured-output problems, and context-boundary risk.
 
-No LLM calls. No API keys. No network access. Pure static analysis via regex + heuristics.
+No LLM calls. No API keys. No network access. Static analysis uses regex, structural heuristics, and Python AST extraction.
 
 ## Install
 
@@ -29,7 +29,12 @@ lintlang scan config.yaml --fail-on review  # CI gate: fail on MEDIUM+
 lintlang scan config.yaml --min-severity high  # Only show HIGH+
 lintlang scan config.yaml --patterns H1 H3     # Only run specific detectors
 lintlang patterns                      # List all detectors
+printf '%s' 'Is it true that X?' | lintlang preflight - --format json
 ```
+
+`preflight` is separate from repository scanning. It examines only the present
+instruction and explicit caller-supplied context. It never retrieves history,
+calls a provider/model, silently applies a patch, or sends the result.
 
 ## Programmatic API
 
@@ -37,20 +42,35 @@ lintlang patterns                      # List all detectors
 from lintlang import scan_file, scan_directory, compute_verdict
 
 result = scan_file("config.yaml")
-verdict = compute_verdict(result.structural_findings)  # PASS, REVIEW, or FAIL
+verdict = compute_verdict(result)  # ERROR, PASS, REVIEW, or FAIL
 
 for finding in result.structural_findings:
     print(f"[{finding.severity.value}] {finding.pattern}: {finding.description}")
     print(f"  -> {finding.suggestion}")
 ```
 
+Provider-neutral preflight:
+
+```python
+from lintlang import PreflightRequest, preflight_text
+
+result = preflight_text(PreflightRequest(prompt="Is it true that X?"))
+print(result.status.value)  # NOTICE
+print(result.to_json())     # raw prompt/context/patch text redacted by default
+```
+
+Preflight states are `ALLOW`, `NOTICE`, `HOLD`, `UNAVAILABLE`, and `ERROR`.
+Heuristic input-framing findings are notice-only. Only exact typed missing-context
+or mechanical-conflict findings may hold. `ALLOW` is not proof of truth, safety,
+quality, or provider compatibility.
+
 ## Verdict System
 
 | Verdict | Meaning | Trigger |
 |---------|---------|---------|
-| PASS | Ship it | Only LOW/INFO findings or none |
-| REVIEW | Has blind spots | MEDIUM findings present |
-| FAIL | Will break in production | CRITICAL or HIGH findings |
+| PASS | No blocking structural finding detected | Only LOW/INFO findings or none |
+| REVIEW | Review structural warnings | MEDIUM findings present |
+| FAIL | Blocking structural finding detected | CRITICAL or HIGH findings |
 
 ## Structural Detectors (H1-H7)
 
@@ -85,6 +105,7 @@ Catches: multiple system messages, system messages not at position 0, consecutiv
 - YAML (.yaml, .yml) — OpenAI function-calling format, tool definitions
 - JSON (.json) — OpenAI and Anthropic tool schemas, message arrays
 - Plain text (.txt, .md, .prompt) — System prompts, instruction docs
+- Python source (.py) — AST extraction of embedded prompts and P1/P2 pipeline checks
 
 Auto-detects format. Unknown extensions tried as JSON -> YAML -> plain text.
 

@@ -8,16 +8,36 @@ Quick start::
     from lintlang import scan_file, compute_verdict
 
     result = scan_file("config.yaml")
-    verdict = compute_verdict(result.structural_findings)
-    print(f"Verdict: {verdict}")  # PASS, REVIEW, or FAIL
+    verdict = compute_verdict(result)
+    print(f"Verdict: {verdict}")  # ERROR, PASS, REVIEW, or FAIL
     for f in result.structural_findings:
         print(f"  [{f.severity.value}] {f.description}")
 """
 
-__version__ = "0.2.1"
+__version__ = "0.3.1"
 
 from lintlang.herm import HermResult, score_text
 from lintlang.patterns import AgentConfig, Finding, Severity
+from lintlang.preflight import (
+    ConstraintKind,
+    ContextBinding,
+    ContextConstraint,
+    ContextContract,
+    ContextRequirement,
+    ContextSource,
+    Correction,
+    CorrectionError,
+    Delivery,
+    Override,
+    PreflightPolicy,
+    PreflightRequest,
+    PreflightResult,
+    apply_correction,
+    preflight_text,
+)
+from lintlang.preflight import (
+    Status as PreflightStatus,
+)
 from lintlang.report import compute_verdict
 from lintlang.scanner import ScanResult, scan_config, scan_directory, scan_file, scan_python_file
 
@@ -34,4 +54,20 @@ __all__ = [
     "Finding",
     "Severity",
     "score_text",
+    "ConstraintKind",
+    "ContextBinding",
+    "ContextConstraint",
+    "ContextContract",
+    "ContextRequirement",
+    "ContextSource",
+    "Correction",
+    "CorrectionError",
+    "Delivery",
+    "Override",
+    "PreflightPolicy",
+    "PreflightRequest",
+    "PreflightResult",
+    "PreflightStatus",
+    "apply_correction",
+    "preflight_text",
 ]

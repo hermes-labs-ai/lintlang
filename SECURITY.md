@@ -6,7 +6,7 @@ If you discover a security vulnerability in lintlang, please report it responsib
 
 **Do not open a public issue for security vulnerabilities.**
 
-Instead, email us at: **lpcisystems@gmail.com**
+Instead, email us at: **roli@hermes-labs.ai**
 
 Include:
 - A description of the vulnerability.

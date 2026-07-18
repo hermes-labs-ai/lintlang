@@ -64,9 +64,21 @@ def bad_tools_config():
     """Agent with vague, overlapping tool descriptions."""
     return AgentConfig(
         tools=[
-            ToolDef(name="get_data", description="Get data", parameters={"type": "object", "properties": {"data": {"type": "string"}}}),
-            ToolDef(name="fetch_data", description="Get data from the system", parameters={"type": "object", "properties": {"input": {"type": "string"}}}),
-            ToolDef(name="handle_request", description="Handle the user request", parameters={"type": "object", "properties": {"value": {"type": "string"}}}),
+            ToolDef(
+                name="get_data",
+                description="Get data",
+                parameters={"type": "object", "properties": {"data": {"type": "string"}}},
+            ),
+            ToolDef(
+                name="fetch_data",
+                description="Get data from the system",
+                parameters={"type": "object", "properties": {"input": {"type": "string"}}},
+            ),
+            ToolDef(
+                name="handle_request",
+                description="Handle the user request",
+                parameters={"type": "object", "properties": {"value": {"type": "string"}}},
+            ),
             ToolDef(name="no_desc_tool", description="", parameters={}),
         ],
         system_prompt="You are an assistant. Help the user.",

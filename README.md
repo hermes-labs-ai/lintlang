@@ -1,10 +1,17 @@
 # lintlang
 
-**lintlang is a static linter for AI agent configs, tool descriptions, and system prompts that runs zero-LLM quality gating in CI. 7 structural detectors (H1–H7), 6 HERM v1.1 scoring dimensions, validated against 28 comparison files. 154 tests (including a CI-mechanical doc-consistency gate), 0 LLM calls per scan, ~2ms per file.** Reproduce: `bash evals/sample-detection-rate.sh` flags 4-of-4 known-bad samples and passes 1-of-1 clean — same input, same output, every run.
+**lintlang is a deterministic static linter for AI agent configs, tool descriptions, and system prompts. It combines 7 structural detectors (H1–H7) with 6 HERM v1.1 scoring dimensions and runs without model or network calls.**
 
-AI agent configs fail for language reasons long before they fail for code reasons: vague tool descriptions, missing stop conditions, and schema fields that say nothing useful.
+> Release status: this checkout is the unreleased `0.3.1` candidate. The latest public PyPI release remains `0.2.2`.
 
-`lintlang` catches those language-level failures before they hit CI, runtime, or human review — without calling a model.
+The candidate also includes a separate provider-neutral `preflight` surface for
+one present instruction plus explicit context. See [Provider-neutral preflight](docs/preflight.md).
+
+Run `bash evals/sample-detection-rate.sh` to check the bundled regression fixtures: four deliberately broken samples must be flagged and one designated clean sample must pass. This is a repository regression check, not an accuracy estimate or validation corpus.
+
+AI agent configs can be syntactically valid while their language remains vague, unbounded, or structurally inconsistent.
+
+`lintlang` flags a bounded set of those static patterns before runtime review — without calling a model.
 
 - "My agent picks the wrong tool because the tool descriptions all sound the same."
 - "We only catch prompt and config drift after the agent starts looping."
@@ -20,7 +27,7 @@ lintlang scan samples/bad_tool_descriptions.yaml
 ```
 
 ```text
-LINTLANG v0.2.1
+LINTLANG v0.3.1
 samples/bad_tool_descriptions.yaml
 
 FAIL — 1 CRITICAL, 2 HIGH, 6 MEDIUM, 3 LOW
@@ -31,18 +38,18 @@ H1: Tool Description Ambiguity
 
 ## How it differs from LLM-based config review
 
-Most agent-config "review" tools call an LLM to grade your YAML. That makes the review **expensive, slow, and itself non-deterministic** — the same config scores differently on Tuesday versus Thursday. lintlang skips the model entirely.
+Model-based agent-config review depends on a model runtime and may add API cost, latency, or output variability. lintlang skips the model and applies local static rules.
 
 | | LLM-based config review | lintlang |
 |---|---|---|
-| Cost per scan | $0.01–$0.50 (model + tokens) | **$0.00** |
-| Wall time per file | 2–15 s | **~2 ms** |
-| Same input → same output | No (sampling-dependent) | **Yes (regex + AST)** |
-| Runs offline / in CI without keys | No | **Yes** |
-| Catches *vague* tool descriptions | Sometimes | **Always (H1)** |
-| Detects *missing* termination conditions | Rarely | **Always (H2)** |
+| Model or API cost per scan | Provider-dependent | **None** |
+| Model or API latency | Provider-dependent | **None** |
+| Same input → same output | Model/configuration-dependent | **Yes (regex + AST)** |
+| Runs without a model or API key | No | **Yes** |
+| Catches *vague* tool descriptions | Model-dependent | **Static H1 heuristic** |
+| Detects *missing* termination conditions | Model-dependent | **Static H2 heuristic** |
 
-Detection rules are static regex + structural heuristics. The same input produces the same output, every run, every CI.
+Detection rules are static regex + structural heuristics. File discovery and findings are deterministically ordered.
 
 ## When to use it
 
@@ -52,11 +59,9 @@ Use `lintlang` when you author or review AI agent tool descriptions, system prom
 
 - **Semantic correctness** — lintlang is structural. It catches *vague* tool descriptions, not *wrong* ones. ("delete_user" with empty description fails; "delete_user" pointing at the wrong table is invisible to lintlang.)
 - **Open-ended creative writing** — H1–H7 are calibrated for agent configs and system prompts, not prose.
-- **Auto-fix** — lintlang reports findings; it doesn't rewrite. Pair with a human or LLM for the fix step.
-- **Behavioral safety proofs** — a clean lintlang scan is a *necessary* but not *sufficient* condition for agent safety. Run a runtime evaluator (e.g., the rest of the Hermes Labs audit stack) for dynamic checks.
-- **Config formats we don't parse yet** — currently JSON, YAML, plain text, and `.prompt`. Markdown front-matter parses; arbitrary nested templates may not.
-
-![lintlang preview](assets/preview.png)
+- **Silent auto-fix or sending** — repository scans do not rewrite; preflight corrections require an explicit source-bound preview/apply action and never contact a provider.
+- **Behavioral safety proofs** — a clean lintlang scan is not evidence that an agent is safe or correct. Use runtime evaluation and domain review for behavioral claims.
+- **Input boundaries** — JSON, YAML, plain text, `.prompt`, and Markdown are parsed as language-bearing inputs. Python files use AST extraction only for embedded prompts and agent-pipeline thresholds; lintlang does not lint general Python syntax, style, types, or program correctness. Arbitrary nested templates may not parse.
 
 [![CI](https://github.com/hermes-labs-ai/lintlang/actions/workflows/ci.yml/badge.svg)](https://github.com/hermes-labs-ai/lintlang/actions/workflows/ci.yml)
 [![PyPI version](https://img.shields.io/pypi/v/lintlang)](https://pypi.org/project/lintlang/)
@@ -67,7 +72,7 @@ Use `lintlang` when you author or review AI agent tool descriptions, system prom
 
 **Static linter for AI agent tool descriptions, system prompts, and configs.**
 
-Most AI agent bugs aren't code bugs — they're language bugs. Vague tool descriptions make agents pick the wrong tool. Missing constraints cause infinite loops. Schema mismatches break structured output. lintlang catches these at authoring time, in CI, with zero LLM calls.
+Valid syntax does not guarantee clear instructions. Ambiguous tool descriptions, missing bounds, and schema-language mismatches can create review obligations that code linters do not express. lintlang flags its shipped static patterns at authoring time and in CI with zero LLM calls.
 
 ## Install
 
@@ -75,7 +80,7 @@ Most AI agent bugs aren't code bugs — they're language bugs. Vague tool descri
 pip install lintlang
 ```
 
-Requires Python 3.10+. One dependency (`pyyaml`). No API keys, no network access, no LLM calls.
+Requires Python 3.10+. One dependency (`pyyaml`). No API keys, network calls, or LLM calls.
 
 ## Quick Start
 
@@ -83,7 +88,7 @@ Requires Python 3.10+. One dependency (`pyyaml`). No API keys, no network access
 # Scan a single file
 lintlang scan agent_config.yaml
 
-# Scan a directory (finds .yaml, .json, .txt, .md, .prompt)
+# Scan a directory (finds .yaml, .json, .txt, .md, .prompt, and .py)
 lintlang scan configs/
 
 # JSON output for CI
@@ -96,10 +101,17 @@ lintlang scan config.yaml --fail-on fail
 lintlang scan config.yaml --fail-on review
 ```
 
+Preflight one present instruction without sending it anywhere:
+
+```bash
+printf '%s' 'Is it true that remote work always reduces productivity?' \
+  | lintlang preflight - --include-snippets
+```
+
 ### Example Output
 
 ```
-  LINTLANG v0.2.0
+  LINTLANG v0.3.1
   bad_tool_descriptions.yaml
   ──────────────────────────────────────────────────
 
@@ -126,7 +138,7 @@ lintlang scan config.yaml --fail-on review
       → Add: 'Maximum 5 tool calls per task. Stop and report after 2 failures.'
 
   ──────────────────────────────────────────────────
-  lintlang v0.2.0 | H1-H7 structural analysis | Zero LLM calls
+  lintlang v0.3.1 | H1-H7 structural analysis | Zero LLM calls
 ```
 
 ## How It Works
@@ -135,17 +147,25 @@ lintlang gives you a **verdict**, not a score:
 
 | Verdict | Meaning | When |
 |---------|---------|------|
-| ✅ **PASS** | Ship it | Only LOW/INFO findings or none |
-| ⚠️ **REVIEW** | Has blind spots | MEDIUM findings present |
-| ❌ **FAIL** | Will break in production | CRITICAL or HIGH findings |
+| ❌ **ERROR** | A requested input could not be scanned | Missing, unreadable, or malformed input |
+| ✅ **PASS** | No blocking structural finding detected | Only LOW/INFO findings or none |
+| ⚠️ **REVIEW** | Review structural warnings | MEDIUM findings present |
+| ❌ **FAIL** | Blocking structural finding detected | CRITICAL or HIGH findings |
 
-Each finding includes the **pattern** (H1-H7), **severity**, **location**, and a **concrete fix suggestion**. No vague "improve your prompt" — specific rewrites you can apply immediately.
+Each finding includes the **pattern** (H1-H7, plus P1/P2 for Python pipeline checks), **severity**, **location**, and a concrete suggestion. Suggestions are review aids, not guaranteed meaning-preserving fixes.
 
 ## Why These 7 Detectors?
 
-These aren't arbitrary rules — they're the 7 structural failure modes that cause real agent breakdowns in production. We identified them across audits of 8 major AI frameworks (LangChain, Semantic Kernel, AutoGen, smolagents, LiteLLM, Anthropic SDK, OpenAI SDK, Agno) and 12 filed PRs. Each detector maps to a specific class of bug that no other linter catches because they're language problems, not code problems.
+The shipped rule set groups its structural checks into seven categories for
+agent configuration and prompt surfaces. Each detector maps to a condition that
+general syntax and schema linters do not evaluate.
 
-No existing tool covers this: yamllint checks syntax, semgrep checks code patterns, ruff checks Python style. None of them can tell you that your tool description is ambiguous enough to cause wrong-tool selection, or that your system prompt lacks termination conditions and will loop forever.
+Tools such as yamllint, semgrep, and ruff cover syntax or source-code patterns.
+lintlang focuses on a different layer: whether descriptions are ambiguous or
+whether an instruction surface omits explicit termination conditions. Those
+findings are heuristic structural warnings, not predictions of runtime behavior.
+Current checked-in evidence is limited to unit tests and the small regression
+fixture described below; detector accuracy on external projects is unmeasured.
 
 ## Structural Detectors (H1-H7)
 
@@ -163,11 +183,11 @@ No existing tool covers this: yamllint checks syntax, semgrep checks code patter
 
 H5 distinguishes between **safety constraints** and **style negatives**. Security rules like "Never expose API keys" are correctly exempted. Style issues like "Don't be verbose" are flagged with positive rewrites.
 
-Validated on 26 real-world configs (OpenHands, RAG agents, HIPAA compliance, financial advisors, content moderation, DevOps safety) — see [`samples/`](samples/) for examples.
+The checked-in [`samples/`](samples/) directory contains a small regression set for detector behavior. It does not establish performance on external projects or production workloads.
 
 ### Why not just use GPT-4?
 
-Zero cost, zero latency, zero data exposure. Runs in CI where LLM calls can't. Catches structural patterns (missing termination, schema mismatches, role ordering) that LLMs are blind to because they process content, not structure.
+No model/API cost, model latency, or prompt transmission is required. lintlang runs offline and applies deterministic structural checks; it complements rather than replaces model-based or human review.
 
 ## CI Integration
 
@@ -188,6 +208,13 @@ Zero cost, zero latency, zero data exposure. Runs in CI where LLM calls can't. C
 | `--fail-on review` | Any MEDIUM+ finding | Strict quality gate |
 | `--fail-under 80` | Quality score < threshold | Legacy score-based gate |
 
+Input integrity is a separate fatal channel: every explicitly requested input,
+and every supported file discovered in a requested directory, must be readable
+and parseable. A missing, unreadable, or malformed input exits `1` regardless
+of `--fail-on`. JSON output keeps the affected path in the result list with
+`"verdict": "ERROR"` and a non-null `"input_error"`; it is never labeled
+`PASS` or silently omitted because another input scanned successfully.
+
 ### Filter by Severity
 
 ```bash
@@ -204,8 +231,10 @@ lintlang scan config.yaml --patterns H1 H3
 from lintlang import scan_file, compute_verdict
 
 result = scan_file("config.yaml")
-verdict = compute_verdict(result.structural_findings)
-print(f"Verdict: {verdict}")  # PASS, REVIEW, or FAIL
+if result.input_error:
+    raise ValueError(f"lintlang could not scan the input: {result.input_error}")
+verdict = compute_verdict(result)  # ERROR, PASS, REVIEW, or FAIL
+print(f"Verdict: {verdict}")  # ERROR, PASS, REVIEW, or FAIL
 
 for finding in result.structural_findings:
     print(f"  [{finding.severity.value}] {finding.description}")
@@ -218,7 +247,10 @@ from lintlang import scan_directory, compute_verdict
 
 results = scan_directory("configs/")
 for path, result in results.items():
-    verdict = compute_verdict(result.structural_findings)
+    if result.input_error:
+        print(f"{path}: ERROR — {result.input_error}")
+        continue
+    verdict = compute_verdict(result)
     print(f"{path}: {verdict}")
 ```
 
@@ -229,6 +261,7 @@ lintlang auto-detects file format:
 - **YAML** (`.yaml`, `.yml`) — OpenAI function-calling format, tool definitions
 - **JSON** (`.json`) — OpenAI and Anthropic tool schemas, message arrays
 - **Plain text** (`.txt`, `.md`, `.prompt`) — System prompts, instruction docs
+- **Python source** (`.py`) — AST extraction of embedded prompts and language-bearing agent-pipeline thresholds. This is not Python code linting: lintlang does not judge style, types, control flow, or general program correctness. A Python parse error is reported only because the requested language-bearing input could not be extracted safely.
 
 Unknown extensions are tried as JSON → YAML → plain text.
 
@@ -237,7 +270,7 @@ Unknown extensions are tried as JSON → YAML → plain text.
 | Tool | What It Does | How lintlang Differs |
 |------|-------------|---------------------|
 | **promptfoo** | Tests prompts via eval suites at runtime | lintlang is static — no LLM calls, catches issues at authoring time |
-| **guardrails-ai** | Validates LLM outputs at runtime | lintlang catches root causes (bad instructions), not symptoms |
+| **guardrails-ai** | Validates LLM outputs at runtime | lintlang examines static instruction artifacts before runtime |
 | **NeMo Guardrails** | Runtime dialogue rails | lintlang operates on config files, not live conversations |
 | **eslint / ruff** | Lints source code | lintlang lints natural language in agent configs |
 

@@ -1,0 +1,374 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:lintlang:schema:preflight-result:v1",
+  "title": "LintLang provider-neutral preflight result v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_id",
+    "schema_version",
+    "engine_version",
+    "rule_bundle_version",
+    "fingerprint",
+    "status",
+    "exit_code",
+    "input",
+    "coverage",
+    "findings",
+    "corrections",
+    "actions",
+    "diagnostics",
+    "lineage",
+    "network",
+    "storage"
+  ],
+  "properties": {
+    "schema_id": {"const": "urn:lintlang:schema:preflight-result:v1"},
+    "schema_version": {"const": "lintlang.preflight-result.v1"},
+    "engine_version": {"const": "0.3.1+preflight.1"},
+    "rule_bundle_version": {"const": "preflight-rules.v1"},
+    "fingerprint": {"type": "string", "pattern": "^(?:sha256:)?[0-9a-f]{64}$"},
+    "status": {"enum": ["ALLOW", "NOTICE", "HOLD", "UNAVAILABLE", "ERROR"]},
+    "exit_code": {"type": "integer", "minimum": 0, "maximum": 3},
+    "input": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sha256",
+        "codepoints",
+        "utf8_bytes",
+        "context_sha256",
+        "context_utf8_bytes",
+        "language",
+        "snippets_included"
+      ],
+      "properties": {
+        "sha256": {"$ref": "#/$defs/sha256"},
+        "codepoints": {"type": "integer", "minimum": 0},
+        "utf8_bytes": {"type": "integer", "minimum": 0},
+        "context_sha256": {"$ref": "#/$defs/sha256"},
+        "context_utf8_bytes": {"type": "integer", "minimum": 0},
+        "language": {"type": "string", "minLength": 1},
+        "snippets_included": {"type": "boolean"}
+      }
+    },
+    "coverage": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/coverage"}
+    },
+    "findings": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/finding"}
+    },
+    "corrections": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/correction"}
+    },
+    "actions": {
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 4,
+      "prefixItems": [
+        {"allOf": [{"$ref": "#/$defs/action"}, {"properties": {"id": {"const": "PASS_AS_IS"}}}]},
+        {"allOf": [{"$ref": "#/$defs/action"}, {"properties": {"id": {"const": "APPLY_PATCH"}}}]},
+        {"allOf": [{"$ref": "#/$defs/action"}, {"properties": {"id": {"const": "ADD_CONTEXT"}}}]},
+        {"allOf": [{"$ref": "#/$defs/action"}, {"properties": {"id": {"const": "HOLD_AND_DISCUSS"}}}]}
+      ],
+      "items": false
+    },
+    "diagnostics": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/diagnostic"}
+    },
+    "lineage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["parent_fingerprint", "applied_correction_id", "relint_depth"],
+      "properties": {
+        "parent_fingerprint": {
+          "anyOf": [{"type": "null"}, {"type": "string", "pattern": "^(?:sha256:)?[0-9a-f]{64}$"}]
+        },
+        "applied_correction_id": {
+          "anyOf": [{"type": "null"}, {"type": "string", "pattern": "^pc_[0-9a-f]{20}$"}]
+        },
+        "relint_depth": {"type": "integer", "minimum": 0, "maximum": 1}
+      }
+    },
+    "network": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["attempted"],
+      "properties": {"attempted": {"const": false}}
+    },
+    "storage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["persisted"],
+      "properties": {"persisted": {"const": false}}
+    }
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "span": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["start", "end"],
+      "properties": {
+        "start": {"type": "integer", "minimum": 0},
+        "end": {"type": "integer", "minimum": 0}
+      }
+    },
+    "prompt_evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "span", "sha256", "codepoints", "utf8_bytes"],
+      "properties": {
+        "source": {"const": "prompt"},
+        "span": {"$ref": "#/$defs/span"},
+        "sha256": {"$ref": "#/$defs/sha256"},
+        "codepoints": {"type": "integer", "minimum": 0},
+        "utf8_bytes": {"type": "integer", "minimum": 0},
+        "snippet": {"type": "string"}
+      }
+    },
+    "context_evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "json_pointer", "sha256", "codepoints", "utf8_bytes"],
+      "properties": {
+        "source": {"const": "context"},
+        "json_pointer": {"type": "string", "pattern": "^/"},
+        "sha256": {"$ref": "#/$defs/sha256"},
+        "codepoints": {"type": "integer", "minimum": 0},
+        "utf8_bytes": {"type": "integer", "minimum": 0},
+        "value": {"type": "string"}
+      }
+    },
+    "evidence": {
+      "oneOf": [
+        {"$ref": "#/$defs/prompt_evidence"},
+        {"$ref": "#/$defs/context_evidence"}
+      ]
+    },
+    "coverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["component", "required", "state", "reason"],
+      "properties": {
+        "component": {"type": "string", "minLength": 1},
+        "required": {"type": "boolean"},
+        "state": {"enum": ["FULL", "NONE", "NOT_REQUIRED"]},
+        "reason": {"type": "string"}
+      }
+    },
+    "finding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "finding_id",
+        "rule_id",
+        "rule_version",
+        "label",
+        "scope",
+        "trigger_kind",
+        "trigger",
+        "proposition_kind",
+        "proposition",
+        "additional_evidence",
+        "risk",
+        "explanation",
+        "suggestion",
+        "confidence",
+        "maturity",
+        "enforcement",
+        "related_output_modes",
+        "correction_ids",
+        "overridden"
+      ],
+      "properties": {
+        "finding_id": {"type": "string", "pattern": "^pf_[0-9a-f]{20}$"},
+        "rule_id": {"type": "string", "pattern": "^PF00[1-5]$"},
+        "rule_version": {"type": "string", "minLength": 1},
+        "label": {"type": "string", "minLength": 1},
+        "scope": {"enum": ["DIRECT", "QUOTED", "HYPOTHETICAL", "CODE", "NEGATED"]},
+        "trigger_kind": {"type": "string", "minLength": 1},
+        "trigger": {"$ref": "#/$defs/evidence"},
+        "proposition_kind": {"anyOf": [{"type": "null"}, {"type": "string", "minLength": 1}]},
+        "proposition": {"anyOf": [{"type": "null"}, {"$ref": "#/$defs/evidence"}]},
+        "additional_evidence": {"type": "array", "items": {"$ref": "#/$defs/evidence"}},
+        "risk": {"type": "string", "minLength": 1},
+        "explanation": {"type": "string", "minLength": 1},
+        "suggestion": {"type": "string", "minLength": 1},
+        "confidence": {"enum": ["EXACT", "HEURISTIC"]},
+        "maturity": {"enum": ["STABLE", "BETA", "EXPERIMENTAL"]},
+        "enforcement": {"enum": ["HOLD_ELIGIBLE", "NOTICE_ONLY"]},
+        "related_output_modes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["mode", "relationship"],
+            "properties": {
+              "mode": {"type": "string", "minLength": 1},
+              "relationship": {"const": "inspired_by_not_equivalent"}
+            }
+          }
+        },
+        "correction_ids": {
+          "type": "array",
+          "items": {"type": "string", "pattern": "^pc_[0-9a-f]{20}$"}
+        },
+        "overridden": {"type": "boolean"},
+        "override_reason_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "edit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "start",
+        "end",
+        "replacement_sha256",
+        "replacement_codepoints",
+        "replacement_utf8_bytes"
+      ],
+      "properties": {
+        "start": {"type": "integer", "minimum": 0},
+        "end": {"type": "integer", "minimum": 0},
+        "replacement_sha256": {"$ref": "#/$defs/sha256"},
+        "replacement_codepoints": {"type": "integer", "minimum": 0},
+        "replacement_utf8_bytes": {"type": "integer", "minimum": 0},
+        "replacement": {"type": "string"}
+      }
+    },
+    "diff": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sha256", "utf8_bytes"],
+      "properties": {
+        "sha256": {"$ref": "#/$defs/sha256"},
+        "utf8_bytes": {"type": "integer", "minimum": 0},
+        "text": {"type": "string"}
+      }
+    },
+    "correction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "correction_id",
+        "finding_id",
+        "source_sha256",
+        "result_sha256",
+        "schema_version",
+        "engine_version",
+        "rule_bundle_version",
+        "edits",
+        "diff",
+        "meaning_preservation",
+        "requires_relint"
+      ],
+      "properties": {
+        "correction_id": {"type": "string", "pattern": "^pc_[0-9a-f]{20}$"},
+        "finding_id": {"type": "string", "pattern": "^pf_[0-9a-f]{20}$"},
+        "source_sha256": {"$ref": "#/$defs/sha256"},
+        "result_sha256": {"$ref": "#/$defs/sha256"},
+        "schema_version": {"const": "lintlang.preflight-result.v1"},
+        "engine_version": {"const": "0.3.1+preflight.1"},
+        "rule_bundle_version": {"const": "preflight-rules.v1"},
+        "edits": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/edit"}},
+        "diff": {"$ref": "#/$defs/diff"},
+        "meaning_preservation": {"const": "UNVERIFIED"},
+        "requires_relint": {"const": true}
+      }
+    },
+    "action": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "available", "precondition"],
+      "properties": {
+        "id": {"enum": ["PASS_AS_IS", "APPLY_PATCH", "ADD_CONTEXT", "HOLD_AND_DISCUSS"]},
+        "available": {"type": "boolean"},
+        "precondition": {"type": "string"}
+      }
+    },
+    "diagnostic": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "severity", "message"],
+      "properties": {
+        "code": {"type": "string", "minLength": 1},
+        "severity": {"enum": ["INFO", "WARNING", "ERROR"]},
+        "message": {"type": "string", "minLength": 1},
+        "context_pointer": {"type": "string", "pattern": "^/"}
+      }
+    },
+    "evidence_redacted": {
+      "allOf": [
+        {"$ref": "#/$defs/evidence"},
+        {
+          "not": {
+            "anyOf": [
+              {"required": ["snippet"]},
+              {"required": ["value"]}
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"status": {"enum": ["ALLOW", "NOTICE"]}}},
+      "then": {"properties": {"exit_code": {"const": 0}}}
+    },
+    {
+      "if": {"properties": {"status": {"const": "HOLD"}}},
+      "then": {"properties": {"exit_code": {"const": 1}}}
+    },
+    {
+      "if": {"properties": {"status": {"const": "ERROR"}}},
+      "then": {
+        "properties": {
+          "exit_code": {"const": 2},
+          "actions": {"items": {"properties": {"available": {"const": false}}}}
+        }
+      }
+    },
+    {
+      "if": {"properties": {"status": {"const": "UNAVAILABLE"}}},
+      "then": {"properties": {"exit_code": {"const": 3}}}
+    },
+    {
+      "if": {
+        "properties": {
+          "input": {"properties": {"snippets_included": {"const": false}}}
+        }
+      },
+      "then": {
+        "properties": {
+          "findings": {
+            "items": {
+              "properties": {
+                "trigger": {"$ref": "#/$defs/evidence_redacted"},
+                "proposition": {
+                  "anyOf": [{"type": "null"}, {"$ref": "#/$defs/evidence_redacted"}]
+                },
+                "additional_evidence": {
+                  "items": {"$ref": "#/$defs/evidence_redacted"}
+                }
+              }
+            }
+          },
+          "corrections": {
+            "items": {
+              "properties": {
+                "edits": {"items": {"not": {"required": ["replacement"]}}},
+                "diff": {"not": {"required": ["text"]}}
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}
