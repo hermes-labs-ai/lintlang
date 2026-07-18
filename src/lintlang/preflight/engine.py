@@ -98,11 +98,8 @@ _PF003_PATTERNS = (
         "standard_process",
     ),
 )
-_FORMAT_PATTERN = re.compile(
-    r"\b(?:return|respond(?:\s+with)?|output|format)\b"
-    r"(?=[^?!.\n]{0,48}\b(?P<format>json|markdown)\b)",
-    re.IGNORECASE,
-)
+_FORMAT_DIRECTIVE_PATTERN = re.compile(r"\b(?:return|respond(?:\s+with)?|output|format)\b", re.IGNORECASE)
+_FORMAT_VALUE_PATTERN = re.compile(r"\b(?:json|markdown)\b", re.IGNORECASE)
 _ONE_SENTENCE_PATTERN = re.compile(r"\bexactly\s+one\s+sentence\b", re.IGNORECASE)
 _THREE_PARAGRAPHS_PATTERN = re.compile(r"\bat\s+least\s+(?:three|3)\s+paragraphs?\b", re.IGNORECASE)
 _KEY_PATTERN = re.compile(r"^[A-Za-z][A-Za-z0-9_.-]{0,127}$")
@@ -400,6 +397,43 @@ def _early(
         status=status,
         coverage=_coverage(enabled, required, coverage_state, message),
         diagnostics=(Diagnostic(code, DiagnosticSeverity.ERROR, message, context_pointer),),
+        snippets_authorized=snippets_authorized,
+        parent_fingerprint=parent_fingerprint,
+        applied_correction_id=applied_correction_id,
+        relint_depth=relint_depth,
+    )
+
+
+def _coverage_unavailable(
+    metadata: InputMetadata,
+    code: str,
+    message: str,
+    *,
+    enabled: set[str],
+    required: set[str],
+    snippets_authorized: bool,
+    parent_fingerprint: str | None,
+    applied_correction_id: str | None,
+    relint_depth: int,
+) -> PreflightResult:
+    if required:
+        return _early(
+            metadata,
+            Status.UNAVAILABLE,
+            code,
+            message,
+            enabled=enabled,
+            required=required,
+            snippets_authorized=snippets_authorized,
+            parent_fingerprint=parent_fingerprint,
+            applied_correction_id=applied_correction_id,
+            relint_depth=relint_depth,
+        )
+    return _result(
+        metadata=metadata,
+        status=Status.ALLOW,
+        coverage=_coverage(enabled, required, CoverageState.NONE, message),
+        diagnostics=(Diagnostic(code, DiagnosticSeverity.WARNING, message),),
         snippets_authorized=snippets_authorized,
         parent_fingerprint=parent_fingerprint,
         applied_correction_id=applied_correction_id,
@@ -947,23 +981,32 @@ def _detect(
             constraint, constraint_index = output_constraints[0]
             expected_format = constraint.value.strip().casefold()
             context_evidence = _context_evidence(f"/constraints/{constraint_index}/value", constraint.value)
-            for match in _FORMAT_PATTERN.finditer(prompt):
-                if not scope.is_direct(match.start(), match.end("format")):
-                    continue
-                requested = match.group("format").casefold()
-                if requested == expected_format:
-                    continue
-                seeds.append(
-                    _FindingSeed(
-                        "PF005",
-                        "OUTPUT_FORMAT_CONFLICT",
-                        _prompt_evidence(prompt, match.start("format"), match.end("format")),
-                        "TYPED_FORMAT_CONSTRAINT",
-                        context_evidence,
-                        (),
-                        "format-conflict:" + _sha_text(f"{requested}!={expected_format}"),
+            seen_format_spans: set[tuple[int, int]] = set()
+            for directive in _FORMAT_DIRECTIVE_PATTERN.finditer(prompt):
+                window_end = min(len(prompt), directive.end() + 48)
+                for index in range(directive.end(), window_end):
+                    if prompt[index] in "?!.\n":
+                        window_end = index
+                        break
+                for match in _FORMAT_VALUE_PATTERN.finditer(prompt, directive.end(), window_end):
+                    span = (match.start(), match.end())
+                    if span in seen_format_spans or not scope.is_direct(directive.start(), match.end()):
+                        continue
+                    seen_format_spans.add(span)
+                    requested = match.group().casefold()
+                    if requested == expected_format:
+                        continue
+                    seeds.append(
+                        _FindingSeed(
+                            "PF005",
+                            "OUTPUT_FORMAT_CONFLICT",
+                            _prompt_evidence(prompt, match.start(), match.end()),
+                            "TYPED_FORMAT_CONSTRAINT",
+                            context_evidence,
+                            (),
+                            "format-conflict:" + _sha_text(f"{requested}!={expected_format}"),
+                        )
                     )
-                )
 
         sentence_matches = [
             item for item in _ONE_SENTENCE_PATTERN.finditer(prompt) if scope.is_direct(item.start(), item.end())
@@ -1142,10 +1185,17 @@ def _preflight(
             **lineage,
         )
     assert context is not None and policy is not None
+    if not enabled:
+        return _result(
+            metadata=metadata,
+            status=Status.ALLOW,
+            coverage=_coverage(enabled, required, CoverageState.NOT_REQUIRED, "no enabled rules"),
+            snippets_authorized=snippets_authorized,
+            **lineage,
+        )
     if request.language.casefold() != "en":
-        return _early(
+        return _coverage_unavailable(
             metadata,
-            Status.UNAVAILABLE,
             "UNSUPPORTED_LANGUAGE",
             "preflight-rules.v1 supports declared language en only",
             enabled=enabled,
@@ -1155,9 +1205,8 @@ def _preflight(
         )
     scope = analyze_scope(request.prompt)
     if scope.unavailable_reason is not None:
-        return _early(
+        return _coverage_unavailable(
             metadata,
-            Status.UNAVAILABLE,
             "UNSAFE_SCOPE",
             scope.unavailable_reason,
             enabled=enabled,

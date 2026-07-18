@@ -137,6 +137,9 @@ print(result.status.value)  # NOTICE
 print(result.to_json())     # raw text redacted by default
 ```
 
-Unsupported declared languages and unsafe, unbalanced quote/code scope return
-`UNAVAILABLE`, never `ALLOW`. Empty, oversized, malformed, or ambiguous inputs
-return `ERROR`.
+When selected rules are required, unsupported declared languages and unsafe,
+unbalanced quote/code scope return `UNAVAILABLE`, never `ALLOW`. A policy with
+no enabled rules skips rule and scope analysis and reports every component as
+`NOT_REQUIRED`. Enabled-but-optional rules report unavailable analysis as
+`NONE` coverage plus a warning without claiming that required coverage failed.
+Empty, oversized, malformed, or ambiguous inputs return `ERROR`.

@@ -189,6 +189,63 @@ class StatusAndRuleTests(unittest.TestCase):
         self.assertEqual(finding["proposition"]["source"], "context")
         self.assertEqual(finding["proposition"]["json_pointer"], "/constraints/0/value")
 
+    def test_pf005_checks_every_format_mention_in_both_orders(self) -> None:
+        cases = (
+            ("Return JSON, then markdown.", "markdown", ("JSON",)),
+            ("Return markdown, then JSON.", "json", ("markdown",)),
+        )
+        for prompt, expected_format, conflicting_mentions in cases:
+            with self.subTest(prompt=prompt):
+                result = preflight_text(
+                    PreflightRequest(
+                        prompt,
+                        context=ContextContract(
+                            constraints=(ContextConstraint(ConstraintKind.OUTPUT_FORMAT, expected_format),)
+                        ),
+                    )
+                )
+                self.assertIs(result.status, Status.HOLD)
+                self.assertEqual([item.rule_id for item in result.findings], ["PF005"])
+                self.assertEqual(
+                    tuple(prompt[item.trigger.span.start : item.trigger.span.end] for item in result.findings),
+                    conflicting_mentions,
+                )
+
+    def test_pf005_preserves_repeated_conflicting_format_spans(self) -> None:
+        prompt = "Return JSON, JSON, then markdown, then JSON."
+        result = preflight_text(
+            PreflightRequest(
+                prompt,
+                context=ContextContract(constraints=(ContextConstraint(ConstraintKind.OUTPUT_FORMAT, "markdown"),)),
+            )
+        )
+
+        self.assertIs(result.status, Status.HOLD)
+        self.assertEqual([item.rule_id for item in result.findings], ["PF005", "PF005", "PF005"])
+        self.assertEqual(
+            [prompt[item.trigger.span.start : item.trigger.span.end] for item in result.findings],
+            ["JSON", "JSON", "JSON"],
+        )
+        self.assertEqual(
+            [(item.trigger.span.start, item.trigger.span.end) for item in result.findings],
+            [(7, 11), (13, 17), (39, 43)],
+        )
+
+    def test_pf005_stops_at_clause_boundaries_and_ignores_nonoperative_examples(self) -> None:
+        controls = (
+            'Return JSON. Discuss the phrase "Return markdown."',
+            "Return JSON. Use this example: `Return markdown.`",
+            "Return JSON. Do not return markdown.",
+            "Return JSON. Analyze markdown as a format name.",
+            "Return JSON.\nMention markdown in the explanation.",
+        )
+        context = ContextContract(constraints=(ContextConstraint(ConstraintKind.OUTPUT_FORMAT, "json"),))
+        for prompt in controls:
+            with self.subTest(prompt=prompt):
+                result = preflight_text(PreflightRequest(prompt, context=context))
+                self.assertIs(result.status, Status.ALLOW)
+                self.assertEqual(result.findings, ())
+
     def test_pf005_intrinsic_structural_conflict(self) -> None:
         result = preflight_text(PreflightRequest("Use exactly one sentence and at least three paragraphs."))
         self.assertIs(result.status, Status.HOLD)
@@ -216,6 +273,59 @@ class ScopeTests(unittest.TestCase):
                 self.assertIs(result.status, Status.UNAVAILABLE)
                 self.assertEqual(result.diagnostics[0].code, "UNSAFE_SCOPE")
                 self.assertFalse(next(item for item in result.actions if item.id is ActionId.PASS_AS_IS).available)
+
+    def test_zero_enabled_and_required_rules_skip_scope_parser(self) -> None:
+        policy = PreflightPolicy(enabled_rules=(), required_rules=())
+        for prompt in ("`", '"', "Explain (this"):
+            with self.subTest(prompt=prompt):
+                result = preflight_text(PreflightRequest(prompt, policy=policy))
+                self.assertIs(result.status, Status.ALLOW)
+                self.assertEqual(result.diagnostics, ())
+                self.assertTrue(all(not item.required for item in result.coverage))
+                self.assertTrue(all(item.state.value == "NOT_REQUIRED" for item in result.coverage))
+
+    def test_enabled_optional_rules_report_parser_loss_without_unavailable(self) -> None:
+        policy = PreflightPolicy(enabled_rules=("PF001",), required_rules=())
+        for prompt in ("`", '"', "Explain (this"):
+            with self.subTest(prompt=prompt):
+                result = preflight_text(PreflightRequest(prompt, policy=policy))
+                self.assertIs(result.status, Status.ALLOW)
+                self.assertEqual([item.code for item in result.diagnostics], ["UNSAFE_SCOPE"])
+                self.assertEqual(result.diagnostics[0].severity.value, "WARNING")
+                scope_coverage = next(item for item in result.coverage if item.component == "scope-parser")
+                rule_coverage = next(item for item in result.coverage if item.component == "PF001")
+                self.assertFalse(scope_coverage.required)
+                self.assertFalse(rule_coverage.required)
+                self.assertEqual(scope_coverage.state.value, "NONE")
+                self.assertEqual(rule_coverage.state.value, "NONE")
+
+    def test_enabled_optional_rules_report_language_loss_without_unavailable(self) -> None:
+        policy = PreflightPolicy(enabled_rules=("PF001",), required_rules=())
+        result = preflight_text(PreflightRequest("Assess the evidence.", language="fr", policy=policy))
+
+        self.assertIs(result.status, Status.ALLOW)
+        self.assertEqual([item.code for item in result.diagnostics], ["UNSUPPORTED_LANGUAGE"])
+        self.assertEqual(result.diagnostics[0].severity.value, "WARNING")
+        scope_coverage = next(item for item in result.coverage if item.component == "scope-parser")
+        rule_coverage = next(item for item in result.coverage if item.component == "PF001")
+        self.assertFalse(scope_coverage.required)
+        self.assertFalse(rule_coverage.required)
+        self.assertEqual(scope_coverage.state.value, "NONE")
+        self.assertEqual(rule_coverage.state.value, "NONE")
+
+    def test_required_rules_keep_genuine_scope_loss_unavailable(self) -> None:
+        policy = PreflightPolicy(enabled_rules=("PF001",), required_rules=("PF001",))
+        for prompt in ("`", '"', "Explain (this"):
+            with self.subTest(prompt=prompt):
+                result = preflight_text(PreflightRequest(prompt, policy=policy))
+                self.assertIs(result.status, Status.UNAVAILABLE)
+                self.assertEqual(result.diagnostics[0].code, "UNSAFE_SCOPE")
+                scope_coverage = next(item for item in result.coverage if item.component == "scope-parser")
+                rule_coverage = next(item for item in result.coverage if item.component == "PF001")
+                self.assertTrue(scope_coverage.required)
+                self.assertTrue(rule_coverage.required)
+                self.assertEqual(scope_coverage.state.value, "NONE")
+                self.assertEqual(rule_coverage.state.value, "NONE")
 
     def test_contractions_and_possessives_are_not_unbalanced_quotes(self) -> None:
         prompts = (
