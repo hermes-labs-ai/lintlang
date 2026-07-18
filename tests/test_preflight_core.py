@@ -211,6 +211,46 @@ class StatusAndRuleTests(unittest.TestCase):
                     conflicting_mentions,
                 )
 
+    def test_pf005_accepts_typed_format_that_resolves_an_explicit_alternative(self) -> None:
+        cases = (
+            ("Return JSON or markdown.", "markdown"),
+            ("Return markdown or JSON.", "json"),
+            ("Return either JSON, or markdown.", "markdown"),
+            ("Either return markdown or return JSON.", "json"),
+            ("Return JSON and/or markdown.", "markdown"),
+            ("Return markdown/JSON.", "json"),
+        )
+        for prompt, expected_format in cases:
+            with self.subTest(prompt=prompt, expected_format=expected_format):
+                result = preflight_text(
+                    PreflightRequest(
+                        prompt,
+                        context=ContextContract(
+                            constraints=(ContextConstraint(ConstraintKind.OUTPUT_FORMAT, expected_format),)
+                        ),
+                    )
+                )
+                self.assertIs(result.status, Status.ALLOW)
+                self.assertEqual(result.findings, ())
+
+    def test_pf005_alternatives_do_not_mask_conjoined_or_sequential_conflicts(self) -> None:
+        cases = (
+            ("Return JSON and markdown.", ("JSON",)),
+            ("Return JSON, then markdown.", ("JSON",)),
+            ("Return JSON, markdown.", ("JSON",)),
+            ("Return JSON or markdown, then JSON.", ("JSON",)),
+            ("Return JSON or YAML, then markdown.", ("JSON",)),
+        )
+        context = ContextContract(constraints=(ContextConstraint(ConstraintKind.OUTPUT_FORMAT, "markdown"),))
+        for prompt, conflicting_mentions in cases:
+            with self.subTest(prompt=prompt):
+                result = preflight_text(PreflightRequest(prompt, context=context))
+                self.assertIs(result.status, Status.HOLD)
+                self.assertEqual(
+                    tuple(prompt[item.trigger.span.start : item.trigger.span.end] for item in result.findings),
+                    conflicting_mentions,
+                )
+
     def test_pf005_preserves_repeated_conflicting_format_spans(self) -> None:
         prompt = "Return JSON, JSON, then markdown, then JSON."
         result = preflight_text(

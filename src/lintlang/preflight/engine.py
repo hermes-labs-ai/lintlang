@@ -100,6 +100,10 @@ _PF003_PATTERNS = (
 )
 _FORMAT_DIRECTIVE_PATTERN = re.compile(r"\b(?:return|respond(?:\s+with)?|output|format)\b", re.IGNORECASE)
 _FORMAT_VALUE_PATTERN = re.compile(r"\b(?:json|markdown)\b", re.IGNORECASE)
+_FORMAT_ALTERNATIVE_SEPARATOR_PATTERN = re.compile(
+    r"\s*(?:,?\s*(?:or|and/or)(?:\s+(?:return|respond(?:\s+with)?|output|format))?\s*|/\s*)",
+    re.IGNORECASE,
+)
 _ONE_SENTENCE_PATTERN = re.compile(r"\bexactly\s+one\s+sentence\b", re.IGNORECASE)
 _THREE_PARAGRAPHS_PATTERN = re.compile(r"\bat\s+least\s+(?:three|3)\s+paragraphs?\b", re.IGNORECASE)
 _KEY_PATTERN = re.compile(r"^[A-Za-z][A-Za-z0-9_.-]{0,127}$")
@@ -988,13 +992,24 @@ def _detect(
                     if prompt[index] in "?!.\n":
                         window_end = index
                         break
-                for match in _FORMAT_VALUE_PATTERN.finditer(prompt, directive.end(), window_end):
+                format_matches = list(_FORMAT_VALUE_PATTERN.finditer(prompt, directive.end(), window_end))
+                for match in format_matches:
                     span = (match.start(), match.end())
                     if span in seen_format_spans or not scope.is_direct(directive.start(), match.end()):
                         continue
                     seen_format_spans.add(span)
                     requested = match.group().casefold()
                     if requested == expected_format:
+                        continue
+                    is_resolved_alternative = any(
+                        candidate.group().casefold() == expected_format
+                        and _FORMAT_ALTERNATIVE_SEPARATOR_PATTERN.fullmatch(
+                            prompt[min(match.end(), candidate.end()) : max(match.start(), candidate.start())]
+                        )
+                        is not None
+                        for candidate in format_matches
+                    )
+                    if is_resolved_alternative:
                         continue
                     seeds.append(
                         _FindingSeed(
