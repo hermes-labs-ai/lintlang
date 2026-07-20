@@ -1,4 +1,4 @@
-# Provider-neutral preflight (unreleased candidate)
+# Provider-neutral preflight
 
 `lintlang preflight` examines one instruction plus explicit caller-supplied
 context before a host sends that instruction to an agent. It is deterministic,

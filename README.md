@@ -2,9 +2,9 @@
 
 **lintlang is a deterministic static linter for AI agent configs, tool descriptions, and system prompts. It combines 7 structural detectors (H1–H7) with 6 HERM v1.1 scoring dimensions and runs without model or network calls.**
 
-> Release status: this checkout is the unreleased `0.3.1` candidate. The latest public PyPI release remains `0.2.2`.
+> Release status: `0.3.1` is the latest public release, on PyPI and GitHub.
 
-The candidate also includes a separate provider-neutral `preflight` surface for
+This release also includes a separate provider-neutral `preflight` surface for
 one present instruction plus explicit context. See [Provider-neutral preflight](docs/preflight.md).
 
 Run `bash evals/sample-detection-rate.sh` to check the bundled regression fixtures: four deliberately broken samples must be flagged and one designated clean sample must pass. This is a repository regression check, not an accuracy estimate or validation corpus.
