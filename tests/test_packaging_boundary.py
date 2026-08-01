@@ -20,7 +20,12 @@ def test_common_virtualenv_directories_are_excluded_from_source_builds(
     )
     virtualenv_bin = source / "venv" / "bin"
     virtualenv_bin.mkdir(parents=True)
-    (virtualenv_bin / "python").symlink_to(sys.executable)
+    interpreter = virtualenv_bin / "python"
+    try:
+        interpreter.symlink_to(sys.executable)
+    except OSError:
+        # Windows commonly denies symlink creation without Developer Mode.
+        interpreter.write_text("virtualenv interpreter placeholder")
 
     output = tmp_path / "dist"
     output.mkdir()
