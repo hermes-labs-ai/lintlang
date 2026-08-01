@@ -26,6 +26,10 @@ def test_common_virtualenv_directories_are_excluded_from_source_builds(
     except OSError:
         # Windows commonly denies symlink creation without Developer Mode.
         interpreter.write_text("virtualenv interpreter placeholder")
+    for directory in ("env", "ENV"):
+        candidate = source / directory / "bin"
+        candidate.mkdir(parents=True, exist_ok=True)
+        (candidate / "python").write_text("virtualenv interpreter placeholder")
 
     output = tmp_path / "dist"
     output.mkdir()
@@ -35,4 +39,8 @@ def test_common_virtualenv_directories_are_excluded_from_source_builds(
     with tarfile.open(artifact) as archive:
         names = archive.getnames()
 
-    assert not any("/venv/" in name for name in names)
+    assert not any(
+        f"/{directory}/" in name
+        for name in names
+        for directory in ("venv", "env", "ENV")
+    )

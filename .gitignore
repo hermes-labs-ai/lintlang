@@ -6,6 +6,8 @@ dist/
 build/
 .venv/
 venv/
+env/
+ENV/
 .pytest_cache/
 .coverage
 htmlcov/
