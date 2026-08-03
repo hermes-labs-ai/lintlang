@@ -68,9 +68,14 @@ quality, or provider compatibility.
 
 | Verdict | Meaning | Trigger |
 |---------|---------|---------|
-| PASS | No blocking structural finding detected | Only LOW/INFO findings or none |
+| ERROR | A requested input could not be inspected | Missing, unreadable, or malformed input |
+| PASS | No MEDIUM/HIGH/CRITICAL finding remained | Recognized content passed the selected checks and filters |
 | REVIEW | Review structural warnings | MEDIUM findings present |
 | FAIL | Blocking structural finding detected | CRITICAL or HIGH findings |
+
+`PASS` applies only to recognized content extracted from the requested inputs
+and the checks and severity filters selected for that run. It does not mean
+that every structure in an arbitrary JSON or YAML file was extracted.
 
 ## Structural Detectors (H1-H7)
 
@@ -102,12 +107,14 @@ Catches: multiple system messages, system messages not at position 0, consecutiv
 
 ## Supported Formats
 
-- YAML (.yaml, .yml) — OpenAI function-calling format, tool definitions
-- JSON (.json) — OpenAI and Anthropic tool schemas, message arrays
+- YAML (.yaml, .yml) — recognized top-level agent fields and tool definitions
+- JSON (.json) — recognized top-level agent fields, tool schemas, and message arrays
 - Plain text (.txt, .md, .prompt) — System prompts, instruction docs
 - Python source (.py) — AST extraction of embedded prompts and P1/P2 pipeline checks
 
 Auto-detects format. Unknown extensions tried as JSON -> YAML -> plain text.
+Nested vendor-specific layouts and raw top-level YAML arrays are not
+automatically normalized.
 
 ## CI Integration
 
