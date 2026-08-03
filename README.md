@@ -40,8 +40,7 @@ lintlang scan AGENTS.md
 If your project uses another filename, replace `AGENTS.md` with its prompt,
 tool-definition, agent-configuration, or supported directory path.
 
-Used in recurring CI by
-[Character.AI's public Larch repository](https://github.com/character-ai/larch/pull/7960).
+**3,000+ PyPI downloads · Used in recurring CI by [Character.AI's public Larch repository](https://github.com/character-ai/larch/pull/7960) · Independently packaged for [Gentoo](https://github.com/thehaven/haven-overlay/tree/master/dev-util/lintlang)**
 
 When you are ready to make `HIGH` or `CRITICAL` findings block CI:
 
@@ -66,6 +65,8 @@ lintlang scan samples/bad_tool_descriptions.yaml --fail-on fail
 Excerpt from `lintlang 0.3.1`:
 
 ```text
+LINTLANG v0.3.1
+
 FAIL — 1 CRITICAL, 2 HIGH, 6 MEDIUM, 3 LOW
 
 H1: Tool Description Ambiguity
@@ -175,7 +176,7 @@ For exact H-series and Python rule identifiers:
 lintlang patterns
 ```
 
-See the [full technical reference](llms-full.txt) for detector and HERM details.
+See the [full technical reference](llms-full.txt) for detector details.
 
 ## Where it fits
 
@@ -200,14 +201,20 @@ testing. It does not:
 
 Suggestions are review aids, not guaranteed meaning-preserving fixes.
 
-## In use
+## Ecosystem
 
-Public examples include package execution in
-[Character.AI's Larch CI integration](https://github.com/character-ai/larch/pull/7960),
-rule-methodology adaptation in
-[Muster](https://github.com/Adnova-Group/muster/commit/516c5854fb232c0e4ec365214e7304ed7eb93ff6),
-and downstream packaging in an independent
-[Gentoo overlay](https://github.com/thehaven/haven-overlay/blob/master/dev-util/lintlang/lintlang-0.3.1.ebuild).
+Public ecosystem signals include:
+
+- [Character.AI's public Larch repository](https://github.com/character-ai/larch/pull/7960)
+  runs the pinned `lintlang==0.3.1` package in recurring CI.
+- [Agent Lint](https://github.com/zhupanov/agent-lint/issues/192) explicitly
+  attributes improvements to LintLang's ideas, including structured diagnostics,
+  rule selection, regression coverage, and prompt analysis.
+- [The Haven Gentoo overlay](https://github.com/thehaven/haven-overlay/tree/master/dev-util/lintlang)
+  packages LintLang for downstream installation.
+
+These represent three distinct ecosystem signals: direct package execution,
+product influence, and downstream packaging.
 
 ## Optional instruction preflight
 
