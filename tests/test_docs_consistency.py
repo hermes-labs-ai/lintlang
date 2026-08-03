@@ -1,9 +1,9 @@
 """Mechanical gate for evidence-scoped README and CHANGELOG claims.
 
 The unreleased candidate intentionally avoids brittle collected-test counts:
-the executable suite is the source of truth. The bundled-sample claim must also
-identify itself as a regression fixture rather than an accuracy evaluation.
-Version metadata has a separate gate in ``test_version_consistency.py``.
+the executable suite is the source of truth. The adoption path also keeps
+regression methodology out of the main README. Version metadata has a separate
+gate in ``test_version_consistency.py``.
 """
 
 from __future__ import annotations
@@ -62,11 +62,12 @@ def test_unreleased_changelog_avoids_brittle_test_count_claim():
     )
 
 
-def test_readme_scopes_bundled_samples_as_regression_not_accuracy():
-    """A five-fixture smoke check must never be marketed as accuracy evidence."""
+def test_readme_keeps_regression_methodology_out_of_adoption_path():
+    """The main README may show an excerpt without carrying eval methodology."""
     readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8").lower()
-    assert "repository regression check" in readme
-    assert "not an accuracy estimate" in readme
+    assert "excerpt from `lintlang 0.3.1`" in readme
+    assert "repository regression check" not in readme
+    assert "external-project detector accuracy" not in readme
 
 
 def test_public_docs_do_not_claim_a_clean_scan_proves_safety():
