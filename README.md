@@ -5,11 +5,11 @@
 [![Python](https://img.shields.io/pypi/pyversions/lintlang)](https://pypi.org/project/lintlang/)
 [![License](https://img.shields.io/pypi/l/lintlang)](LICENSE)
 
-**Static analysis for the natural-language layer of AI agents.**
+**LintLang statically analyzes the natural-language instructions that control
+AI agents, catching ambiguous tools, missing limits, and conflicting directives
+before runtime.**
 
-Valid JSON, YAML, or Python can still contain agent instructions that are
-ambiguous, unbounded, or structurally inconsistent. LintLang flags patterns
-such as:
+It flags patterns such as:
 
 - empty, vague, or overlapping tool descriptions;
 - missing stop conditions and unbounded retries;
@@ -29,14 +29,25 @@ Install from PyPI:
 python -m pip install lintlang
 ```
 
+Requires Python 3.10+.
+
 From your project root, point LintLang at an actual instruction file:
 
 ```bash
-lintlang scan AGENTS.md --fail-on fail
+lintlang scan AGENTS.md
 ```
 
 If your project uses another filename, replace `AGENTS.md` with its prompt,
 tool-definition, agent-configuration, or supported directory path.
+
+Used in recurring CI by
+[Character.AI's public Larch repository](https://github.com/character-ai/larch/pull/7960).
+
+When you are ready to make `HIGH` or `CRITICAL` findings block CI:
+
+```bash
+lintlang scan AGENTS.md --fail-on fail
+```
 
 Each finding identifies the affected location, the detected pattern, its
 severity, and a suggested review action.
