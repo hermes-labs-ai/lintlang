@@ -1,0 +1,39 @@
+name: LintLang Agent Config Linter
+description: Statically lint AI agent configs, tool definitions, and prompts with LintLang.
+author: Hermes Labs
+
+branding:
+  icon: check-circle
+  color: blue
+
+inputs:
+  path:
+    description: File or directory containing agent instructions to scan.
+    required: true
+  fail-on:
+    description: Verdict threshold that makes the action fail (fail or review).
+    required: false
+    default: fail
+  python-version:
+    description: Python version used to run LintLang.
+    required: false
+    default: "3.12"
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      with:
+        python-version: ${{ inputs.python-version }}
+
+    - name: Install LintLang
+      shell: bash
+      run: python -m pip install "$GITHUB_ACTION_PATH"
+
+    - name: Scan agent instructions
+      shell: bash
+      env:
+        LINTLANG_PATH: ${{ inputs.path }}
+        LINTLANG_FAIL_ON: ${{ inputs.fail-on }}
+      run: lintlang scan "$LINTLANG_PATH" --fail-on "$LINTLANG_FAIL_ON"

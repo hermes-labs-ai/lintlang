@@ -126,19 +126,15 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v7
-        with:
-          python-version: "3.12"
-
-      - name: Install LintLang
-        run: python -m pip install "lintlang==0.3.1"
-
       - name: Inspect agent instructions
-        run: lintlang scan AGENTS.md --fail-on fail
+        uses: hermes-labs-ai/lintlang@v0.3.2
+        with:
+          path: AGENTS.md
 ```
 
-Pinning LintLang keeps the reviewed rule version fixed. Upgrade that pin
-deliberately and inspect newly introduced findings before making them blocking.
+The release tag pins both the action and the LintLang source it installs.
+Upgrade that pin deliberately and inspect newly introduced findings before
+making them blocking.
 
 For machine-readable output:
 
