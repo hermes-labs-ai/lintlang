@@ -12,6 +12,24 @@ No LLM calls. No API keys. No network access. Static analysis uses regex, struct
 
 ## Install
 
+Run once without installing:
+
+```
+uvx lintlang scan AGENTS.md
+```
+
+Install as an isolated persistent command:
+
+```
+pipx install lintlang
+lintlang scan AGENTS.md
+```
+
+If pipx's app directory is not on `PATH`, run `pipx ensurepath`, open a new
+shell, and retry the scan.
+
+Install into the current Python environment:
+
 ```
 pip install lintlang
 ```
@@ -120,11 +138,28 @@ automatically normalized.
 
 GitHub Actions:
 ```yaml
-- name: Lint agent configs
-  run: |
-    pip install lintlang
-    lintlang scan configs/ --fail-on fail
+- uses: actions/checkout@v7
+- uses: hermes-labs-ai/lintlang@v0.3.2
+  with:
+    path: configs/
 ```
+
+Add to `.pre-commit-config.yaml`:
+```yaml
+repos:
+  - repo: https://github.com/hermes-labs-ai/lintlang
+    rev: v0.3.2
+    hooks:
+      - id: lintlang
+        args: [AGENTS.md]
+```
+
+Activate and test it with `pre-commit install` and `pre-commit run lintlang`.
+
+The pre-commit hook reports verdicts without blocking by default. After
+reviewing the repository baseline, use
+`args: [AGENTS.md, --fail-on, fail]` to block `FAIL` findings. Configured input
+errors remain blocking.
 
 Exit codes: 0 = pass, 1 = findings matched --fail-on threshold or error.
 
