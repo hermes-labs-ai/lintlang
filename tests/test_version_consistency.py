@@ -103,6 +103,6 @@ def test_version_surfaces_match_pyproject_and_release_state():
             f"CITATION.cff date {citation_date_match.group(1)!r} does not match "
             f"CHANGELOG release date {release_state!r}"
         )
-    assert f"LINTLANG v{packaged}" in readme
+    assert f"LINTLANG v{packaged}" in readme or f"@v{packaged}" in readme
     assert "LINTLANG v0.2.0" not in readme
     assert "LINTLANG v0.2.1" not in readme

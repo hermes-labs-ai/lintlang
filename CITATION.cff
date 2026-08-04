@@ -7,7 +7,7 @@ authors:
     given-names: "Rolando"
     orcid: "https://orcid.org/0009-0005-4896-1112"
     affiliation: "Hermes Labs"
-version: "0.3.1"
+version: "0.3.2"
 license: "Apache-2.0"
 repository-code: "https://github.com/hermes-labs-ai/lintlang"
 url: "https://github.com/hermes-labs-ai/lintlang"
@@ -35,4 +35,4 @@ references:
         given-names: "Rolando"
     doi: "10.5281/zenodo.19042469"
     year: 2026
-date-released: "2026-07-19"
+date-released: "2026-08-04"

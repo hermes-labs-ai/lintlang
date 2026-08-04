@@ -33,3 +33,26 @@ jobs:
 
       - name: Self-scan samples
         run: lintlang scan samples/clean_config.yaml --format json
+
+  action-smoke:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Action succeeds on a clean fixture
+        uses: ./
+        with:
+          path: samples/clean_config.yaml
+
+      - name: Action fails on a failing fixture
+        id: failing-scan
+        continue-on-error: true
+        uses: ./
+        with:
+          path: samples/bad_tool_descriptions.yaml
+
+      - name: Assert failing fixture returned failure
+        env:
+          ACTION_OUTCOME: ${{ steps.failing-scan.outcome }}
+        run: test "$ACTION_OUTCOME" = "failure"

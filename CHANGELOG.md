@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.3.2] - 2026-08-04
+
+### Added
+
+- A first-party composite GitHub Action that installs LintLang from the selected
+  action ref and preserves the CLI's verdict-based exit status.
+- CI smoke coverage for successful and failing action invocations.
+
+### Changed
+
+- The GitHub Actions quick start now uses `hermes-labs-ai/lintlang@v0.3.2`.
+
 ## [0.3.1] - 2026-07-19
 
 ### Changed
