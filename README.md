@@ -23,7 +23,24 @@ API, telemetry, or network calls.
 
 ## Quick start
 
-Install from PyPI:
+Run once without installing, using [uv](https://docs.astral.sh/uv/):
+
+```bash
+uvx lintlang scan AGENTS.md
+```
+
+For a persistent command in an isolated environment, use
+[pipx](https://pipx.pypa.io/stable/):
+
+```bash
+pipx install lintlang
+lintlang scan AGENTS.md
+```
+
+If pipx's app directory is not on `PATH`, run `pipx ensurepath`, open a new
+shell, and retry the scan.
+
+Or install from PyPI into the current Python environment:
 
 ```bash
 python -m pip install lintlang
@@ -135,6 +152,40 @@ jobs:
 The release tag pins both the action and the LintLang source it installs.
 Upgrade that pin deliberately and inspect newly introduced findings before
 making them blocking.
+
+## Add it to pre-commit
+
+Add the hook to `.pre-commit-config.yaml` with the explicit instruction paths
+to scan:
+
+```yaml
+repos:
+  - repo: https://github.com/hermes-labs-ai/lintlang
+    rev: v0.3.2
+    hooks:
+      - id: lintlang
+        args: [AGENTS.md]
+```
+
+Activate it and test the configured paths:
+
+```bash
+pre-commit install
+pre-commit run lintlang
+```
+
+Replace or extend `args` with the prompt, tool-definition, agent-configuration,
+or supported directory paths your repository owns. The hook scans only those
+configured paths and reports findings without blocking on a verdict by default.
+After reviewing the repository's baseline, opt into blocking `FAIL` findings:
+
+```yaml
+hooks:
+  - id: lintlang
+    args: [AGENTS.md, --fail-on, fail]
+```
+
+Missing, unreadable, or malformed configured inputs still return nonzero.
 
 For machine-readable output:
 

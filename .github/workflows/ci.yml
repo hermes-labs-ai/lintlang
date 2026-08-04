@@ -31,6 +31,10 @@ jobs:
       - name: Run tests
         run: pytest --tb=short -q
 
+      - name: Exercise the pre-commit consumer hook
+        if: matrix.python-version == '3.12'
+        run: pre-commit try-repo . lintlang --files AGENTS.md --verbose
+
       - name: Self-scan samples
         run: lintlang scan samples/clean_config.yaml --format json
 

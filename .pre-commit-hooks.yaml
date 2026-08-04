@@ -1,0 +1,10 @@
+- id: lintlang
+  name: LintLang agent instruction review
+  description: Statically lint selected AI agent configs, tool definitions, and prompts.
+  entry: lintlang scan
+  language: python
+  args:
+    - AGENTS.md
+  pass_filenames: false
+  always_run: true
+  verbose: true

@@ -7,10 +7,15 @@
 - A first-party composite GitHub Action that installs LintLang from the selected
   action ref and preserves the CLI's verdict-based exit status.
 - CI smoke coverage for successful and failing action invocations.
+- A native pre-commit hook that visibly reviews explicit repository-owned
+  instruction paths without blocking on heuristic verdicts by default.
 
 ### Changed
 
 - The GitHub Actions quick start now uses `hermes-labs-ai/lintlang@v0.3.2`.
+- The quick start now includes exercised `uvx` and isolated `pipx` paths.
+- Repositories can opt into blocking pre-commit `FAIL` findings after reviewing
+  their baseline.
 
 ## [0.3.1] - 2026-07-19
 
