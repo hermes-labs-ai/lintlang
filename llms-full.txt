@@ -98,7 +98,22 @@ that every structure in an arbitrary JSON or YAML file was extracted.
 ## Structural Detectors (H1-H7)
 
 ### H1: Tool Description Ambiguity
-Catches: empty descriptions, very short descriptions (<20 chars), vague verbs (get, handle, process, manage, do), duplicate tool names, high word overlap between tools (Jaccard similarity with stopword removal).
+Catches: empty descriptions, very short descriptions (<20 chars), vague verbs (get, handle, process, manage, do), duplicate tool names, high word overlap between tools (Jaccard similarity with stopword removal), and tool pairs carrying no differentia (H1.6).
+
+H1 findings carry a sub-code. `Finding.pattern_id` remains `H1`; `Finding.code` and the JSON `code` field hold the specific identifier, which is also printed in terminal and markdown output.
+
+| Code | Reports | Severity |
+|---|---|---|
+| H1.1 | Tool has no description | CRITICAL |
+| H1.2 | Description too short to diagnose | HIGH |
+| H1.3 | Description opens with a vague verb | MEDIUM |
+| H1.4 | Two tools share a name | CRITICAL |
+| H1.5 | Two descriptions are near-duplicate text | HIGH |
+| H1.6 | Two tools carry no distinguishing term | MEDIUM |
+
+H1.6 compares tools against each other rather than in isolation. It reports a pair when no meaning-bearing term in one description is absent from the other, after synonym and morphological normalization — so it reaches pairs that word overlap cannot, such as "Look up an order" against "Search for orders in the system", which share no words at all after stopword removal (Jaccard 0.00) and are interchangeable in practice. Two shapes: mutual, where neither tool distinguishes itself; and domination, where one tool's every term is covered by the other, in which case the finding names which tool to repair. Pairs whose descriptions reference each other by name are skipped, as are pairs distinguished by their tool names.
+
+H1.6 is MEDIUM so it does not trigger FAIL, and therefore cannot break a `--fail-on fail` build. Gate on it with `--fail-on review`. Its synonym lexicon is finite: pairs outside it, such as kill/terminate or approve/authorize, are not detected. Coverage has not been measured against a labelled corpus.
 
 ### H2: Missing Constraint Scaffolding
 Catches: no termination conditions, unbounded retry loops ("keep trying until"), negative termination ("don't stop until"), "continue until" without limits, missing retry budgets.
