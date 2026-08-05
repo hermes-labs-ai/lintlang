@@ -160,16 +160,26 @@ class TestH16Differentia:
             ("delete_user", "Permanently remove a user account"),
         ) == []
 
-    def test_namespace_prefix_is_a_differentia(self):
-        """Identical descriptions are acceptable when the names disambiguate.
+    def test_namespace_prefix_is_a_differentia_for_h16(self):
+        """A namespace prefix answers H1.6's question, but not H1.5's.
 
-        Anthropic's tool-authoring guidance recommends exactly this pattern
-        ('asana_search', 'jira_search'), so flagging it would be wrong.
+        H1.6 asks "does anything distinguish these tools" — `asana_search` and
+        `jira_search` are distinguished by their prefix, which is the pattern
+        Anthropic's guidance recommends, so H1.6 must stay quiet.
+
+        H1.5 asks a narrower question: "are these two descriptions nearly the
+        same text?" Here they are byte-identical, and that is worth saying —
+        the description is doing no work at all. An earlier version suppressed
+        H1.5 whenever the names differed, which silently stopped reporting
+        `get_invoice_pdf` vs `get_receipt_pdf` with identical descriptions.
+        Name-awareness belongs in H1.6 only.
         """
-        assert self._codes(
+        codes = self._codes(
             ("asana_search", "Search tasks"),
             ("jira_search", "Search tasks"),
-        ) == []
+        )
+        assert "H1.6" not in codes
+        assert "H1.5" in codes
 
     def test_clean_config_stays_clean(self, clean_tools_config):
         findings = detect_h1(clean_tools_config)

@@ -344,6 +344,20 @@ def _differentia(a: ToolDef, b: ToolDef) -> tuple[set[str], set[str]]:
     """
     ta, tb = _meaning_terms(a), _meaning_terms(b)
 
+    # Two surface forms of one word must not read as a distinction. The fallback
+    # stemmer is not idempotent — "alias" reduces to "alia" while "aliases"
+    # reduces to "alias" — so a plural alone could manufacture a differentia and
+    # hide a genuine collision (`fetch_alias` vs `fetch_aliases` reported
+    # nothing at all). Rather than swapping in a heavier stemmer, compare
+    # candidate base forms directly: two terms are the same word if any base
+    # form of one matches any base form of the other.
+    bases = {t: set(_stem_candidates(t)) for t in ta | tb}
+
+    def unmatched(source: set[str], other: set[str]) -> set[str]:
+        return {t for t in source if not any(bases[t] & bases[o] for o in other)}
+
+    only_a, only_b = unmatched(ta, tb), unmatched(tb, ta)
+
     def informative(terms: set[str]) -> set[str]:
         # No length floor. Short tokens are frequently the entire distinction:
         # `v1`/`v2`, `get_po`/`get_so`, `top_10`/`top_100`. Discarding them made
@@ -358,7 +372,7 @@ def _differentia(a: ToolDef, b: ToolDef) -> tuple[set[str], set[str]]:
             if t not in _LOW_INFORMATION and t not in _NON_DISCRIMINATING
         }
 
-    return informative(ta - tb), informative(tb - ta)
+    return informative(only_a), informative(only_b)
 
 
 def detect_h1(config: AgentConfig) -> list[Finding]:
@@ -449,12 +463,18 @@ def detect_h1(config: AgentConfig) -> list[Finding]:
             only_a, only_b = _differentia(t1, t2)
 
             overlap = _word_overlap(t1.description, t2.description)
-            # Near-identical descriptions are still fine when the *names* carry
-            # the distinction — `asana_search` and `jira_search` are correctly
-            # disambiguated by their namespace prefix, which is the pattern
-            # Anthropic's tool-authoring guidance recommends. Only report an
-            # overlap when nothing else separates the pair.
-            if overlap > 0.7 and not (only_a and only_b):
+            # H1.5 reports a fact about the descriptions and nothing else. An
+            # earlier version suppressed it when the tool NAMES differed, on the
+            # theory that `asana_search` / `jira_search` are disambiguated by
+            # their prefix. That was wrong in a way that cost real recall: names
+            # feed the term set, so *any* two distinct names produced a
+            # differentia and silenced the check — `get_invoice_pdf` and
+            # `get_receipt_pdf` with byte-identical descriptions stopped being
+            # reported at all. Two identical descriptions are worth saying out
+            # loud even when a name carries the distinction, because then the
+            # description is doing no work. Name-awareness belongs in H1.6,
+            # which asks a different question.
+            if overlap > 0.7:
                 findings.append(
                     Finding(
                         pattern_id="H1",

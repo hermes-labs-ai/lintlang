@@ -14,9 +14,16 @@ measurement reproducible on any machine that has the marketplace.
 Baseline measured 2026-08-05 by this module's own loader: 76 descriptions from
 independent plugin authors, 2850 pairs.
 
-    pair findings (H1.5 + H1.6)   0
+    pair findings (H1.5 + H1.6)   1
     pairs within 1 term of firing 8
     pairs within 2 terms          18
+
+The single finding is H1.5 on `agent-sdk-verifier-py` vs `-ts`, whose
+descriptions are ~90% identical and differ only by the language name. H1.6
+correctly stays quiet — the language IS the distinction — while H1.5 reports
+that the surrounding text is near-duplicate. That is defensible, and it is
+v0.3.2 behaviour: an earlier baseline of 0 was measured while a bug in the
+H1.5 name guard was suppressing it.
 
 Revised 2026-08-05 from 10/23 after removing a length floor in the
 informative-terms filter. That floor discarded tokens of two characters or
@@ -71,7 +78,7 @@ MARKETPLACE = Path(
     os.path.expanduser("~/.claude/plugins/marketplaces/claude-plugins-official")
 )
 
-EXPECTED_PAIR_FINDINGS = 0
+EXPECTED_PAIR_FINDINGS = 1
 EXPECTED_WITHIN_1 = 8
 EXPECTED_WITHIN_2 = 18
 MIN_CORPUS_SIZE = 60
