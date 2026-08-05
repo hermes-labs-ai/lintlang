@@ -41,8 +41,10 @@
   sat beside, with advice to delete it. Tokenization is now Unicode-aware, and a
   tool carrying too little analysable text is skipped rather than compared. The
   lexicon remains English, so synonyms in other languages are not detected.
-- A tool whose description declares it an alias of another (`Compatibility
-  alias for X`, `Deprecated. Use X`) is now reported as a collision.
+- A tool whose description declares it an alias of another is now reported as a
+  collision. Detection matches a fixed list of phrasings (`Compatibility alias
+  for X`, `Deprecated. Use X`, `Superseded by X`); the same relationship phrased
+  differently is still missed, the same way the synonym lexicon is finite.
 - A tool named with an ordinary English word — `access`, `configure` — no
   longer suppresses findings against its neighbours merely because that word
   appears in their descriptions. Only an identifier-shaped name counts as one

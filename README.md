@@ -282,6 +282,12 @@ The lexicon is English. Descriptions in other languages are tokenized correctly
 and will not produce spurious findings, but their synonyms are not recognized,
 so H1.6 will not detect collisions between them.
 
+Alias detection has the same shape and the same limit. A description reading
+`Compatibility alias for X`, `Deprecated. Use X` or `Superseded by X` is
+reported. The same relationship written as *"does the same thing as X, kept for
+backward compatibility"* or *"older entry point, prefer X in new code"* is not —
+it is a list of phrasings, not an understanding of what an alias is.
+
 **One known false positive.** Documentation that quotes an antipattern in order
 to warn against it is read as issuing it — H2, H4 and H5 do not distinguish
 reported speech from a directive. Point the tool at agent configs rather than at

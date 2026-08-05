@@ -228,6 +228,22 @@ class TestH16Differentia:
         )
         assert "H1.6" in codes
 
+    def test_alias_detection_is_a_phrase_list_not_a_concept(self):
+        """Documents the limit so nobody cites the fix as broader than it is.
+
+        The same relationship phrased outside the list is missed. This asserts
+        the current shortfall deliberately: if it starts passing, detection has
+        become semantic and the README's disclosure should be updated to match.
+        """
+        for phrasing in (
+            "This does the same thing as cogito_recall, kept for backward compatibility.",
+            "Older entry point. Prefer cogito_recall in new code.",
+        ):
+            assert self._codes(
+                ("fidelis_recall", phrasing),
+                ("cogito_recall", "Recall stored facts from memory."),
+            ) == [], f"now detected, update the README disclosure: {phrasing!r}"
+
     def test_pointing_at_a_sibling_is_not_an_alias_notice(self):
         """'use X instead' is ordinary disambiguation and must stay quiet.
 
