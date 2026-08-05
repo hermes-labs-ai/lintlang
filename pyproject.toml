@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "lintlang"
-version = "0.4.0"
+version = "0.3.8"
 description = "Static linter for AI agent configs, tool descriptions, and system prompts with zero-LLM CI gating"
 readme = "README.md"
 license = {text = "Apache-2.0"}
@@ -67,7 +67,7 @@ packages = ["src/lintlang"]
 # It carries absolute paths under a home directory and names unrelated internal
 # repositories, none of which mean anything to someone who downloaded a tarball
 # from PyPI. Useful in the git checkout, wrong in a published artifact.
-exclude = ["WORKSPACE.md"]
+exclude = ["WORKSPACE.md", "GAP.md"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

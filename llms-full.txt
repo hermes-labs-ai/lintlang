@@ -115,6 +115,12 @@ H1.6 compares tools against each other rather than in isolation. It reports a pa
 
 H1.6 is MEDIUM so it does not trigger FAIL, and therefore cannot break a `--fail-on fail` build. Gate on it with `--fail-on review`. Its synonym lexicon is finite: pairs outside it, such as kill/terminate or approve/authorize, are not detected. Coverage has not been measured against a labelled corpus.
 
+Alias detection has the same shape and the same limit. A description reading `Compatibility alias for X`, `Deprecated. Use X` or `Superseded by X` is reported. The same relationship written as "does the same thing as X, kept for backward compatibility" or "older entry point, prefer X in new code" is not — it is a list of phrasings, not an understanding of what an alias is.
+
+### Known false positive: quoted antipatterns
+
+H2, H4 and H5 do not distinguish reported speech from a directive, so documentation that quotes an antipattern in order to warn against it is read as issuing it. A style guide containing `unbounded retry loops ("keep trying until")` is reported as containing an unbounded retry loop. Point the tool at agent configs rather than at prose about agent configs, or use `.lintlangignore`. This project excludes its own reference manual from its own pre-commit hook for exactly this reason.
+
 ### H2: Missing Constraint Scaffolding
 Catches: no termination conditions, unbounded retry loops ("keep trying until"), negative termination ("don't stop until"), "continue until" without limits, missing retry budgets.
 
@@ -154,7 +160,7 @@ automatically normalized.
 GitHub Actions:
 ```yaml
 - uses: actions/checkout@v7
-- uses: hermes-labs-ai/lintlang@v0.4.0
+- uses: hermes-labs-ai/lintlang@v0.3.8
   with:
     path: configs/
 ```
@@ -163,7 +169,7 @@ Add to `.pre-commit-config.yaml`:
 ```yaml
 repos:
   - repo: https://github.com/hermes-labs-ai/lintlang
-    rev: v0.4.0
+    rev: v0.3.8
     hooks:
       - id: lintlang
         args: [AGENTS.md]

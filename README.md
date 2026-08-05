@@ -5,38 +5,14 @@
 [![Python](https://img.shields.io/pypi/pyversions/lintlang)](https://pypi.org/project/lintlang/)
 [![License](https://img.shields.io/pypi/l/lintlang)](LICENSE)
 
-**LintLang checks your agent's tools against each other and reports the pairs
-your model will not be able to tell apart.** Config validation reads each tool
-on its own, so it cannot reach this: a tool can be well-formed, schema-valid,
-and perfectly described, and still be indistinguishable from the one beside it.
-Nothing is malformed, so there is nothing for a validator to report.
-
-```
-$ lintlang scan tools.yaml
-
-  ⚠️ REVIEW — 1 MEDIUM
-
-  H1: Tool Description Ambiguity
-
-    ~ [MEDIUM] H1.6 tool:find_tickets vs tool:search_tickets
-      Tool 'find_tickets' is dominated by 'search_tickets' — every
-      meaning-bearing term in 'find_tickets' also appears, or has a synonym,
-      in 'search_tickets', which additionally names 'support'. A model has no
-      reason to select 'find_tickets' over 'search_tickets'.
-      → Add to 'find_tickets' a term that 'search_tickets' does not use.
-```
-
-`"Look up tickets in the system"` and `"Search for support tickets"` share no
-obvious wording, and mean the same thing to the model routing between them.
-Word overlap scores that pair at 0.17 and cannot reach it.
-
-It also statically analyzes the instructions themselves — ambiguous tools,
-missing limits, conflicting directives — before runtime.
+**LintLang statically analyzes the natural-language instructions that control
+AI agents, catching ambiguous tools, missing limits, and conflicting directives
+before runtime.**
 
 It flags patterns such as:
 
-- tool pairs with no distinguishing term between them (`H1.6`);
 - empty, vague, or overlapping tool descriptions;
+- tool pairs with no term that distinguishes one from the other (`H1.6`);
 - missing stop conditions and unbounded retries;
 - inconsistencies between tool schemas and their descriptions;
 - unscoped context and vague instructions;
@@ -169,7 +145,7 @@ jobs:
       - uses: actions/checkout@v7
 
       - name: Inspect agent instructions
-        uses: hermes-labs-ai/lintlang@v0.4.0
+        uses: hermes-labs-ai/lintlang@v0.3.8
         with:
           path: AGENTS.md
 ```
@@ -186,7 +162,7 @@ to scan:
 ```yaml
 repos:
   - repo: https://github.com/hermes-labs-ai/lintlang
-    rev: v0.4.0
+    rev: v0.3.8
     hooks:
       - id: lintlang
         args: [AGENTS.md]
@@ -238,62 +214,22 @@ bounds, schema-description alignment, context boundaries, instruction
 specificity, output contracts, message-role structure, and Python pipeline
 hygiene.
 
-### Sub-codes within H1
+### H1.6: tools that cannot be told apart
 
-H1 findings carry a sub-code so a specific result can be cited without
-renaming the pattern. `pattern_id` stays `H1`; JSON output adds a `code` field
-holding the most specific identifier.
+H1.6 compares tool definitions against each other rather than one at a time,
+and reports pairs a model has no basis for choosing between: *mutual*, where
+neither description distinguishes itself, and *domination*, where one tool's
+terms are all covered by the other and the finding names which to repair. Both
+tools can be individually valid, so schema validation has nothing to report.
 
-| Code | Reports | Severity |
-|---|---|---|
-| `H1.1` | Tool has no description | CRITICAL |
-| `H1.2` | Description too short to diagnose | HIGH |
-| `H1.3` | Description opens with a vague verb | MEDIUM |
-| `H1.4` | Two tools share a name | CRITICAL |
-| `H1.5` | Two descriptions are near-duplicate text | HIGH |
-| `H1.6` | Two tools carry no distinguishing term | MEDIUM |
+Findings print the sub-code:
+`~ [MEDIUM] H1.6 tool:find_tickets vs tool:search_tickets`. `pattern_id` stays
+`H1`; JSON output adds a `code` field holding the most specific identifier.
 
-`H1.6` reports two shapes. *Mutual* — neither description distinguishes itself
-from the other. *Domination* — every term in one is covered by the other, so a
-model has no reason to select it; the finding names which tool to repair.
-
-It is deliberately MEDIUM, so it informs a build rather than breaking one:
-`--fail-on fail` keys on CRITICAL and HIGH and is unaffected. Gate on it with
-`--fail-on review` once you have seen how it behaves on your own manifests.
-
-Detection is synonym- and morphology-aware within a curated lexicon of agent-
-tool vocabulary, which is what lets it reach pairs word overlap cannot.
-
-**Read this before relying on it.** That lexicon is finite, and narrower than it
-may appear. Synonymous verbs outside it — `kill`/`terminate`,
-`approve`/`authorize` — are not detected. Neither are pairs whose sentence
-structure differs enough that a term lands in the wrong class: `"Retrieve
-incident details by ID"` against `"Look up an incident in the system"` is missed
-today, because `look up` is classified as a search rather than a retrieval.
-
-Practically, H1.6 is reliable on pairs phrased similarly and unreliable on the
-same pair phrased two different ways by two different engineers — which is the
-common case in a real manifest. Treat its pairwise findings as a hint worth
-checking, not a verdict, and keep auditing your own `get_x` / `fetch_x` pairs.
-Coverage has not been measured against a labelled corpus, and no such corpus
-exists to measure it against.
-
-The lexicon is English. Descriptions in other languages are tokenized correctly
-and will not produce spurious findings, but their synonyms are not recognized,
-so H1.6 will not detect collisions between them.
-
-Alias detection has the same shape and the same limit. A description reading
-`Compatibility alias for X`, `Deprecated. Use X` or `Superseded by X` is
-reported. The same relationship written as *"does the same thing as X, kept for
-backward compatibility"* or *"older entry point, prefer X in new code"* is not —
-it is a list of phrasings, not an understanding of what an alias is.
-
-**One known false positive.** Documentation that quotes an antipattern in order
-to warn against it is read as issuing it — H2, H4 and H5 do not distinguish
-reported speech from a directive. Point the tool at agent configs rather than at
-prose about agent configs, or use `.lintlangignore`. A fix is planned for 0.5.0;
-this project excludes its own reference manual from its own pre-commit hook for
-exactly this reason.
+H1.6 is MEDIUM, so `--fail-on fail` does not block on it. Matching uses a
+finite English synonym lexicon, so pairs that say the same thing in different
+words or a different sentence shape are missed. The absence of an H1.6 finding
+is not evidence that no such pair exists.
 
 Use narrow, intentional paths. Directory scans can discover Markdown and Python
 files that were not written as agent configuration; use `.lintlangignore` or
