@@ -151,6 +151,37 @@ class TestH16Differentia:
         ):
             assert self._codes(*pair) == [], f"{pair[0][0]} vs {pair[1][0]} are distinct"
 
+    def test_cross_reference_suppresses_h16_but_not_h15(self):
+        """Naming a sibling answers one question and not the other.
+
+        It explains how the two differ, so there is a differentia and H1.6 must
+        stay quiet. It does not make the surrounding prose any less
+        near-duplicate, which is all H1.5 measures. Skipping the pair outright
+        meant a bare "See check_status." appended to an otherwise identical
+        description silenced both.
+        """
+        codes = self._codes(
+            ("get_status",
+             "Return the current status of a ticket for the requesting user. See check_status."),
+            ("check_status",
+             "Return the current status of a ticket for the requesting user."),
+        )
+        assert "H1.5" in codes
+        assert "H1.6" not in codes
+
+    def test_a_common_word_name_is_not_a_cross_reference(self):
+        """Only an identifier-shaped name counts as naming a tool.
+
+        A tool called `access` occurs inside "Manage Discord channel access",
+        and reading that as a deliberate pointer suppressed genuinely
+        near-duplicate descriptions across an entire plugin family.
+        """
+        codes = self._codes(
+            ("access", "Manage Discord channel access — approve pairings, edit allowlists."),
+            ("access", "Manage Telegram channel access — approve pairings, edit allowlists."),
+        )
+        assert "H1.5" in codes
+
     def test_unreadable_descriptions_are_never_dominated(self):
         """A tool we cannot analyse is not a tool that duplicates another.
 

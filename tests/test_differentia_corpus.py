@@ -21,11 +21,18 @@ licence-safe corpus would close this and is the right fix; it is not done.
 Baseline measured 2026-08-05 by this module's own loader: 76 descriptions from
 independent plugin authors, 2850 pairs.
 
-    pair findings (H1.5 + H1.6)   1
+    pair findings (H1.5 + H1.6)   5
     pairs within 1 term of firing 7
     pairs within 2 terms          14
 
-The single finding is H1.5 on `agent-sdk-verifier-py` vs `-ts`, whose
+Four of the five findings are an artifact of flattening: the Discord, iMessage
+and Telegram plugins each ship a skill named `access` and `configure` with
+descriptions identical but for the platform name. Within one plugin those never
+meet; only this corpus puts them side by side. They are correct H1.5 reports of
+near-duplicate text and wrong as a claim about any real manifest — one more
+reason to read the pair count as 181 realistic pairs, not 2850.
+
+The fifth is H1.5 on `agent-sdk-verifier-py` vs `-ts`, whose
 descriptions are ~90% identical and differ only by the language name. H1.6
 correctly stays quiet — the language IS the distinction — while H1.5 reports
 that the surrounding text is near-duplicate. That is defensible, and it is
@@ -91,7 +98,7 @@ MARKETPLACE = Path(
     os.path.expanduser("~/.claude/plugins/marketplaces/claude-plugins-official")
 )
 
-EXPECTED_PAIR_FINDINGS = 1
+EXPECTED_PAIR_FINDINGS = 5
 EXPECTED_WITHIN_1 = 7
 EXPECTED_WITHIN_2 = 14
 MIN_CORPUS_SIZE = 60

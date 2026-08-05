@@ -230,6 +230,11 @@ _SUFFIXES = ("ations", "ation", "ings", "ing", "ies", "ied", "es", "ed", "s")
 
 _CAMEL_BOUNDARY = re.compile(r"(?<=[a-z0-9])(?=[A-Z])")
 
+# A name that reads as an identifier rather than an ordinary word: it carries a
+# separator or an internal capital. Used to decide whether an occurrence of the
+# name in prose is plausibly a deliberate reference to the tool.
+_IDENTIFIER_SHAPED = re.compile(r"[_.\-]|[a-z0-9][A-Z]")
+
 # Wording that admits two tools are the same rather than explaining how they
 # differ. A description carrying this is conceding the collision, not resolving
 # it, and must not be treated as self-disambiguation.
@@ -387,6 +392,13 @@ def _cross_references(a: ToolDef, b: ToolDef) -> bool:
 
     def mentions(text: str, target: ToolDef) -> bool:
         if not target.name:
+            return False
+        # Only an identifier-shaped name counts as a reference. A tool named
+        # `access` matches inside "Manage Discord channel access", and treating
+        # that as a deliberate pointer silenced genuinely near-duplicate
+        # descriptions across a whole plugin family. A bare common word in prose
+        # is not someone naming a tool; `get_forecast` is.
+        if not _IDENTIFIER_SHAPED.search(target.name):
             return False
         # The identifier must appear verbatim, separator included. Matching the
         # name's *words* instead would be far too loose in both directions:
@@ -554,8 +566,13 @@ def detect_h1(config: AgentConfig) -> list[Finding]:
                 )
                 continue
 
-            if _cross_references(t1, t2):
-                continue
+            # A cross-reference answers H1.6's question and not H1.5's. Naming
+            # the sibling explains how the two differ, so there is a differentia
+            # and H1.6 should stay quiet — but it does not make the surrounding
+            # prose any less near-duplicate, which is all H1.5 measures. The
+            # guard used to skip the pair outright, so a bare "See check_status."
+            # appended to an otherwise identical description silenced both.
+            self_disambiguating = _cross_references(t1, t2)
 
             only_a, only_b = _differentia(t1, t2)
 
@@ -584,6 +601,9 @@ def detect_h1(config: AgentConfig) -> list[Finding]:
                         evidence=f"'{t1.description[:50]}...' vs '{t2.description[:50]}...'",
                     )
                 )
+                continue
+
+            if self_disambiguating:
                 continue
 
             # Two distinct defects, not one. Mutual emptiness means neither tool

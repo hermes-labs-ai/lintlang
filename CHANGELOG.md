@@ -41,22 +41,17 @@
   sat beside, with advice to delete it. Tokenization is now Unicode-aware, and a
   tool carrying too little analysable text is skipped rather than compared. The
   lexicon remains English, so synonyms in other languages are not detected.
-- Cardinality is no longer collapsed. Normalization is now driven entirely by
-  the synonym lexicon; words it does not list stand for themselves. `get_order`
-  and `get_orders` are different operations, and stemming them together
-  reported one as redundant and advised deleting it — on `get_user`/`get_users`,
-  among the most common naming conventions there is. Synonymy is a claim about
-  meaning and belongs in the lexicon; suffix-stripping is a guess about
-  spelling and does not.
 - A tool whose description declares it an alias of another (`Compatibility
-  alias for X`, `Deprecated. Use X`) is now reported. Previously the sibling's
-  name in the description was read as self-disambiguation and suppressed the
-  pair — silencing the most certain collision there is.
-- H1's cross-tool overlap check no longer treats differing tool names as
-  grounds to suppress a finding. Names feed the term set, so any two distinctly
-  named tools silenced the check — `get_invoice_pdf` and `get_receipt_pdf` with
-  byte-identical descriptions went unreported. Name-awareness now lives in H1.6
-  alone, which asks a different question.
+  alias for X`, `Deprecated. Use X`) is now reported as a collision.
+- A tool named with an ordinary English word — `access`, `configure` — no
+  longer suppresses findings against its neighbours merely because that word
+  appears in their descriptions. Only an identifier-shaped name counts as one
+  tool naming another.
+
+Note for anyone diffing the source: several entries that appeared here during
+development described defects introduced and fixed within this unreleased
+branch, not behaviour any 0.3.2 user encountered. They have been removed. The
+cardinality and name-suppression problems never shipped.
 
 ## [0.3.2] - 2026-08-04
 
