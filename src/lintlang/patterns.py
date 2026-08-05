@@ -230,6 +230,21 @@ _SUFFIXES = ("ations", "ation", "ings", "ing", "ies", "ied", "es", "ed", "s")
 
 _CAMEL_BOUNDARY = re.compile(r"(?<=[a-z0-9])(?=[A-Z])")
 
+# Wording that admits two tools are the same rather than explaining how they
+# differ. A description carrying this is conceding the collision, not resolving
+# it, and must not be treated as self-disambiguation.
+_ALIAS_NOTICE = re.compile(
+    # Deliberately excludes "use X instead": it reads as an alias notice but is
+    # far more often ordinary disambiguation — "Do NOT use for forecasts, use
+    # get_forecast instead" is a well-written tool doing exactly the right
+    # thing, and matching it flagged this project's own clean sample. A
+    # description that means "these are the same tool" says so unambiguously.
+    r"\b(alias(ed)?\s+(for|of)|compatibility\s+alias|deprecated"
+    r"|superseded\s+by|renamed\s+to"
+    r"|same\s+as|equivalent\s+to|synonym\s+for)\b",
+    re.IGNORECASE,
+)
+
 
 def _split_identifiers(text: str) -> str:
     """Break identifiers into their component words.
@@ -274,15 +289,31 @@ def _stem(word: str) -> str:
 
 
 def _canonical(word: str) -> str:
-    """Map a word to the token that stands for its meaning class."""
+    """Map a word to the token that stands for its meaning class.
+
+    Normalization is lexicon-driven and nothing else. A word reaches a meaning
+    class only if some base form of it is listed; otherwise it stands for
+    itself, unchanged.
+
+    That restraint is deliberate. Stemming words the lexicon has never heard of
+    destroys a distinction the lexicon was never asked about — and in tool
+    naming the most common such distinction is **number**. `get_order` and
+    `get_orders` are not two spellings of one tool; one returns a record and the
+    other returns a collection, which is as real a difference as any. Collapsing
+    them produced a confident "these are redundant, remove one" verdict on
+    `get_user`/`get_users`, which is close to the most common naming convention
+    there is.
+
+    Contrast `docs` and `documentation`: genuinely one referent under two
+    spellings, and both are listed, so both reach the same class. Synonymy is a
+    claim about meaning and belongs in the lexicon. Suffix-stripping is a guess
+    about spelling and does not.
+    """
     lowered = word.lower()
-    # Check the lexicon against every candidate base form, so "documentation",
-    # "docs", "doc" and "documenting" all reach the same class regardless of
-    # which surface form the lexicon happens to list.
     for candidate in _stem_candidates(lowered):
         if candidate in _SYNONYM_CLASS:
             return _SYNONYM_CLASS[candidate]
-    return _stem(lowered)
+    return lowered
 
 
 def _meaning_terms(tool: ToolDef) -> set[str]:
@@ -308,6 +339,24 @@ def _meaning_terms(tool: ToolDef) -> set[str]:
     return {_canonical(w) for w in keep} - {""}
 
 
+def _declared_alias(a: ToolDef, b: ToolDef) -> tuple[ToolDef, ToolDef] | None:
+    """Return ``(alias, canonical)`` when one description admits it duplicates the other.
+
+    Only counts when the description both carries alias wording *and* names the
+    other tool. "Deprecated" on its own says nothing about which tool replaces
+    it; "Compatibility alias for cogito_recall" says exactly that, and a model
+    offered both has nothing to choose between.
+    """
+    for alias, canonical in ((a, b), (b, a)):
+        if not canonical.name or not alias.description:
+            continue
+        if _ALIAS_NOTICE.search(alias.description) and (
+            canonical.name.lower() in alias.description.lower()
+        ):
+            return alias, canonical
+    return None
+
+
 def _cross_references(a: ToolDef, b: ToolDef) -> bool:
     """True when either description explicitly names the other tool.
 
@@ -320,6 +369,13 @@ def _cross_references(a: ToolDef, b: ToolDef) -> bool:
     well-written description look like a subset of its neighbour and invert the
     measure. The best-written pairs would be the ones flagged.
     """
+
+    # Naming the sibling is not always disambiguation. "Compatibility alias for
+    # cogito_recall" names it in order to admit the two are the same tool — the
+    # most certain collision there is — and suppressing that inverts the check.
+    # Disambiguation says how the two differ; an alias notice says they do not.
+    if _ALIAS_NOTICE.search(a.description) or _ALIAS_NOTICE.search(b.description):
+        return False
 
     def mentions(text: str, target: ToolDef) -> bool:
         if not target.name:
@@ -343,19 +399,7 @@ def _differentia(a: ToolDef, b: ToolDef) -> tuple[set[str], set[str]]:
     """
     ta, tb = _meaning_terms(a), _meaning_terms(b)
 
-    # Two surface forms of one word must not read as a distinction. The fallback
-    # stemmer is not idempotent — "alias" reduces to "alia" while "aliases"
-    # reduces to "alias" — so a plural alone could manufacture a differentia and
-    # hide a genuine collision (`fetch_alias` vs `fetch_aliases` reported
-    # nothing at all). Rather than swapping in a heavier stemmer, compare
-    # candidate base forms directly: two terms are the same word if any base
-    # form of one matches any base form of the other.
-    bases = {t: set(_stem_candidates(t)) for t in ta | tb}
-
-    def unmatched(source: set[str], other: set[str]) -> set[str]:
-        return {t for t in source if not any(bases[t] & bases[o] for o in other)}
-
-    only_a, only_b = unmatched(ta, tb), unmatched(tb, ta)
+    only_a, only_b = ta - tb, tb - ta
 
     def informative(terms: set[str]) -> set[str]:
         # No length floor. Short tokens are frequently the entire distinction:
@@ -460,6 +504,38 @@ def detect_h1(config: AgentConfig) -> list[Finding]:
                 continue
 
             # A pair that disambiguates itself inline is already correct.
+            # A declared alias needs no analysis — the description already says
+            # the two are the same tool. Reported on the strength of the
+            # declaration, because computing a differentia here would find one:
+            # the words "compatibility alias for" are themselves terms one
+            # description has and the other does not, so the notice would mask
+            # the very collision it announces.
+            declared = _declared_alias(t1, t2)
+            if declared is not None:
+                alias, canonical = declared
+                findings.append(
+                    Finding(
+                        pattern_id="H1",
+                        sub_id="H1.6",
+                        pattern_name="Tool Description Ambiguity",
+                        severity=Severity.MEDIUM,
+                        location=f"tool:{alias.name} vs tool:{canonical.name}",
+                        description=(
+                            f"Tool '{alias.name}' declares itself an alias of "
+                            f"'{canonical.name}'. Both are offered to the model, which "
+                            "has no basis for preferring one, and no description "
+                            "distinguishes them because none is meant to."
+                        ),
+                        suggestion=(
+                            f"Stop exposing '{alias.name}' to the model, or state what it "
+                            "is for that the other is not. An alias kept for callers does "
+                            "not need to be in the tool list."
+                        ),
+                        evidence=f"'{alias.description[:70]}'",
+                    )
+                )
+                continue
+
             if _cross_references(t1, t2):
                 continue
 

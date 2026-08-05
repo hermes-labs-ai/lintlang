@@ -11,12 +11,19 @@ plugin marketplace when present, and the module skips otherwise. That keeps
 third-party description text out of this repository while keeping the
 measurement reproducible on any machine that has the marketplace.
 
+**Consequence worth stating plainly: these three tests do not run in CI.** No
+GitHub Actions runner has that marketplace installed, so the suite gates 266
+there and 269 on a maintainer machine. The one test measuring this detector
+against text nobody wrote for the project is therefore a local pre-merge check,
+not an automated gate. Quote 266 when quoting a CI number. Vendoring a small
+licence-safe corpus would close this and is the right fix; it is not done.
+
 Baseline measured 2026-08-05 by this module's own loader: 76 descriptions from
 independent plugin authors, 2850 pairs.
 
     pair findings (H1.5 + H1.6)   1
-    pairs within 1 term of firing 8
-    pairs within 2 terms          18
+    pairs within 1 term of firing 7
+    pairs within 2 terms          14
 
 The single finding is H1.5 on `agent-sdk-verifier-py` vs `-ts`, whose
 descriptions are ~90% identical and differ only by the language name. H1.6
@@ -25,7 +32,13 @@ that the surrounding text is near-duplicate. That is defensible, and it is
 v0.3.2 behaviour: an earlier baseline of 0 was measured while a bug in the
 H1.5 name guard was suppressing it.
 
-Revised 2026-08-05 from 10/23 after removing a length floor in the
+Revised 2026-08-05 from 8/18 after making normalization lexicon-only, so that
+number is no longer collapsed: `get_order` and `get_orders` are different
+operations, and treating them as one spelling produced a "remove one" verdict
+on `get_user`/`get_users`. Fewer terms now normalize together, so pairs sit
+further from the boundary.
+
+Previously revised from 10/23 after removing a length floor in the
 informative-terms filter. That floor discarded tokens of two characters or
 fewer, which made `v1`/`v2`, `get_po`/`get_so` and `top_10`/`top_100` read as
 indistinguishable — false positives carrying a "remove one" recommendation.
@@ -79,8 +92,8 @@ MARKETPLACE = Path(
 )
 
 EXPECTED_PAIR_FINDINGS = 1
-EXPECTED_WITHIN_1 = 8
-EXPECTED_WITHIN_2 = 18
+EXPECTED_WITHIN_1 = 7
+EXPECTED_WITHIN_2 = 14
 MIN_CORPUS_SIZE = 60
 
 _FRONTMATTER = re.compile(r"^---\n(.*?)\n---", re.S)

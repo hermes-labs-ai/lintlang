@@ -23,6 +23,10 @@
 
 ### Changed
 
+- Some pairs reported in 0.3.2 are now silent by design: a pair whose
+  descriptions reference each other by name is treated as self-disambiguating
+  and skipped, unless one of them declares itself an alias. Diffing findings
+  across versions will show this.
 - H1.6 findings are MEDIUM, not HIGH, so they inform a build rather than break
   one. `--fail-on fail` keys on CRITICAL/HIGH and is unaffected; use
   `--fail-on review` to gate on them. This is deliberate while the check's
@@ -30,6 +34,17 @@
 
 ### Fixed
 
+- Cardinality is no longer collapsed. Normalization is now driven entirely by
+  the synonym lexicon; words it does not list stand for themselves. `get_order`
+  and `get_orders` are different operations, and stemming them together
+  reported one as redundant and advised deleting it — on `get_user`/`get_users`,
+  among the most common naming conventions there is. Synonymy is a claim about
+  meaning and belongs in the lexicon; suffix-stripping is a guess about
+  spelling and does not.
+- A tool whose description declares it an alias of another (`Compatibility
+  alias for X`, `Deprecated. Use X`) is now reported. Previously the sibling's
+  name in the description was read as self-disambiguation and suppressed the
+  pair — silencing the most certain collision there is.
 - H1's cross-tool overlap check no longer treats differing tool names as
   grounds to suppress a finding. Names feed the term set, so any two distinctly
   named tools silenced the check — `get_invoice_pdf` and `get_receipt_pdf` with

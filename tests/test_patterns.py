@@ -123,11 +123,60 @@ class TestH16Differentia:
         )
 
     def test_synonymous_verbs_are_not_a_differentia(self):
-        """'look up' and 'search' select the same tool."""
+        """Two names for one operation do not distinguish it.
+
+        Cardinality is held constant on purpose. An earlier version of this test
+        paired a singular tool against a plural one and expected a finding —
+        which was wrong: returning one record and returning many is a real
+        difference, and treating it as noise produced a "remove one"
+        recommendation on `get_user` / `get_users`.
+        """
         assert "H1.6" in self._codes(
-            ("lookup_order", "Look up an order"),
-            ("search_orders", "Search for orders in the system"),
+            ("lookup_order", "Look up an order in the system"),
+            ("search_order", "Search for an order"),
         )
+
+    def test_cardinality_is_a_differentia(self):
+        """Singular and plural are different operations, not two spellings.
+
+        `get_X` / `get_Xs` is among the most common naming conventions there is.
+        Collapsing number to catch morphological variants flagged these as
+        redundant and advised deleting one.
+        """
+        for pair in (
+            (("get_order", "Returns the order record matching the given identifier."),
+             ("get_orders", "Returns the order records matching the given identifiers.")),
+            (("get_user", "Return the user by id"),
+             ("get_users", "Return the users by ids")),
+        ):
+            assert self._codes(*pair) == [], f"{pair[0][0]} vs {pair[1][0]} are distinct"
+
+    def test_declared_alias_is_reported(self):
+        """A description admitting it duplicates another tool is the surest collision.
+
+        The alias notice must not be read as self-disambiguation: naming the
+        sibling here concedes the two are the same, rather than explaining how
+        they differ.
+        """
+        codes = self._codes(
+            ("fidelis_recall", "Compatibility alias for cogito_recall. Recall stored facts."),
+            ("cogito_recall", "Recall stored facts from memory."),
+        )
+        assert "H1.6" in codes
+
+    def test_pointing_at_a_sibling_is_not_an_alias_notice(self):
+        """'use X instead' is ordinary disambiguation and must stay quiet.
+
+        This project's own `samples/clean_config.yaml` says "Do NOT use for
+        forecasts — use get_forecast instead", which is a well-written tool
+        doing the right thing.
+        """
+        assert self._codes(
+            ("get_current_weather",
+             "Retrieve real-time weather conditions. Do NOT use for forecasts — use get_forecast instead."),
+            ("get_forecast",
+             "Retrieve a multi-day forecast. Do NOT use for current conditions — use get_current_weather instead."),
+        ) == []
 
     def test_jaccard_would_have_missed_these(self):
         """Regression guard on the reason H1.6 exists.

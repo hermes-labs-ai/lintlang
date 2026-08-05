@@ -62,6 +62,13 @@ lintlang = "lintlang.cli:main"
 [tool.hatch.build.targets.wheel]
 packages = ["src/lintlang"]
 
+[tool.hatch.build.targets.sdist]
+# WORKSPACE.md documents which local clone is canonical for this maintainer.
+# It carries absolute paths under a home directory and names unrelated internal
+# repositories, none of which mean anything to someone who downloaded a tarball
+# from PyPI. Useful in the git checkout, wrong in a published artifact.
+exclude = ["WORKSPACE.md"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]

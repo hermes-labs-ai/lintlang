@@ -262,10 +262,21 @@ It is deliberately MEDIUM, so it informs a build rather than breaking one:
 `--fail-on review` once you have seen how it behaves on your own manifests.
 
 Detection is synonym- and morphology-aware within a curated lexicon of agent-
-tool vocabulary, which is what lets it reach pairs word overlap cannot. That
-lexicon is finite: genuinely synonymous pairs outside it (`kill`/`terminate`,
-`approve`/`authorize`) are not yet detected. The check is precise on what it
-covers; its coverage is not yet measured against a labelled corpus.
+tool vocabulary, which is what lets it reach pairs word overlap cannot.
+
+**Read this before relying on it.** That lexicon is finite, and narrower than it
+may appear. Synonymous verbs outside it — `kill`/`terminate`,
+`approve`/`authorize` — are not detected. Neither are pairs whose sentence
+structure differs enough that a term lands in the wrong class: `"Retrieve
+incident details by ID"` against `"Look up an incident in the system"` is missed
+today, because `look up` is classified as a search rather than a retrieval.
+
+Practically, H1.6 is reliable on pairs phrased similarly and unreliable on the
+same pair phrased two different ways by two different engineers — which is the
+common case in a real manifest. Treat its pairwise findings as a hint worth
+checking, not a verdict, and keep auditing your own `get_x` / `fetch_x` pairs.
+Coverage has not been measured against a labelled corpus, and no such corpus
+exists to measure it against.
 
 Use narrow, intentional paths. Directory scans can discover Markdown and Python
 files that were not written as agent configuration; use `.lintlangignore` or
