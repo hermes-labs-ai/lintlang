@@ -5,14 +5,11 @@
 [![Python](https://img.shields.io/pypi/pyversions/lintlang)](https://pypi.org/project/lintlang/)
 [![License](https://img.shields.io/pypi/l/lintlang)](LICENSE)
 
-**LintLang statically analyzes the natural-language instructions that control
-AI agents, catching ambiguous tools, missing limits, and conflicting directives
-before runtime.**
-
-**New in 0.4.0 — tools your agent cannot tell apart.** Other checks read each
-tool on its own. `H1.6` reads them *against each other*, and reports the pairs a
-model has no basis for choosing between. Every tool involved is well-formed and
-schema-valid, which is exactly why validation has nothing to say about it.
+**LintLang checks your agent's tools against each other and reports the pairs
+your model will not be able to tell apart.** Every other agent linter reads each
+tool on its own. A tool can be well-formed, schema-valid, and perfectly
+described, and still be indistinguishable from the one next to it — nothing is
+malformed, so validation has nothing to say.
 
 ```
 $ lintlang scan tools.yaml
@@ -21,16 +18,20 @@ $ lintlang scan tools.yaml
 
   H1: Tool Description Ambiguity
 
-    ~ [MEDIUM] H1.6 tool:lookup_order vs tool:search_orders
-      Tools 'lookup_order' and 'search_orders' carry no differentia — every
-      meaning-bearing term in one is present, or has a synonym, in the other.
-      → Name a condition that selects one over the other.
+    ~ [MEDIUM] H1.6 tool:find_tickets vs tool:search_tickets
+      Tool 'find_tickets' is dominated by 'search_tickets' — every
+      meaning-bearing term in 'find_tickets' also appears, or has a synonym,
+      in 'search_tickets', which additionally names 'support'. A model has no
+      reason to select 'find_tickets' over 'search_tickets'.
+      → Add to 'find_tickets' a term that 'search_tickets' does not use.
 ```
 
-Those two descriptions read differently — "Look up an order" against "Search for
-orders in the system" — and mean the same thing to the model routing between
-them. Word overlap scores that pair at 0.25 and cannot reach it. See
-[What it inspects](#what-it-inspects) for the full list of shapes.
+`"Look up tickets in the system"` and `"Search for support tickets"` share no
+obvious wording, and mean the same thing to the model routing between them.
+Word overlap scores that pair at 0.17 and cannot reach it.
+
+It also statically analyzes the instructions themselves — ambiguous tools,
+missing limits, conflicting directives — before runtime.
 
 It flags patterns such as:
 

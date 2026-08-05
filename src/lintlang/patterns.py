@@ -196,11 +196,10 @@ _NON_DISCRIMINATING = {
     "out",
     "off",
     "down",
-    "all",
-    "any",
-    "each",
-    "every",
-    "some",
+    # NOT here: all, any, each, every, some. They look like filler and are not.
+    # `list_all_users` vs `list_active_users` is a real distinction carried
+    # entirely by the quantifier; stripping it left the all-variant with no
+    # terms of its own and reported it as redundant.
     "its",
     "their",
     "your",
