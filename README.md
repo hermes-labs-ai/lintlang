@@ -216,13 +216,14 @@ hygiene.
 
 ### H1.6: tool descriptions without a differentia
 
-Per-tool schema validation assesses one definition at a time. H1.6 instead
-compares tool definitions with each other and reports a pair when, under
-LintLang's term-and-synonym model, one or both descriptions provide no
-distinguishing term. Both tools can be individually valid, so per-tool
+Per-tool schema validation assesses one definition at a time. Within one parsed
+input, H1.6 instead compares tool definitions with each other and reports a pair
+when, under LintLang's term-and-synonym model, one or both descriptions provide
+no distinguishing term. Both tools can be individually valid, so per-tool
 validation has nothing to report. A *mutual* finding means neither description
 distinguishes itself; *domination* means one tool's terms are all covered by the
-other, and the finding names which description to repair.
+other, and the finding names which description to repair. Directory scans do
+not aggregate tool definitions across files or infer a shared namespace.
 
 Findings print the sub-code:
 `~ [MEDIUM] H1.6 tool:find_tickets vs tool:search_tickets`. `pattern_id` stays

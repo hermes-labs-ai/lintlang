@@ -111,9 +111,11 @@ H1 findings carry a sub-code. `Finding.pattern_id` remains `H1`; `Finding.code` 
 | H1.5 | Two descriptions are near-duplicate text | HIGH |
 | H1.6 | Two tools carry no distinguishing term | MEDIUM |
 
-H1.6 compares tools against each other rather than in isolation. It reports a pair when no meaning-bearing term in one description is absent from the other, after synonym and morphological normalization — so it reaches pairs that word overlap cannot, such as "Look up an order" against "Search for orders in the system", which share no words at all after stopword removal (Jaccard 0.00) and are interchangeable in practice. Two shapes: mutual, where neither tool distinguishes itself; and domination, where one tool's every term is covered by the other, in which case the finding names which tool to repair. Pairs whose descriptions reference each other by name are skipped, as are pairs distinguished by their tool names.
+H1.6 compares tools against each other rather than in isolation. Under its curated synonym lexicon, it reports a pair when one or both descriptions contain no distinguishing analysed term. This reaches some pairs that word overlap misses: "Look up an order" against "Search for orders in the system" scores Jaccard 0.00 under H1.5 while carrying no differentia under H1.6's model. Two shapes: mutual, where neither tool distinguishes itself; and domination, where one tool's every analysed term is covered by the other, in which case the finding identifies the less-specific description to repair. Pairs whose descriptions reference each other by name are skipped, as are pairs distinguished by their tool names.
 
 H1.6 is MEDIUM so it does not trigger FAIL, and therefore cannot break a `--fail-on fail` build. Gate on it with `--fail-on review`. Its synonym lexicon is finite: pairs outside it, such as kill/terminate or approve/authorize, are not detected. Coverage has not been measured against a labelled corpus.
+
+Comparison scope is one parsed input. Directory scans do not aggregate tool definitions across files or infer that separate files share a selection namespace.
 
 Alias detection has the same shape and the same limit. A description reading `Compatibility alias for X`, `Deprecated. Use X` or `Superseded by X` is reported. The same relationship written as "does the same thing as X, kept for backward compatibility" or "older entry point, prefer X in new code" is not — it is a list of phrasings, not an understanding of what an alias is.
 

@@ -32,6 +32,9 @@
   one. `--fail-on fail` keys on CRITICAL/HIGH and is unaffected; use
   `--fail-on review` to gate on them. This is deliberate while the check's
   recall is unmeasured against a labelled corpus.
+- H1.6 comparisons are scoped to tool definitions extracted from one parsed
+  input. Directory scans do not aggregate definitions across files or infer
+  that separate files share a selection namespace.
 
 ### Fixed
 
