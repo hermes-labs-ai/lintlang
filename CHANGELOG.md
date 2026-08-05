@@ -1,5 +1,64 @@
 # Changelog
 
+## [0.3.8] - 2026-08-05
+
+### Added
+
+- `H1.6`, a sub-code of H1 that reports tool pairs carrying no *differentia* —
+  where every meaning-bearing term in one description also appears, or has a
+  synonym, in the other. A description states what a tool is; a diagnosis states
+  what distinguishes it from its nearest neighbour. An individually accurate
+  description can still fail to distinguish its tool from a neighbouring tool.
+  H1.6 reports that relational ambiguity before runtime. Schema validation
+  cannot reach it because each colliding tool is individually valid.
+- Detection uses a curated synonym lexicon, so it reaches some pairs that word
+  overlap cannot. `Search the documentation` and `Search through the docs`
+  score 0.25 on H1.5's Jaccard measure while carrying no distinguishing term
+  under H1.6's model.
+- Two shapes are distinguished. *Mutual* — neither tool distinguishes itself.
+  *Domination* — one tool's every analysed term is covered by the other, so the
+  finding identifies the less-specific description to repair.
+- `Finding.sub_id` and `Finding.code`, so a finding can be cited precisely
+  ("that's an H1.6") without renaming the pattern IDs already in use. JSON
+  output gains a `code` field. `pattern_id` is unchanged.
+
+### Changed
+
+- Some pairs reported in 0.3.2 are now silent by design: a pair whose
+  descriptions reference each other by name is treated as self-disambiguating
+  and skipped, unless one of them declares itself an alias. Diffing findings
+  across versions will show this.
+- H1.6 findings are MEDIUM, not HIGH, so they inform a build rather than break
+  one. `--fail-on fail` keys on CRITICAL/HIGH and is unaffected; use
+  `--fail-on review` to gate on them. This is deliberate while the check's
+  recall is unmeasured against a labelled corpus.
+- H1.6 comparisons are scoped to tool definitions extracted from one parsed
+  input. Directory scans do not aggregate definitions across files or infer
+  that separate files share a selection namespace.
+
+### Fixed
+
+- Descriptions in non-Latin scripts are no longer reported as redundant.
+  Tokenization matched ASCII only, so Chinese, Japanese, Korean, Cyrillic and
+  Arabic descriptions produced no terms at all — and set containment holds
+  vacuously for an empty set, so such a tool read as "dominated by" whatever it
+  sat beside, with advice to delete it. Tokenization is now Unicode-aware, and a
+  tool carrying too little analysable text is skipped rather than compared. The
+  lexicon remains English, so synonyms in other languages are not detected.
+- A tool whose description declares it an alias of another is now reported as a
+  collision. Detection matches a fixed list of phrasings (`Compatibility alias
+  for X`, `Deprecated. Use X`, `Superseded by X`); the same relationship phrased
+  differently is still missed, the same way the synonym lexicon is finite.
+- A tool named with an ordinary English word — `access`, `configure` — no
+  longer suppresses findings against its neighbours merely because that word
+  appears in their descriptions. Only an identifier-shaped name counts as one
+  tool naming another.
+
+Note for anyone diffing the source: several entries that appeared here during
+development described defects introduced and fixed within this unreleased
+branch, not behaviour any 0.3.2 user encountered. They have been removed. The
+cardinality and name-suppression problems never shipped.
+
 ## [0.3.2] - 2026-08-04
 
 ### Added

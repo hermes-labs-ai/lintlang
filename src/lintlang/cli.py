@@ -181,6 +181,9 @@ def _cmd_scan(args: argparse.Namespace) -> int:
                     "structural_findings": [
                         {
                             "pattern_id": f.pattern_id,
+                            # The most specific stable identifier — "H1.6" when
+                            # the finding is sub-coded, "H1" otherwise. Cite this.
+                            "code": f.code,
                             "pattern_name": f.pattern_name,
                             "severity": f.severity.value,
                             "location": f.location,

@@ -12,6 +12,7 @@ before runtime.**
 It flags patterns such as:
 
 - empty, vague, or overlapping tool descriptions;
+- tool pairs with no term that distinguishes one from the other (`H1.6`);
 - missing stop conditions and unbounded retries;
 - inconsistencies between tool schemas and their descriptions;
 - unscoped context and vague instructions;
@@ -144,7 +145,7 @@ jobs:
       - uses: actions/checkout@v7
 
       - name: Inspect agent instructions
-        uses: hermes-labs-ai/lintlang@v0.3.2
+        uses: hermes-labs-ai/lintlang@v0.3.8
         with:
           path: AGENTS.md
 ```
@@ -161,7 +162,7 @@ to scan:
 ```yaml
 repos:
   - repo: https://github.com/hermes-labs-ai/lintlang
-    rev: v0.3.2
+    rev: v0.3.8
     hooks:
       - id: lintlang
         args: [AGENTS.md]
@@ -212,6 +213,26 @@ The checks cover reader-facing categories including tool clarity, execution
 bounds, schema-description alignment, context boundaries, instruction
 specificity, output contracts, message-role structure, and Python pipeline
 hygiene.
+
+### H1.6: tool descriptions without a differentia
+
+Per-tool schema validation assesses one definition at a time. Within one parsed
+input, H1.6 instead compares tool definitions with each other and reports a pair
+when, under LintLang's term-and-synonym model, one or both descriptions provide
+no distinguishing term. Both tools can be individually valid, so per-tool
+validation has nothing to report. A *mutual* finding means neither description
+distinguishes itself; *domination* means one tool's terms are all covered by the
+other, and the finding names which description to repair. Directory scans do
+not aggregate tool definitions across files or infer a shared namespace.
+
+Findings print the sub-code:
+`~ [MEDIUM] H1.6 tool:find_tickets vs tool:search_tickets`. `pattern_id` stays
+`H1`; JSON output adds a `code` field holding the most specific identifier.
+
+H1.6 is MEDIUM, so `--fail-on fail` does not block on it. Matching uses a
+finite English synonym lexicon, so pairs that say the same thing in different
+words or a different sentence shape are missed. The absence of an H1.6 finding
+is not evidence that no such pair exists.
 
 Use narrow, intentional paths. Directory scans can discover Markdown and Python
 files that were not written as agent configuration; use `.lintlangignore` or

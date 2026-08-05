@@ -2,6 +2,15 @@
 
 `lintlang` is a static linter for AI agent configs, tool definitions, and system prompts.
 
+## Workspace identity
+
+- The canonical upstream is `https://github.com/hermes-labs-ai/lintlang.git`.
+- Treat `git worktree list` as the authority for active linked worktrees.
+- Never assume the checked-out local branch matches public `origin/main`; verify the remote, branch, status, and intended base before editing.
+- Maintainers: `WORKSPACE.md` in the git checkout records which local clone is
+  canonical. It is not part of the published package and is not needed to work
+  on the code.
+
 ## Use it for
 
 - linting tool descriptions before agents start choosing the wrong tools
