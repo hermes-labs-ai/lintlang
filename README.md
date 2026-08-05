@@ -214,13 +214,15 @@ bounds, schema-description alignment, context boundaries, instruction
 specificity, output contracts, message-role structure, and Python pipeline
 hygiene.
 
-### H1.6: tools that cannot be told apart
+### H1.6: tool descriptions without a differentia
 
-H1.6 compares tool definitions against each other rather than one at a time,
-and reports pairs a model has no basis for choosing between: *mutual*, where
-neither description distinguishes itself, and *domination*, where one tool's
-terms are all covered by the other and the finding names which to repair. Both
-tools can be individually valid, so schema validation has nothing to report.
+Per-tool schema validation assesses one definition at a time. H1.6 instead
+compares tool definitions with each other and reports a pair when, under
+LintLang's term-and-synonym model, one or both descriptions provide no
+distinguishing term. Both tools can be individually valid, so per-tool
+validation has nothing to report. A *mutual* finding means neither description
+distinguishes itself; *domination* means one tool's terms are all covered by the
+other, and the finding names which description to repair.
 
 Findings print the sub-code:
 `~ [MEDIUM] H1.6 tool:find_tickets vs tool:search_tickets`. `pattern_id` stays

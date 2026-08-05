@@ -7,16 +7,17 @@
 - `H1.6`, a sub-code of H1 that reports tool pairs carrying no *differentia* —
   where every meaning-bearing term in one description also appears, or has a
   synonym, in the other. A description states what a tool is; a diagnosis states
-  what distinguishes it from its nearest neighbour. A description can be
-  entirely accurate and still fail as a diagnosis, and that is when a model
-  picks the wrong tool. Schema validation cannot reach this: every colliding
-  tool is individually valid.
-- Detection is synonym- and morphology-aware, so it reaches pairs that word
+  what distinguishes it from its nearest neighbour. An individually accurate
+  description can still fail to distinguish its tool from a neighbouring tool.
+  H1.6 reports that relational ambiguity before runtime. Schema validation
+  cannot reach it because each colliding tool is individually valid.
+- Detection uses a curated synonym lexicon, so it reaches some pairs that word
   overlap cannot. `Search the documentation` and `Search through the docs`
-  score 0.25 on H1.5's Jaccard measure and are interchangeable in practice.
+  score 0.25 on H1.5's Jaccard measure while carrying no distinguishing term
+  under H1.6's model.
 - Two shapes are distinguished. *Mutual* — neither tool distinguishes itself.
-  *Domination* — one tool's every term is covered by the other, so a model has
-  no reason to select it; the finding names which tool to repair.
+  *Domination* — one tool's every analysed term is covered by the other, so the
+  finding identifies the less-specific description to repair.
 - `Finding.sub_id` and `Finding.code`, so a finding can be cited precisely
   ("that's an H1.6") without renaming the pattern IDs already in use. JSON
   output gains a `code` field. `pattern_id` is unchanged.
