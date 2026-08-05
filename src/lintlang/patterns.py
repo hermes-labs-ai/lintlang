@@ -109,20 +109,32 @@ VAGUE_WORDS = {
 # answer is no.
 
 _SYNONYM_GROUPS: tuple[tuple[str, ...], ...] = (
-    # retrieval
-    ("search", "find", "query", "lookup", "look", "retrieve", "fetch", "read", "list"),
+    # Retrieval splits three ways on purpose. `list X` (enumerate all),
+    # `search X` (filter by predicate) and `get X` (fetch by identity) are
+    # genuinely different operations with different parameter shapes, and
+    # collapsing them fires on the most common tool-pair shape in MCP servers.
+    ("search", "find", "query", "lookup", "look", "seek", "locate", "grep"),
+    ("get", "fetch", "retrieve", "read", "obtain", "pull", "load", "access"),
+    ("list", "enumerate", "index", "browse"),
     # creation
-    ("create", "add", "new", "insert", "register", "make"),
+    ("create", "add", "new", "insert", "register", "make", "generate"),
     # deletion
-    ("delete", "remove", "destroy", "drop", "erase", "clear"),
+    ("delete", "remove", "destroy", "drop", "erase", "purge", "clear"),
     # modification
-    ("update", "modify", "edit", "change", "patch", "alter"),
+    ("update", "modify", "edit", "change", "patch", "alter", "set"),
+    # Persistence verbs. "store" belongs here, not with the container nouns:
+    # as a container it would canonicalize to "system" and be dropped as
+    # low-information, which silently deletes the only verb in a name like
+    # `fidelis_store` and makes it look dominated by `fidelis_recall`.
+    ("store", "save", "persist", "write", "commit", "put"),
+    # transmission
+    ("send", "post", "submit", "dispatch", "publish", "transmit"),
     # generic action verbs — these carry no selection signal at all
     ("handle", "process", "manage", "do", "perform", "execute", "run", "deal", "work"),
     # generic payload nouns
     ("info", "information", "data", "detail", "details", "record", "entry", "content"),
     # generic container nouns
-    ("system", "store", "database", "db", "repository", "backend", "service"),
+    ("system", "database", "db", "repository", "backend", "service", "platform"),
     # documentation
     ("doc", "docs", "documentation", "manual", "guide", "reference"),
 )
@@ -138,6 +150,10 @@ _LOW_INFORMATION = {
     # Canonical form of the generic-container synonym class (store, database,
     # db, repository, backend, service). "…from the system" narrows nothing.
     "system",
+    # Canonical form of the generic-payload class (information, data, detail,
+    # record, entry, content). "user record" vs "user account" must not be
+    # separated by the word "record" — it names no distinction.
+    "info",
     "thing",
     "things",
     "stuff",
@@ -293,6 +309,33 @@ def _meaning_terms(tool: ToolDef) -> set[str]:
     return {_canonical(w) for w in keep} - {""}
 
 
+def _cross_references(a: ToolDef, b: ToolDef) -> bool:
+    """True when either description explicitly names the other tool.
+
+    A description that says "use get_forecast for future predictions" has already
+    done the disambiguation work, and doing it inline is exactly what Anthropic's
+    tool-authoring guidance recommends. Such a pair must never be reported.
+
+    It also has to be excluded for a mechanical reason: naming the sibling pulls
+    the sibling's vocabulary into this tool's term set, which can make a
+    well-written description look like a subset of its neighbour and invert the
+    measure. The best-written pairs would be the ones flagged.
+    """
+
+    def mentions(text: str, target: ToolDef) -> bool:
+        if not target.name:
+            return False
+        # The identifier must appear verbatim, separator included. Matching the
+        # name's *words* instead would be far too loose in both directions:
+        # "handles a ticket" would count as referencing `do_ticket` because both
+        # contain "ticket", and the prose "Get user data from the database"
+        # opens with the exact word sequence of a sibling named `get_user`.
+        # A real cross-reference names the tool, and naming it means writing it.
+        return target.name.lower() in text.lower()
+
+    return mentions(a.description, b) or mentions(b.description, a)
+
+
 def _differentia(a: ToolDef, b: ToolDef) -> tuple[set[str], set[str]]:
     """Terms that could let a reader choose ``a`` over ``b``, and vice versa.
 
@@ -394,6 +437,10 @@ def detect_h1(config: AgentConfig) -> list[Finding]:
             if not t1.description or not t2.description:
                 continue
 
+            # A pair that disambiguates itself inline is already correct.
+            if _cross_references(t1, t2):
+                continue
+
             only_a, only_b = _differentia(t1, t2)
 
             overlap = _word_overlap(t1.description, t2.description)
@@ -417,6 +464,11 @@ def detect_h1(config: AgentConfig) -> list[Finding]:
                 )
                 continue
 
+            # Two distinct defects, not one. Mutual emptiness means neither tool
+            # distinguishes itself. One-sided emptiness — domination — means one
+            # tool's every term is already covered by the other, so a model has
+            # no reason to ever reach for it. Domination is the more actionable
+            # of the two, because it names which tool must be repaired.
             if not only_a and not only_b:
                 findings.append(
                     Finding(
@@ -437,6 +489,31 @@ def detect_h1(config: AgentConfig) -> list[Finding]:
                             "already placed, use Y for carts not yet submitted'."
                         ),
                         evidence=f"'{t1.description[:50]}' vs '{t2.description[:50]}'",
+                    )
+                )
+            elif not only_a or not only_b:
+                dominated, dominant = (t1, t2) if not only_a else (t2, t1)
+                distinguishing = sorted(only_a or only_b)
+                findings.append(
+                    Finding(
+                        pattern_id="H1",
+                        sub_id="H1.6",
+                        pattern_name="Tool Description Ambiguity",
+                        severity=Severity.HIGH,
+                        location=f"tool:{dominated.name} vs tool:{dominant.name}",
+                        description=(
+                            f"Tool '{dominated.name}' is dominated by '{dominant.name}' — "
+                            f"every meaning-bearing term in '{dominated.name}' also appears, "
+                            f"or has a synonym, in '{dominant.name}', which additionally names "
+                            f"{', '.join(repr(t) for t in distinguishing[:4])}. A model has no "
+                            f"reason to select '{dominated.name}' over '{dominant.name}'."
+                        ),
+                        suggestion=(
+                            f"Add to '{dominated.name}' a term that '{dominant.name}' does not "
+                            "use, naming what it is for that the other is not. If the two are "
+                            "genuinely redundant, remove one."
+                        ),
+                        evidence=f"'{dominated.description[:50]}' vs '{dominant.description[:50]}'",
                     )
                 )
 

@@ -175,6 +175,87 @@ class TestH16Differentia:
         findings = detect_h1(clean_tools_config)
         assert [f for f in findings if f.code == "H1.6"] == []
 
+    def test_domination_is_reported(self):
+        """One-sided emptiness is a defect too, and names which tool to repair.
+
+        If every term in A already appears in B, a model has no reason to ever
+        select A. Checking only for *mutual* emptiness silently drops this, which
+        is the more common and more actionable shape.
+        """
+        config = AgentConfig(
+            tools=[
+                ToolDef("create_user", "Create a new user record"),
+                ToolDef("add_user", "Create a new user account"),
+            ]
+        )
+        h16 = [f for f in detect_h1(config) if f.code == "H1.6"]
+        assert h16, "domination must be reported"
+        assert "dominated by" in h16[0].description
+        assert "create_user" in h16[0].description
+
+    def test_list_search_and_read_are_distinct_operations(self):
+        """`list` enumerates, `search` filters, `read` fetches by identity.
+
+        These are the most common tool-pair shapes in an MCP server. Treating
+        them as synonyms fires on almost every real server.
+        """
+        for pair in (
+            (ToolDef("list_issues", "List all issues"), ToolDef("search_issues", "Search the issues")),
+            (ToolDef("list_files", "List files"), ToolDef("read_file", "Read the file")),
+        ):
+            findings = detect_h1(AgentConfig(tools=list(pair)))
+            assert [f for f in findings if f.code == "H1.6"] == []
+
+    def test_store_is_a_verb_not_a_container(self):
+        """`store` must not canonicalize into the low-information container class.
+
+        If it does, `fidelis_store` loses its only verb and looks dominated by
+        `fidelis_recall`.
+        """
+        config = AgentConfig(
+            tools=[
+                ToolDef("fidelis_recall", "Recall facts from memory"),
+                ToolDef("fidelis_store", "Store a fact into memory"),
+            ]
+        )
+        assert [f for f in detect_h1(config) if f.code == "H1.6"] == []
+
+    def test_explicit_cross_reference_is_not_a_defect(self):
+        """A pair that disambiguates itself inline is already correct.
+
+        Naming the sibling also pulls the sibling's vocabulary into this tool's
+        term set, so without this guard the best-written pairs are the ones
+        flagged — the measure inverts exactly where it should stay quiet.
+        """
+        config = AgentConfig(
+            tools=[
+                ToolDef(
+                    "get_weather",
+                    "Retrieve current weather. Use get_forecast for future predictions.",
+                ),
+                ToolDef(
+                    "get_forecast",
+                    "Retrieve a multi-day forecast. Use get_weather for current conditions.",
+                ),
+            ]
+        )
+        assert [f for f in detect_h1(config) if f.code == "H1.6"] == []
+
+    def test_prose_is_not_a_cross_reference(self):
+        """Only a verbatim identifier counts as naming a sibling.
+
+        "Get user data from the database" opens with the exact word sequence of
+        a tool named `get_user`, and that is prose, not a reference.
+        """
+        config = AgentConfig(
+            tools=[
+                ToolDef("get_user", "Get user data from the database system"),
+                ToolDef("fetch_user", "Get user data from the database"),
+            ]
+        )
+        codes = [f.code for f in detect_h1(config)]
+        assert "H1.5" in codes or "H1.6" in codes
+
     def test_sub_id_does_not_change_pattern_id(self):
         """Sub-codes narrow a finding; they must not renumber it."""
         config = AgentConfig(
