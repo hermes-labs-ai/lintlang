@@ -278,6 +278,17 @@ checking, not a verdict, and keep auditing your own `get_x` / `fetch_x` pairs.
 Coverage has not been measured against a labelled corpus, and no such corpus
 exists to measure it against.
 
+The lexicon is English. Descriptions in other languages are tokenized correctly
+and will not produce spurious findings, but their synonyms are not recognized,
+so H1.6 will not detect collisions between them.
+
+**One known false positive.** Documentation that quotes an antipattern in order
+to warn against it is read as issuing it — H2, H4 and H5 do not distinguish
+reported speech from a directive. Point the tool at agent configs rather than at
+prose about agent configs, or use `.lintlangignore`. A fix is planned for 0.5.0;
+this project excludes its own reference manual from its own pre-commit hook for
+exactly this reason.
+
 Use narrow, intentional paths. Directory scans can discover Markdown and Python
 files that were not written as agent configuration; use `.lintlangignore` or
 `--exclude` where needed.

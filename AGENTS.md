@@ -4,11 +4,12 @@
 
 ## Workspace identity
 
-- Read `WORKSPACE.md` before choosing a checkout, branch, or handoff.
 - The canonical upstream is `https://github.com/hermes-labs-ai/lintlang.git`.
-- On the Hermes Labs maintainer workstation, the canonical development checkout is `/Users/rbr_lpci/github-projects/lintlang`.
-- Treat `git worktree list` as the authority for active linked worktrees. Directories under `ai-infra`, `Documents/Codex`, and `Documents/HAL/_handoffs` are evidence or delivery artifacts unless a current task explicitly says otherwise.
+- Treat `git worktree list` as the authority for active linked worktrees.
 - Never assume the checked-out local branch matches public `origin/main`; verify the remote, branch, status, and intended base before editing.
+- Maintainers: `WORKSPACE.md` in the git checkout records which local clone is
+  canonical. It is not part of the published package and is not needed to work
+  on the code.
 
 ## Use it for
 

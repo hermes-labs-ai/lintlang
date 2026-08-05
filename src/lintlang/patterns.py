@@ -276,16 +276,6 @@ def _stem_candidates(word: str) -> list[str]:
     return out
 
 
-def _stem(word: str) -> str:
-    """Best single base form, used only when the lexicon has no match.
-
-    Deliberately more conservative than candidate generation: a base of at least
-    four characters. Aggressive stripping is safe when a lexicon adjudicates the
-    result, and unsafe when nothing does — "thing" would otherwise reduce to "th"
-    and slip past the low-information filter that exists to catch it.
-    """
-    viable = [c for c in _stem_candidates(word) if len(c) >= 4]
-    return min(viable, key=len) if viable else word
 
 
 def _canonical(word: str) -> str:
@@ -326,7 +316,11 @@ def _meaning_terms(tool: ToolDef) -> set[str]:
     thing to a reader choosing between them.
     """
     text = _split_identifiers(f"{tool.name} {tool.description}")
-    words = re.findall(r"[a-z0-9]+", text.lower())
+    # Unicode-aware: `[a-z0-9]+` matched nothing at all in Chinese, Japanese,
+    # Korean, Cyrillic or Arabic, and shredded accented Latin ("récupère" into
+    # "r", "cup", "re"). `[^\W_]+` keeps every alphanumeric script and still
+    # drops the underscore, which _split_identifiers has already handled.
+    words = re.findall(r"[^\W_]+", text.lower(), re.UNICODE)
     # Filter on the surface form as well as the canonical one — stemming can
     # carry a word out of the reach of the filter that exists to catch it.
     keep = (
@@ -337,6 +331,20 @@ def _meaning_terms(tool: ToolDef) -> set[str]:
         and w not in _LOW_INFORMATION
     )
     return {_canonical(w) for w in keep} - {""}
+
+
+_MIN_ANALYSABLE_TERMS = 2
+
+
+def _is_analysable(tool: ToolDef) -> bool:
+    """Whether this tool carries enough meaning to compare against another.
+
+    Below two informative terms there is nothing to diagnose, and pretending
+    otherwise is worse than staying quiet: set containment holds vacuously for
+    an empty set, so an unreadable description reads as "dominated by" whatever
+    it is compared with.
+    """
+    return len(_meaning_terms(tool)) >= _MIN_ANALYSABLE_TERMS
 
 
 def _declared_alias(a: ToolDef, b: ToolDef) -> tuple[ToolDef, ToolDef] | None:
@@ -510,6 +518,16 @@ def detect_h1(config: AgentConfig) -> list[Finding]:
             # the words "compatibility alias for" are themselves terms one
             # description has and the other does not, so the notice would mask
             # the very collision it announces.
+            # A tool we cannot read is not a tool that duplicates another.
+            # Containment is vacuously true for an empty set, so a description
+            # yielding no analysable terms would be reported as "dominated by"
+            # every other tool in the file, with advice to delete it. That fired
+            # on ordinary internationalized configs before tokenization became
+            # Unicode-aware, and still would on a description of pure
+            # punctuation. Silence is the only honest answer here.
+            if not _is_analysable(t1) or not _is_analysable(t2):
+                continue
+
             declared = _declared_alias(t1, t2)
             if declared is not None:
                 alias, canonical = declared

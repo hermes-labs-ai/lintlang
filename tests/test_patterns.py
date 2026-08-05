@@ -151,6 +151,39 @@ class TestH16Differentia:
         ):
             assert self._codes(*pair) == [], f"{pair[0][0]} vs {pair[1][0]} are distinct"
 
+    def test_unreadable_descriptions_are_never_dominated(self):
+        """A tool we cannot analyse is not a tool that duplicates another.
+
+        Containment holds vacuously for an empty set, so a description yielding
+        no analysable terms was reported as "dominated by" whatever it happened
+        to sit next to — with advice to delete it. Before tokenization became
+        Unicode-aware this fired on any non-Latin description, meaning an
+        ordinary internationalized config got told to remove its tools.
+        """
+        pairs = [
+            # Different languages, unrelated meanings.
+            (ToolDef("获取订单", "获取指定标识符的订单记录"),
+             ToolDef("obtenir_commande", "Obtenir une commande par identifiant")),
+            (ToolDef("получить_заказ", "Получить заказ по идентификатору"),
+             ToolDef("get_order", "Return the order by identifier")),
+            # No analysable content at all.
+            (ToolDef("tool_a", "..."), ToolDef("tool_b", "...")),
+        ]
+        for pair in pairs:
+            findings = detect_h1(AgentConfig(tools=list(pair)))
+            assert [f for f in findings if f.code == "H1.6"] == [], (
+                f"{pair[0].name} vs {pair[1].name} must not be reported"
+            )
+
+    def test_non_latin_text_yields_terms(self):
+        """Tokenization must not silently discard whole writing systems."""
+        from lintlang.patterns import _meaning_terms
+
+        assert _meaning_terms(ToolDef("获取订单", "获取指定标识符的订单记录"))
+        assert "récupère" in _meaning_terms(
+            ToolDef("recuperer", "Récupère une commande par identifiant")
+        )
+
     def test_declared_alias_is_reported(self):
         """A description admitting it duplicates another tool is the surest collision.
 

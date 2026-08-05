@@ -34,6 +34,13 @@
 
 ### Fixed
 
+- Descriptions in non-Latin scripts are no longer reported as redundant.
+  Tokenization matched ASCII only, so Chinese, Japanese, Korean, Cyrillic and
+  Arabic descriptions produced no terms at all — and set containment holds
+  vacuously for an empty set, so such a tool read as "dominated by" whatever it
+  sat beside, with advice to delete it. Tokenization is now Unicode-aware, and a
+  tool carrying too little analysable text is skipped rather than compared. The
+  lexicon remains English, so synonyms in other languages are not detected.
 - Cardinality is no longer collapsed. Normalization is now driven entirely by
   the synonym lexicon; words it does not list stand for themselves. `get_order`
   and `get_orders` are different operations, and stemming them together
