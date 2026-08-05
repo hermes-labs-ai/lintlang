@@ -15,8 +15,16 @@ Baseline measured 2026-08-05 by this module's own loader: 76 descriptions from
 independent plugin authors, 2850 pairs.
 
     pair findings (H1.5 + H1.6)   0
-    pairs within 1 term of firing 10
-    pairs within 2 terms          23
+    pairs within 1 term of firing 8
+    pairs within 2 terms          18
+
+Revised 2026-08-05 from 10/23 after removing a length floor in the
+informative-terms filter. That floor discarded tokens of two characters or
+fewer, which made `v1`/`v2`, `get_po`/`get_so` and `top_10`/`top_100` read as
+indistinguishable — false positives carrying a "remove one" recommendation.
+Dropping it makes more tokens count as distinguishing, so pairs moved further
+from the firing boundary. Verdicts did not change; sensitivity did. This
+tripwire caught that, which is what it is for.
 
 READ THE PAIR COUNT HONESTLY. Only 181 of those 2850 pairs are between tools
 belonging to the *same* plugin, and only those can actually collide — plugin
@@ -64,8 +72,8 @@ MARKETPLACE = Path(
 )
 
 EXPECTED_PAIR_FINDINGS = 0
-EXPECTED_WITHIN_1 = 10
-EXPECTED_WITHIN_2 = 23
+EXPECTED_WITHIN_1 = 8
+EXPECTED_WITHIN_2 = 18
 MIN_CORPUS_SIZE = 60
 
 _FRONTMATTER = re.compile(r"^---\n(.*?)\n---", re.S)

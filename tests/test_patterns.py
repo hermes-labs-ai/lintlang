@@ -175,6 +175,30 @@ class TestH16Differentia:
         findings = detect_h1(clean_tools_config)
         assert [f for f in findings if f.code == "H1.6"] == []
 
+    def test_short_tokens_still_differentiate(self):
+        """Version tags, numeric qualifiers and short abbreviations are real.
+
+        A length floor in the informative-terms filter discarded these, making
+        genuinely different tools look identical — and then recommending that
+        one of them be deleted. For a `v1`/`v2` pair that is the worst possible
+        advice delivered in the most confident voice.
+        """
+        pairs = [
+            (ToolDef("get_po", "Fetch a PO by identifier"),
+             ToolDef("get_so", "Fetch a SO by identifier")),
+            (ToolDef("search_v1", "Search the legacy v1 index"),
+             ToolDef("search_v2", "Search the v2 index")),
+            (ToolDef("get_top_10_results", "Return the top 10 results"),
+             ToolDef("get_top_100_results", "Return the top 100 results")),
+        ]
+        for pair in pairs:
+            findings = detect_h1(AgentConfig(tools=list(pair)))
+            offenders = [f for f in findings if f.code == "H1.6"]
+            assert offenders == [], (
+                f"{pair[0].name} vs {pair[1].name} are distinguishable: "
+                f"{offenders[0].description if offenders else ''}"
+            )
+
     def test_domination_is_reported(self):
         """One-sided emptiness is a defect too, and names which tool to repair.
 

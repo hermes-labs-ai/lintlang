@@ -345,12 +345,17 @@ def _differentia(a: ToolDef, b: ToolDef) -> tuple[set[str], set[str]]:
     ta, tb = _meaning_terms(a), _meaning_terms(b)
 
     def informative(terms: set[str]) -> set[str]:
+        # No length floor. Short tokens are frequently the entire distinction:
+        # `v1`/`v2`, `get_po`/`get_so`, `top_10`/`top_100`. Discarding them made
+        # genuinely different tools look identical and produced a confident
+        # "remove one" recommendation for a version pair — the worst possible
+        # advice, stated in the most confident voice. Function words like "up"
+        # are already handled by _NON_DISCRIMINATING; length was never the right
+        # proxy for "carries no meaning".
         return {
             t
             for t in terms
-            if t not in _LOW_INFORMATION
-            and t not in _NON_DISCRIMINATING
-            and len(t) > 2
+            if t not in _LOW_INFORMATION and t not in _NON_DISCRIMINATING
         }
 
     return informative(ta - tb), informative(tb - ta)
