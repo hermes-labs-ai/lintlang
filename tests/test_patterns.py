@@ -87,6 +87,106 @@ class TestH1:
         assert len(overlap_findings) == 0
 
 
+class TestH16Differentia:
+    """H1.6 — a description that does not distinguish its tool from a sibling.
+
+    The defect these cover is not "these two are worded alike" (that is H1.5).
+    It is "neither description names anything that would let a reader choose
+    one over the other" — which can be true even when the two share almost no
+    vocabulary, because the differing words are synonyms.
+    """
+
+    @staticmethod
+    def _codes(t1: tuple[str, str], t2: tuple[str, str]) -> list[str]:
+        config = AgentConfig(tools=[ToolDef(*t1), ToolDef(*t2)])
+        return [f.code for f in detect_h1(config) if f.code in ("H1.5", "H1.6")]
+
+    def test_generic_verbs_are_not_a_differentia(self):
+        """'handles' vs 'does' are the same instruction to a reader."""
+        assert "H1.6" in self._codes(
+            ("handle_ticket", "handles a ticket"),
+            ("do_ticket", "does the ticket thing"),
+        )
+
+    def test_morphological_variants_are_not_a_differentia(self):
+        """'documentation' and 'docs' are the same word."""
+        assert "H1.6" in self._codes(
+            ("search_docs", "Search the documentation"),
+            ("find_docs", "Search through the docs"),
+        )
+
+    def test_generic_payload_nouns_are_not_a_differentia(self):
+        """'info' vs 'data', and 'from the system' narrows nothing."""
+        assert "H1.6" in self._codes(
+            ("get_user_info", "Get user info"),
+            ("get_user_data", "Get user data from the system"),
+        )
+
+    def test_synonymous_verbs_are_not_a_differentia(self):
+        """'look up' and 'search' select the same tool."""
+        assert "H1.6" in self._codes(
+            ("lookup_order", "Look up an order"),
+            ("search_orders", "Search for orders in the system"),
+        )
+
+    def test_jaccard_would_have_missed_these(self):
+        """Regression guard on the reason H1.6 exists.
+
+        Every pair above scores well under H1.5's 0.7 overlap threshold, so a
+        similarity test cannot reach them. If someone ever "simplifies" H1.6
+        back into an overlap check, this fails.
+        """
+        from lintlang.patterns import _word_overlap
+
+        pairs = [
+            ("handles a ticket", "does the ticket thing"),
+            ("Search the documentation", "Search through the docs"),
+            ("Get user info", "Get user data from the system"),
+            ("Look up an order", "Search for orders in the system"),
+        ]
+        assert all(_word_overlap(a, b) <= 0.7 for a, b in pairs)
+
+    def test_distinct_domains_do_not_fire(self):
+        """Two search tools over genuinely different subject matter are fine."""
+        assert self._codes(
+            ("search_kb", "Search the knowledge base for help articles"),
+            ("search_orders", "Search for customer orders by id"),
+        ) == []
+
+    def test_opposed_verbs_do_not_fire(self):
+        """Create and delete are not interchangeable."""
+        assert self._codes(
+            ("create_user", "Create a new user account"),
+            ("delete_user", "Permanently remove a user account"),
+        ) == []
+
+    def test_namespace_prefix_is_a_differentia(self):
+        """Identical descriptions are acceptable when the names disambiguate.
+
+        Anthropic's tool-authoring guidance recommends exactly this pattern
+        ('asana_search', 'jira_search'), so flagging it would be wrong.
+        """
+        assert self._codes(
+            ("asana_search", "Search tasks"),
+            ("jira_search", "Search tasks"),
+        ) == []
+
+    def test_clean_config_stays_clean(self, clean_tools_config):
+        findings = detect_h1(clean_tools_config)
+        assert [f for f in findings if f.code == "H1.6"] == []
+
+    def test_sub_id_does_not_change_pattern_id(self):
+        """Sub-codes narrow a finding; they must not renumber it."""
+        config = AgentConfig(
+            tools=[
+                ToolDef("get_user_info", "Get user info"),
+                ToolDef("get_user_data", "Get user data from the system"),
+            ]
+        )
+        h16 = [f for f in detect_h1(config) if f.code == "H1.6"]
+        assert h16 and all(f.pattern_id == "H1" for f in h16)
+
+
 # ── H2: Missing Constraint Scaffolding ─────────────────────────────
 
 

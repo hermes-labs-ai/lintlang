@@ -41,6 +41,18 @@ class Finding:
     description: str
     suggestion: str
     evidence: str = ""
+    sub_id: str = ""
+    """Stable sub-code within the pattern, e.g. "H1.6". Empty for un-subcoded findings.
+
+    Sub-codes exist so a finding can be cited precisely ("that's an H1.6") without
+    renaming the pattern IDs people already reference. The pattern ID stays the
+    citable root; the sub-code narrows it.
+    """
+
+    @property
+    def code(self) -> str:
+        """The most specific stable identifier for this finding."""
+        return self.sub_id or self.pattern_id
 
 
 @dataclass
@@ -81,6 +93,224 @@ VAGUE_WORDS = {
     "get",
     "set",
 }
+
+
+# ── H1.6 support: differentia detection ────────────────────────────
+#
+# A *description* says what a tool is. A *diagnosis* says what distinguishes it
+# from its nearest neighbour. A description can be entirely accurate and still
+# fail as a diagnosis — which is precisely when a model picks the wrong tool.
+#
+# H1.5 (word overlap) asks "are these two worded alike?". That is a different
+# question, and it misses the common case: two descriptions can share almost no
+# vocabulary and still be perfectly interchangeable, because their differing
+# words are synonyms. H1.6 asks the right question — "is there any term here
+# that would let a reader choose one over the other?" — and fires when the
+# answer is no.
+
+_SYNONYM_GROUPS: tuple[tuple[str, ...], ...] = (
+    # retrieval
+    ("search", "find", "query", "lookup", "look", "retrieve", "fetch", "read", "list"),
+    # creation
+    ("create", "add", "new", "insert", "register", "make"),
+    # deletion
+    ("delete", "remove", "destroy", "drop", "erase", "clear"),
+    # modification
+    ("update", "modify", "edit", "change", "patch", "alter"),
+    # generic action verbs — these carry no selection signal at all
+    ("handle", "process", "manage", "do", "perform", "execute", "run", "deal", "work"),
+    # generic payload nouns
+    ("info", "information", "data", "detail", "details", "record", "entry", "content"),
+    # generic container nouns
+    ("system", "store", "database", "db", "repository", "backend", "service"),
+    # documentation
+    ("doc", "docs", "documentation", "manual", "guide", "reference"),
+)
+
+_SYNONYM_CLASS: dict[str, str] = {
+    term: group[0] for group in _SYNONYM_GROUPS for term in group
+}
+
+# Terms that cannot serve as a differentia even when they are unique to one side.
+# A word only distinguishes two tools if it narrows *when* to reach for one.
+# "thing", "system", "various" narrow nothing.
+_LOW_INFORMATION = {
+    # Canonical form of the generic-container synonym class (store, database,
+    # db, repository, backend, service). "…from the system" narrows nothing.
+    "system",
+    "thing",
+    "things",
+    "stuff",
+    "item",
+    "items",
+    "object",
+    "objects",
+    "entity",
+    "entities",
+    "various",
+    "general",
+    "generic",
+    "relevant",
+    "appropriate",
+    "given",
+    "specific",
+    "certain",
+    "particular",
+    "necessary",
+    "required",
+    "available",
+    "valid",
+    "proper",
+    "correct",
+}
+
+# Function words that carry no selection signal. Kept separate from the
+# module-level _STOPWORDS (which H1.5's overlap score depends on) so that
+# widening this set cannot silently move H1.5's threshold behaviour.
+_NON_DISCRIMINATING = {
+    "through",
+    "into",
+    "onto",
+    "over",
+    "under",
+    "via",
+    "about",
+    "across",
+    "up",
+    "out",
+    "off",
+    "down",
+    "all",
+    "any",
+    "each",
+    "every",
+    "some",
+    "its",
+    "their",
+    "your",
+    "our",
+    "you",
+    "they",
+    "them",
+    "there",
+    "here",
+    "then",
+    "than",
+    "not",
+    "can",
+    "will",
+    "should",
+    "must",
+    "may",
+    "also",
+    "only",
+    "just",
+    "more",
+    "most",
+    "new",
+    "old",
+}
+
+_SUFFIXES = ("ations", "ation", "ings", "ing", "ies", "ied", "es", "ed", "s")
+
+_CAMEL_BOUNDARY = re.compile(r"(?<=[a-z0-9])(?=[A-Z])")
+
+
+def _split_identifiers(text: str) -> str:
+    """Break identifiers into their component words.
+
+    ``search_orders``, ``search-orders`` and ``searchOrders`` all have to reduce
+    to the same two words, or a tool name contributes one opaque token that
+    always looks like a differentia and never is.
+    """
+    return _CAMEL_BOUNDARY.sub(" ", text).replace("_", " ").replace("-", " ")
+
+
+def _stem_candidates(word: str) -> list[str]:
+    """Every plausible base form of ``word``, longest-suffix-first.
+
+    Returns candidates rather than one answer because a naive single-answer
+    stemmer strips the wrong thing on short words — "does" loses "s" and becomes
+    "doe", which then fails to match "do" in the synonym lexicon and manufactures
+    a differentia that is not there. Generating candidates and letting the
+    lexicon pick avoids that whole class of error.
+    """
+    out = [word]
+    for suffix in _SUFFIXES:
+        if word.endswith(suffix) and len(word) - len(suffix) >= 2:
+            base = word[: -len(suffix)]
+            out.append(base + "y" if suffix == "ies" else base)
+            # "searches" → "search" needs the trailing "e" restored after "es".
+            if suffix in ("es", "ed", "ings", "ing"):
+                out.append(base + "e")
+    return out
+
+
+def _stem(word: str) -> str:
+    """Best single base form, used only when the lexicon has no match.
+
+    Deliberately more conservative than candidate generation: a base of at least
+    four characters. Aggressive stripping is safe when a lexicon adjudicates the
+    result, and unsafe when nothing does — "thing" would otherwise reduce to "th"
+    and slip past the low-information filter that exists to catch it.
+    """
+    viable = [c for c in _stem_candidates(word) if len(c) >= 4]
+    return min(viable, key=len) if viable else word
+
+
+def _canonical(word: str) -> str:
+    """Map a word to the token that stands for its meaning class."""
+    lowered = word.lower()
+    # Check the lexicon against every candidate base form, so "documentation",
+    # "docs", "doc" and "documenting" all reach the same class regardless of
+    # which surface form the lexicon happens to list.
+    for candidate in _stem_candidates(lowered):
+        if candidate in _SYNONYM_CLASS:
+            return _SYNONYM_CLASS[candidate]
+    return _stem(lowered)
+
+
+def _meaning_terms(tool: ToolDef) -> set[str]:
+    """Canonical meaning-bearing terms for a tool, from its name and description.
+
+    The name is included deliberately: namespacing is a real differentiator
+    (``asana_search`` vs ``jira_search`` are distinguishable even with identical
+    descriptions), and the synonym lexicon keeps it honest — ``process_ticket``
+    and ``handle_ticket`` do *not* separate, because those verbs mean the same
+    thing to a reader choosing between them.
+    """
+    text = _split_identifiers(f"{tool.name} {tool.description}")
+    words = re.findall(r"[a-z0-9]+", text.lower())
+    # Filter on the surface form as well as the canonical one — stemming can
+    # carry a word out of the reach of the filter that exists to catch it.
+    keep = (
+        w
+        for w in words
+        if w not in _STOPWORDS
+        and w not in _NON_DISCRIMINATING
+        and w not in _LOW_INFORMATION
+    )
+    return {_canonical(w) for w in keep} - {""}
+
+
+def _differentia(a: ToolDef, b: ToolDef) -> tuple[set[str], set[str]]:
+    """Terms that could let a reader choose ``a`` over ``b``, and vice versa.
+
+    Returns only *informative* terms — ones that actually narrow applicability.
+    An empty pair on both sides means the two tools are indistinguishable.
+    """
+    ta, tb = _meaning_terms(a), _meaning_terms(b)
+
+    def informative(terms: set[str]) -> set[str]:
+        return {
+            t
+            for t in terms
+            if t not in _LOW_INFORMATION
+            and t not in _NON_DISCRIMINATING
+            and len(t) > 2
+        }
+
+    return informative(ta - tb), informative(tb - ta)
 
 
 def detect_h1(config: AgentConfig) -> list[Finding]:
@@ -155,22 +385,58 @@ def detect_h1(config: AgentConfig) -> list[Finding]:
         else:
             seen_names[lower_name] = i
 
-    # Cross-tool overlap: check for similar descriptions
+    # Cross-tool pair checks. H1.5 asks whether two descriptions are worded
+    # alike; H1.6 asks whether either one distinguishes itself from the other.
+    # A pair reported by H1.5 is not also reported by H1.6 — same defect, and
+    # duplicate findings are how a linter loses trust.
     for i, t1 in enumerate(tools):
         for t2 in tools[i + 1 :]:
             if not t1.description or not t2.description:
                 continue
+
+            only_a, only_b = _differentia(t1, t2)
+
             overlap = _word_overlap(t1.description, t2.description)
-            if overlap > 0.7:
+            # Near-identical descriptions are still fine when the *names* carry
+            # the distinction — `asana_search` and `jira_search` are correctly
+            # disambiguated by their namespace prefix, which is the pattern
+            # Anthropic's tool-authoring guidance recommends. Only report an
+            # overlap when nothing else separates the pair.
+            if overlap > 0.7 and not (only_a and only_b):
                 findings.append(
                     Finding(
                         pattern_id="H1",
+                        sub_id="H1.5",
                         pattern_name="Tool Description Ambiguity",
                         severity=Severity.HIGH,
                         location=f"tool:{t1.name} vs tool:{t2.name}",
                         description=f"Tools '{t1.name}' and '{t2.name}' have {overlap:.0%} word overlap — LLM may confuse them.",
                         suggestion="Differentiate descriptions by adding WHEN to use each tool. E.g., 'Use X for new records, use Y for updates to existing records'.",
                         evidence=f"'{t1.description[:50]}...' vs '{t2.description[:50]}...'",
+                    )
+                )
+                continue
+
+            if not only_a and not only_b:
+                findings.append(
+                    Finding(
+                        pattern_id="H1",
+                        sub_id="H1.6",
+                        pattern_name="Tool Description Ambiguity",
+                        severity=Severity.HIGH,
+                        location=f"tool:{t1.name} vs tool:{t2.name}",
+                        description=(
+                            f"Tools '{t1.name}' and '{t2.name}' carry no differentia — "
+                            "every meaning-bearing term in one is present, or has a synonym, "
+                            "in the other. Both descriptions may be accurate and still give "
+                            "a model nothing to choose between them."
+                        ),
+                        suggestion=(
+                            "Name a condition that selects one over the other. State what each "
+                            "tool is for that the other is NOT for — e.g. 'use X for orders "
+                            "already placed, use Y for carts not yet submitted'."
+                        ),
+                        evidence=f"'{t1.description[:50]}' vs '{t2.description[:50]}'",
                     )
                 )
 
