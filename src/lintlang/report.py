@@ -145,7 +145,16 @@ def format_terminal(
             for f in pattern_findings:
                 color = COLORS[f.severity]
                 icon_f = _severity_icon(f.severity)
-                lines.append(f"    {color}{icon_f} [{f.severity.value.upper()}]{RESET} {f.location}")
+                # Print the sub-code. Without it every H1 result renders
+                # identically, so the reader cannot tell "these two tools are
+                # indistinguishable" from "this description opens with a vague
+                # verb" — and a code documented as citable ("that's an H1.6")
+                # never actually appears anywhere a human reads.
+                code = f"{f.sub_id} " if f.sub_id else ""
+                lines.append(
+                    f"    {color}{icon_f} [{f.severity.value.upper()}]{RESET} "
+                    f"{BOLD}{code}{RESET}{f.location}"
+                )
                 lines.append(f"      {f.description}")
                 if f.evidence:
                     lines.append(f'      {DIM}Evidence: "{f.evidence}"{RESET}')
@@ -214,7 +223,8 @@ def format_markdown(
 
             for f in pattern_findings:
                 severity_badge = f"**[{f.severity.value.upper()}]**"
-                lines.append(f"#### {severity_badge} `{f.location}`")
+                code = f"{f.sub_id} " if f.sub_id else ""
+                lines.append(f"#### {severity_badge} {code}`{f.location}`")
                 lines.append("")
                 lines.append(f"{f.description}")
                 lines.append("")

@@ -9,8 +9,32 @@
 AI agents, catching ambiguous tools, missing limits, and conflicting directives
 before runtime.**
 
+**New in 0.4.0 — tools your agent cannot tell apart.** Other checks read each
+tool on its own. `H1.6` reads them *against each other*, and reports the pairs a
+model has no basis for choosing between. Every tool involved is well-formed and
+schema-valid, which is exactly why validation has nothing to say about it.
+
+```
+$ lintlang scan tools.yaml
+
+  ⚠️ REVIEW — 1 MEDIUM
+
+  H1: Tool Description Ambiguity
+
+    ~ [MEDIUM] H1.6 tool:lookup_order vs tool:search_orders
+      Tools 'lookup_order' and 'search_orders' carry no differentia — every
+      meaning-bearing term in one is present, or has a synonym, in the other.
+      → Name a condition that selects one over the other.
+```
+
+Those two descriptions read differently — "Look up an order" against "Search for
+orders in the system" — and mean the same thing to the model routing between
+them. Word overlap scores that pair at 0.25 and cannot reach it. See
+[What it inspects](#what-it-inspects) for the full list of shapes.
+
 It flags patterns such as:
 
+- tool pairs with no distinguishing term between them (`H1.6`);
 - empty, vague, or overlapping tool descriptions;
 - missing stop conditions and unbounded retries;
 - inconsistencies between tool schemas and their descriptions;
@@ -144,7 +168,7 @@ jobs:
       - uses: actions/checkout@v7
 
       - name: Inspect agent instructions
-        uses: hermes-labs-ai/lintlang@v0.3.2
+        uses: hermes-labs-ai/lintlang@v0.4.0
         with:
           path: AGENTS.md
 ```
@@ -161,7 +185,7 @@ to scan:
 ```yaml
 repos:
   - repo: https://github.com/hermes-labs-ai/lintlang
-    rev: v0.3.2
+    rev: v0.4.0
     hooks:
       - id: lintlang
         args: [AGENTS.md]
@@ -212,6 +236,35 @@ The checks cover reader-facing categories including tool clarity, execution
 bounds, schema-description alignment, context boundaries, instruction
 specificity, output contracts, message-role structure, and Python pipeline
 hygiene.
+
+### Sub-codes within H1
+
+H1 findings carry a sub-code so a specific result can be cited without
+renaming the pattern. `pattern_id` stays `H1`; JSON output adds a `code` field
+holding the most specific identifier.
+
+| Code | Reports | Severity |
+|---|---|---|
+| `H1.1` | Tool has no description | CRITICAL |
+| `H1.2` | Description too short to diagnose | HIGH |
+| `H1.3` | Description opens with a vague verb | MEDIUM |
+| `H1.4` | Two tools share a name | CRITICAL |
+| `H1.5` | Two descriptions are near-duplicate text | HIGH |
+| `H1.6` | Two tools carry no distinguishing term | MEDIUM |
+
+`H1.6` reports two shapes. *Mutual* — neither description distinguishes itself
+from the other. *Domination* — every term in one is covered by the other, so a
+model has no reason to select it; the finding names which tool to repair.
+
+It is deliberately MEDIUM, so it informs a build rather than breaking one:
+`--fail-on fail` keys on CRITICAL and HIGH and is unaffected. Gate on it with
+`--fail-on review` once you have seen how it behaves on your own manifests.
+
+Detection is synonym- and morphology-aware within a curated lexicon of agent-
+tool vocabulary, which is what lets it reach pairs word overlap cannot. That
+lexicon is finite: genuinely synonymous pairs outside it (`kill`/`terminate`,
+`approve`/`authorize`) are not yet detected. The check is precise on what it
+covers; its coverage is not yet measured against a labelled corpus.
 
 Use narrow, intentional paths. Directory scans can discover Markdown and Python
 files that were not written as agent configuration; use `.lintlangignore` or

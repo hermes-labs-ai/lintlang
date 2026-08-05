@@ -388,6 +388,7 @@ def detect_h1(config: AgentConfig) -> list[Finding]:
             findings.append(
                 Finding(
                     pattern_id="H1",
+                    sub_id="H1.1",
                     pattern_name="Tool Description Ambiguity",
                     severity=Severity.CRITICAL,
                     location=f"tool:{tool.name}",
@@ -404,6 +405,7 @@ def detect_h1(config: AgentConfig) -> list[Finding]:
             findings.append(
                 Finding(
                     pattern_id="H1",
+                    sub_id="H1.2",
                     pattern_name="Tool Description Ambiguity",
                     severity=Severity.HIGH,
                     location=f"tool:{tool.name}",
@@ -420,6 +422,7 @@ def detect_h1(config: AgentConfig) -> list[Finding]:
             findings.append(
                 Finding(
                     pattern_id="H1",
+                    sub_id="H1.3",
                     pattern_name="Tool Description Ambiguity",
                     severity=Severity.MEDIUM,
                     location=f"tool:{tool.name}",
@@ -437,6 +440,7 @@ def detect_h1(config: AgentConfig) -> list[Finding]:
             findings.append(
                 Finding(
                     pattern_id="H1",
+                    sub_id="H1.4",
                     pattern_name="Tool Description Ambiguity",
                     severity=Severity.CRITICAL,
                     location=f"tool:{tool.name}",
@@ -500,7 +504,13 @@ def detect_h1(config: AgentConfig) -> list[Finding]:
                         pattern_id="H1",
                         sub_id="H1.6",
                         pattern_name="Tool Description Ambiguity",
-                        severity=Severity.HIGH,
+                        # MEDIUM, deliberately. FAIL (and therefore
+                        # `--fail-on fail`, which the shipped Action uses) keys
+                        # on CRITICAL/HIGH. H1.6 is new and its recall is not
+                        # yet measured against a labelled corpus, so it should
+                        # inform a build, not break one. Raise to HIGH when
+                        # there are numbers to justify it.
+                        severity=Severity.MEDIUM,
                         location=f"tool:{t1.name} vs tool:{t2.name}",
                         description=(
                             f"Tools '{t1.name}' and '{t2.name}' carry no differentia — "
@@ -524,7 +534,8 @@ def detect_h1(config: AgentConfig) -> list[Finding]:
                         pattern_id="H1",
                         sub_id="H1.6",
                         pattern_name="Tool Description Ambiguity",
-                        severity=Severity.HIGH,
+                        # warn-only; see the H1.6 severity note above
+                        severity=Severity.MEDIUM,
                         location=f"tool:{dominated.name} vs tool:{dominant.name}",
                         description=(
                             f"Tool '{dominated.name}' is dominated by '{dominant.name}' — "

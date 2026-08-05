@@ -1,5 +1,41 @@
 # Changelog
 
+## [0.4.0] - 2026-08-05
+
+### Added
+
+- `H1.6`, a sub-code of H1 that reports tool pairs carrying no *differentia* —
+  where every meaning-bearing term in one description also appears, or has a
+  synonym, in the other. A description states what a tool is; a diagnosis states
+  what distinguishes it from its nearest neighbour. A description can be
+  entirely accurate and still fail as a diagnosis, and that is when a model
+  picks the wrong tool. Schema validation cannot reach this: every colliding
+  tool is individually valid.
+- Detection is synonym- and morphology-aware, so it reaches pairs that word
+  overlap cannot. `Search the documentation` and `Search through the docs`
+  score 0.25 on H1.5's Jaccard measure and are interchangeable in practice.
+- Two shapes are distinguished. *Mutual* — neither tool distinguishes itself.
+  *Domination* — one tool's every term is covered by the other, so a model has
+  no reason to select it; the finding names which tool to repair.
+- `Finding.sub_id` and `Finding.code`, so a finding can be cited precisely
+  ("that's an H1.6") without renaming the pattern IDs already in use. JSON
+  output gains a `code` field. `pattern_id` is unchanged.
+
+### Changed
+
+- H1.6 findings are MEDIUM, not HIGH, so they inform a build rather than break
+  one. `--fail-on fail` keys on CRITICAL/HIGH and is unaffected; use
+  `--fail-on review` to gate on them. This is deliberate while the check's
+  recall is unmeasured against a labelled corpus.
+
+### Fixed
+
+- H1's cross-tool overlap check no longer treats differing tool names as
+  grounds to suppress a finding. Names feed the term set, so any two distinctly
+  named tools silenced the check — `get_invoice_pdf` and `get_receipt_pdf` with
+  byte-identical descriptions went unreported. Name-awareness now lives in H1.6
+  alone, which asks a different question.
+
 ## [0.3.2] - 2026-08-04
 
 ### Added
