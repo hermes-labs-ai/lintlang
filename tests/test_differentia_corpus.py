@@ -18,6 +18,25 @@ independent plugin authors, 2850 pairs.
     pairs within 1 term of firing 10
     pairs within 2 terms          23
 
+READ THE PAIR COUNT HONESTLY. Only 181 of those 2850 pairs are between tools
+belonging to the *same* plugin, and only those can actually collide — plugin
+skills are namespaced (`/plugin-a:scan` vs `/plugin-b:scan`), so two entries
+from different authors never compete at decision time. Quoting 2850 overstates
+the test by roughly 15x. The defensible statement is "no false positives across
+181 realistic pairs", which is a modest result, not a strong one.
+
+Two further limits worth stating before anyone cites this:
+
+  - These are skill/agent descriptions, which are long and written to be
+    matched. Real MCP tool descriptions run far shorter (median ~31 chars in a
+    local sample) and are a systematically harder population that this corpus
+    does not represent.
+  - Hand-inspecting the 4 within-plugin near-misses, all 4 are correctly quiet:
+    `agent-sdk-verifier-ts` vs `-py` differ only by language, which is a real
+    distinction; `scan-researcher` vs `scan-inventory` are genuinely different
+    roles. That is evidence the threshold sits in a sane place, on an easy
+    population.
+
 Zero findings is the expected result and the important one: these are curated,
 well-differentiated descriptions and a linter that fires on them is noise. The
 near-miss counts are recorded alongside because they are what distinguishes
