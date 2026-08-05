@@ -6,10 +6,10 @@
 [![License](https://img.shields.io/pypi/l/lintlang)](LICENSE)
 
 **LintLang checks your agent's tools against each other and reports the pairs
-your model will not be able to tell apart.** Every other agent linter reads each
-tool on its own. A tool can be well-formed, schema-valid, and perfectly
-described, and still be indistinguishable from the one next to it — nothing is
-malformed, so validation has nothing to say.
+your model will not be able to tell apart.** Config validation reads each tool
+on its own, so it cannot reach this: a tool can be well-formed, schema-valid,
+and perfectly described, and still be indistinguishable from the one beside it.
+Nothing is malformed, so there is nothing for a validator to report.
 
 ```
 $ lintlang scan tools.yaml
