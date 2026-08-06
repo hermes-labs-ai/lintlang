@@ -22,6 +22,15 @@ It flags patterns such as:
 LintLang's default static checks are deterministic and local. They make no LLM,
 API, telemetry, or network calls.
 
+## Technical note
+
+[Tool Differentia: Relational Static Analysis for AI Agent Tool Descriptions](https://hermes-labs.ai/research/tool-differentia)
+documents LintLang H1.6, the bounded pairwise check for tool descriptions that
+do not supply an analyzed distinction from a neighboring tool. It is a
+technical note, not a semantic-equivalence proof or a runtime-selection
+evaluation. Cite the archived Version 1.0 record at
+[10.5281/zenodo.21817244](https://doi.org/10.5281/zenodo.21817244).
+
 ## Quick start
 
 Run once without installing, using [uv](https://docs.astral.sh/uv/):
