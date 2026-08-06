@@ -29,7 +29,23 @@ documents LintLang H1.6, the bounded pairwise check for tool descriptions that
 do not supply an analyzed distinction from a neighboring tool. It is a
 technical note, not a semantic-equivalence proof or a runtime-selection
 evaluation. Cite the archived Version 1.0 record at
-[10.5281/zenodo.21817244](https://doi.org/10.5281/zenodo.21817244).
+[10.5281/zenodo.21817244](https://doi.org/10.5281/zenodo.21817244):
+
+```bibtex
+@misc{bosch2026tooldifferentia,
+  author       = {Bosch, Rolando},
+  title        = {Tool Differentia: Relational Static Analysis for AI Agent
+                  Tool Descriptions},
+  year         = {2026},
+  publisher    = {Zenodo},
+  doi          = {10.5281/zenodo.21817244},
+  url          = {https://doi.org/10.5281/zenodo.21817244},
+  note         = {Technical note}
+}
+```
+
+See [hermes-publications/papers/tool-differentia](https://github.com/hermes-labs-ai/hermes-publications/tree/main/papers/tool-differentia)
+for the full evidence boundary.
 
 ## Quick start
 
@@ -311,30 +327,6 @@ inspects one present instruction plus explicit context.
 - [Contributing](CONTRIBUTING.md)
 - [Report an issue or disputed finding](https://github.com/hermes-labs-ai/lintlang/issues)
 - [Security policy](SECURITY.md)
-
-## Citation
-
-H1.6's method is described in a technical note:
-
-Bosch, R. (2026). *Tool Differentia: Relational Static Analysis for AI Agent
-Tool Descriptions.* Zenodo.
-[10.5281/zenodo.21817244](https://doi.org/10.5281/zenodo.21817244)
-
-```bibtex
-@misc{bosch2026tooldifferentia,
-  author       = {Bosch, Rolando},
-  title        = {Tool Differentia: Relational Static Analysis for AI Agent
-                  Tool Descriptions},
-  year         = {2026},
-  publisher    = {Zenodo},
-  doi          = {10.5281/zenodo.21817244},
-  url          = {https://doi.org/10.5281/zenodo.21817244},
-  note         = {Technical note}
-}
-```
-
-See [hermes-publications/papers/tool-differentia](https://github.com/hermes-labs-ai/hermes-publications/tree/main/papers/tool-differentia)
-for the full evidence boundary.
 
 ## License
 
