@@ -13,6 +13,9 @@ import re
 from dataclasses import dataclass, field
 from enum import Enum
 
+from .preflight.models import ScopeKind
+from .preflight.scope import ScopeAnalysis, analyze_scope
+
 
 class Severity(Enum):
     CRITICAL = "critical"
@@ -73,6 +76,19 @@ class ToolDef:
     name: str
     description: str
     parameters: dict = field(default_factory=dict)
+
+
+def _is_direct_match(scope: ScopeAnalysis, start: int, end: int) -> bool:
+    """Return whether a match is live text, preserving detection if classification fails."""
+    return scope.unavailable_reason is not None or scope.is_direct(start, end)
+
+
+def _is_h5_negative_match(scope: ScopeAnalysis, start: int, end: int) -> bool:
+    """Keep H5 negative directives operative while excluding quoted and non-operative text."""
+    return scope.unavailable_reason is not None or (
+        0 <= start < end <= len(scope.scopes)
+        and all(kind in {ScopeKind.DIRECT, ScopeKind.NEGATED} for kind in scope.scopes[start:end])
+    )
 
 
 # ── H1: Tool Description Ambiguity ─────────────────────────────────
@@ -760,9 +776,12 @@ def detect_h2(config: AgentConfig) -> list[Finding]:
 
     # Check for dangerous unbounded patterns
     text = config.system_prompt
+    scope = analyze_scope(text)
     for pattern, message in DANGEROUS_PATTERNS:
         matches = list(re.finditer(pattern, text, re.IGNORECASE))
         for match in matches:
+            if not _is_direct_match(scope, match.start(), match.end()):
+                continue
             start = max(0, match.start() - 20)
             end = min(len(text), match.end() + 40)
             findings.append(
@@ -927,6 +946,7 @@ def detect_h4(config: AgentConfig) -> list[Finding]:
 
     if prompt:
         prompt_lower = prompt.lower()
+        scope = analyze_scope(prompt)
 
         # Check for boundary markers (word boundary matching)
         has_boundary = any(re.search(rf"\b{re.escape(signal)}\b", prompt_lower) for signal in BOUNDARY_SIGNALS)
@@ -947,6 +967,8 @@ def detect_h4(config: AgentConfig) -> list[Finding]:
         for pattern, message in EROSION_PATTERNS:
             matches = list(re.finditer(pattern, prompt, re.IGNORECASE))
             for match in matches:
+                if not _is_direct_match(scope, match.start(), match.end()):
+                    continue
                 start = max(0, match.start() - 20)
                 end = min(len(prompt), match.end() + 40)
                 findings.append(
@@ -1191,11 +1213,15 @@ def detect_h5(config: AgentConfig) -> list[Finding]:
     if not prompt:
         return findings
 
+    scope = analyze_scope(prompt)
+
     # Negative instructions — layered exemption filtering
     neg_matches = []
     for pattern, _category in NEGATIVE_PATTERNS:
         matches = list(re.finditer(pattern, prompt, re.IGNORECASE))
         for match in matches:
+            if not _is_h5_negative_match(scope, match.start(), match.end()):
+                continue
             neg_matches.append((match.start(), match.end(), match.group()))
 
     # ── Layer 1: Build set of structurally-exempt character ranges ──
@@ -1272,6 +1298,8 @@ def detect_h5(config: AgentConfig) -> list[Finding]:
     for pattern, category in VAGUE_QUALIFIERS:
         matches = list(re.finditer(pattern, prompt, re.IGNORECASE))
         for match in matches:
+            if not _is_direct_match(scope, match.start(), match.end()):
+                continue
             key = match.group().lower()
             if key in seen_vague:
                 continue
