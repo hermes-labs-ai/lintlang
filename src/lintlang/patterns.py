@@ -945,11 +945,14 @@ def detect_h4(config: AgentConfig) -> list[Finding]:
     prompt = config.system_prompt
 
     if prompt:
-        prompt_lower = prompt.lower()
         scope = analyze_scope(prompt)
 
         # Check for boundary markers (word boundary matching)
-        has_boundary = any(re.search(rf"\b{re.escape(signal)}\b", prompt_lower) for signal in BOUNDARY_SIGNALS)
+        has_boundary = any(
+            _is_direct_match(scope, match.start(), match.end())
+            for signal in BOUNDARY_SIGNALS
+            for match in re.finditer(rf"\b{re.escape(signal)}\b", prompt, re.IGNORECASE)
+        )
 
         if len(prompt) > 500 and not has_boundary:
             findings.append(

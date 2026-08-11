@@ -40,6 +40,23 @@ def test_live_instruction_still_fires(detector, prompt: str) -> None:
     assert detector(AgentConfig(system_prompt=prompt))
 
 
+@pytest.mark.parametrize(
+    "quoted_marker",
+    [
+        'Documentation example: "session".',
+        "Documentation code: `task boundary`.",
+    ],
+)
+def test_quoted_or_code_boundary_markers_do_not_satisfy_long_prompt_boundary(
+    quoted_marker: str,
+) -> None:
+    prompt = ("Operational guidance. " * 30) + quoted_marker
+
+    findings = detect_h4(AgentConfig(system_prompt=prompt))
+
+    assert any("no context boundary" in finding.description.lower() for finding in findings)
+
+
 def test_live_h5_negative_instruction_still_fires() -> None:
     """NEGATED scope is operative for H5's own negative-instruction rule."""
     findings = detect_h5(AgentConfig(system_prompt="Don't use emojis."))
