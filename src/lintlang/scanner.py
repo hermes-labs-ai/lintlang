@@ -379,6 +379,7 @@ def scan_python_file(
             for f in findings:
                 if config.source_file and not f.location.startswith(config.source_file):
                     f.location = f"{config.source_file} > {f.location}"
+                f.source_region = config.source_region
             all_findings.extend(findings)
 
     # HERM scoring on concatenated extracted prompts

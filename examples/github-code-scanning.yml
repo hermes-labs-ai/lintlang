@@ -1,0 +1,29 @@
+name: LintLang Code Scanning
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  lintlang:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Run LintLang
+        uses: hermes-labs-ai/lintlang@v0.4.0
+        with:
+          path: .
+          fail-on: fail
+          sarif-file: lintlang.sarif
+
+      - name: Upload LintLang SARIF
+        if: always() && (github.event_name == 'push' || (github.actor != 'dependabot[bot]' && github.event.pull_request.head.repo.full_name == github.repository))
+        uses: github/codeql-action/upload-sarif@5595ccaf912efad79be6eef63a5619ff05969be3 # v4
+        with:
+          sarif_file: lintlang.sarif

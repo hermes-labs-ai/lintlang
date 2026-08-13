@@ -26,7 +26,7 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from .patterns import AgentConfig, Finding, Severity
+from .patterns import AgentConfig, Finding, Severity, SourceRegion
 
 # ── Prompt detection heuristics ──────────────────────────────────────
 
@@ -291,6 +291,7 @@ def detect_uncalibrated_thresholds(result: ExtractionResult) -> list[Finding]:
                     description=f"Threshold '{t.name} = {t.value}' has no calibration comment. Magic numbers in LLM pipelines cause silent drift.",
                     suggestion=f"Add a comment explaining how '{t.name}' was calibrated: distribution analysis, ablation study, or empirical testing. Example: '# Calibrated on 470-question dev set, fires on ~10% of queries'.",
                     evidence=f"{t.name} = {t.value}",
+                    source_region=SourceRegion(t.line, t.line),
                 )
             )
         else:
@@ -306,6 +307,7 @@ def detect_uncalibrated_thresholds(result: ExtractionResult) -> list[Finding]:
                         description=f"Threshold '{t.name} = {t.value}' has a calibration comment but it suggests uncertainty: '{t.comment_text}'.",
                         suggestion="Replace vague calibration comment with specific evidence (dataset, sample size, measured distribution).",
                         evidence=f"{t.name} = {t.value}  # {t.comment_text}",
+                        source_region=SourceRegion(t.line, t.line),
                     )
                 )
     return findings
@@ -337,6 +339,7 @@ def detect_scaffold_in_code(result: ExtractionResult) -> list[Finding]:
                     description=f"Large prompt ({char_count} chars, {line_count} lines) embedded in Python source. Signals: {', '.join(p.signal_matches[:3])}.",
                     suggestion="Externalize to a .prompt or .txt file, loaded at runtime. Enables independent versioning, A/B testing, and non-engineer editing.",
                     evidence=p.text[:120] + "..." if len(p.text) > 120 else p.text,
+                    source_region=SourceRegion(p.line_start, p.line_end),
                 )
             )
         elif char_count > 200:
@@ -351,6 +354,7 @@ def detect_scaffold_in_code(result: ExtractionResult) -> list[Finding]:
                     description=f"Medium prompt ({char_count} chars) embedded in source. Signals: {', '.join(p.signal_matches[:3])}.",
                     suggestion="Consider externalizing if this prompt is expected to change frequently.",
                     evidence=p.text[:80] + "..." if len(p.text) > 80 else p.text,
+                    source_region=SourceRegion(p.line_start, p.line_end),
                 )
             )
     return findings
@@ -369,6 +373,7 @@ def extracted_prompts_to_configs(result: ExtractionResult) -> list[AgentConfig]:
         config = AgentConfig(
             system_prompt=prompt.text,
             source_file=loc,
+            source_region=SourceRegion(prompt.line_start, prompt.line_end),
         )
         configs.append(config)
     return configs

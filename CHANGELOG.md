@@ -1,5 +1,32 @@
 # Changelog
 
+## [0.4.0] - Unreleased
+
+### Added
+
+- Deterministic SARIF 2.1.0 output for `lintlang scan --format sarif`, validated
+  offline against the hash-frozen OASIS errata-01 schema. Findings use their
+  most specific stable code as `ruleId`; severity maps to SARIF `level` without
+  security metadata or custom fingerprints.
+- Repository-relative, URI-encoded artifact locations. AST-extracted Python
+  findings include evidence-supported line spans; structured YAML, JSON, and
+  text findings remain file-level rather than inventing line or column data.
+- An optional `sarif-file` input for the first-party composite Action and a
+  least-privilege example that uploads the generated file with GitHub's
+  immutable `upload-sarif` Action pin, even when verdict gating returns nonzero.
+
+### Changed
+
+- Release publication now checks out the GitHub Release tag, verifies that its
+  `vX.Y.Z` value matches the package version and checked-out commit, runs Twine
+  metadata checks, and uses immutable Action SHAs before trusted publishing.
+
+### Fixed
+
+- Quoted detector examples, inline code, and fenced code no longer trigger the
+  H4 missing-boundary heuristic merely by describing boundary language. This
+  post-0.3.8 fix was merged separately in PR #41 and remains regression-covered.
+
 ## [0.3.8] - 2026-08-05
 
 ### Added
