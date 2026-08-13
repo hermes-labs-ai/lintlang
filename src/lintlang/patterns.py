@@ -35,6 +35,18 @@ class Severity(Enum):
         }[self]
 
 
+@dataclass(frozen=True)
+class SourceRegion:
+    """A one-based source line span supported by parser or AST evidence."""
+
+    start_line: int
+    end_line: int
+
+    def __post_init__(self) -> None:
+        if self.start_line < 1 or self.end_line < self.start_line:
+            raise ValueError("source regions require positive, ordered line numbers")
+
+
 @dataclass
 class Finding:
     pattern_id: str
@@ -51,6 +63,7 @@ class Finding:
     renaming the pattern IDs people already reference. The pattern ID stays the
     citable root; the sub-code narrows it.
     """
+    source_region: SourceRegion | None = None
 
     @property
     def code(self) -> str:
@@ -69,6 +82,7 @@ class AgentConfig:
     constraints: dict = field(default_factory=dict)
     raw: dict = field(default_factory=dict)
     source_file: str = ""
+    source_region: SourceRegion | None = None
 
 
 @dataclass

@@ -46,7 +46,7 @@ def main(argv: list[str] | None = None) -> int:
     scan_parser.add_argument(
         "--format",
         "-f",
-        choices=["terminal", "markdown", "json"],
+        choices=["terminal", "markdown", "json", "sarif"],
         default="terminal",
         help="Output format (default: terminal)",
     )
@@ -155,9 +155,11 @@ def _cmd_scan(args: argparse.Namespace) -> int:
             results[str(path)] = input_error_result(path, f"Failed to parse: {e}")
 
     input_errors = [result for result in results.values() if result.input_error is not None]
+    sarif_output_errors: list[str] = []
 
-    for result in input_errors:
-        print(f"Error: Input error: {result.file}: {result.input_error}", file=sys.stderr)
+    if args.format != "sarif":
+        for result in input_errors:
+            print(f"Error: Input error: {result.file}: {result.input_error}", file=sys.stderr)
 
     # Output
     if args.format == "terminal":
@@ -208,6 +210,38 @@ def _cmd_scan(args: argparse.Namespace) -> int:
                 }
             )
         print(json_mod.dumps(output, indent=2))
+    elif args.format == "sarif":
+        from .sarif import (
+            SarifLocationError,
+            find_repository_root,
+            format_sarif,
+            format_sarif_error,
+            prepare_sarif_results,
+        )
+
+        invocation_root = Path.cwd()
+        repository_root = find_repository_root(invocation_root)
+        sarif_results, sarif_output_errors = prepare_sarif_results(
+            results,
+            repository_root=repository_root,
+            source_base=invocation_root,
+        )
+        for error in sarif_output_errors:
+            print(f"Error: SARIF output error: {error}", file=sys.stderr)
+        try:
+            print(
+                format_sarif(
+                    sarif_results,
+                    repository_root=repository_root,
+                    source_base=invocation_root,
+                    show_suggestions=not args.no_suggestions,
+                ),
+                end="",
+            )
+        except SarifLocationError as error:
+            print(f"Error: SARIF output error: {error}", file=sys.stderr)
+            print(format_sarif_error(str(error)), end="")
+            return 1
 
     # Summary table for multi-file terminal scans
     if args.format == "terminal" and len(results) > 1:
@@ -220,7 +254,7 @@ def _cmd_scan(args: argparse.Namespace) -> int:
 
     # Input integrity is a fatal channel, independent of lint severity and
     # --fail-on. Never let another valid input mask a requested input error.
-    if input_errors:
+    if input_errors or sarif_output_errors:
         return 1
 
     # Verdict-based exit

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "lintlang"
-version = "0.3.8"
+version = "0.4.0"
 description = "Static linter for AI agent configs, tool descriptions, and system prompts with zero-LLM CI gating"
 readme = "README.md"
 license = {text = "Apache-2.0"}
@@ -50,6 +50,7 @@ Changelog = "https://github.com/hermes-labs-ai/lintlang/blob/main/CHANGELOG.md"
 [project.optional-dependencies]
 dev = [
     "hatchling>=1.27",
+    "jsonschema>=4.23,<5",
     "pre-commit>=4.5,<5",
     "pytest>=9.0.3",
     "pytest-cov>=5.0",
@@ -67,7 +68,12 @@ packages = ["src/lintlang"]
 # It carries absolute paths under a home directory and names unrelated internal
 # repositories, none of which mean anything to someone who downloaded a tarball
 # from PyPI. Useful in the git checkout, wrong in a published artifact.
-exclude = ["WORKSPACE.md", "GAP.md"]
+exclude = [
+    "WORKSPACE.md",
+    "GAP.md",
+    ".hermes/**",
+    ".github/workflows/hermes-quality.yml",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

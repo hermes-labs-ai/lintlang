@@ -2,6 +2,7 @@
 
 [![CI](https://github.com/hermes-labs-ai/lintlang/actions/workflows/ci.yml/badge.svg)](https://github.com/hermes-labs-ai/lintlang/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/lintlang)](https://pypi.org/project/lintlang/)
+[![PyPI downloads](https://img.shields.io/pypi/dm/lintlang?label=downloads%2Fmonth)](https://pypistats.org/packages/lintlang)
 [![Python](https://img.shields.io/pypi/pyversions/lintlang)](https://pypi.org/project/lintlang/)
 [![License](https://img.shields.io/pypi/l/lintlang)](LICENSE)
 
@@ -67,7 +68,10 @@ lintlang scan AGENTS.md
 If your project uses another filename, replace `AGENTS.md` with its prompt,
 tool-definition, agent-configuration, or supported directory path.
 
-**3,000+ PyPI downloads · Used in recurring CI by [Character.AI's public Larch repository](https://github.com/character-ai/larch/pull/7960) · Independently packaged for [Gentoo](https://github.com/thehaven/haven-overlay/tree/master/dev-util/lintlang)**
+[Character.AI's public Larch repository](https://github.com/character-ai/larch/pull/7960)
+runs a pinned LintLang release in recurring CI. LintLang is also packaged for
+Gentoo through the third-party
+[Haven overlay](https://github.com/thehaven/haven-overlay/tree/master/dev-util/lintlang).
 
 When you are ready to make `HIGH` or `CRITICAL` findings block CI:
 
@@ -89,19 +93,19 @@ cd lintlang
 lintlang scan samples/bad_tool_descriptions.yaml --fail-on fail
 ```
 
-Excerpt from `lintlang 0.3.1`:
+Excerpt from `lintlang 0.4.0`:
 
 ```text
-LINTLANG v0.3.1
+LINTLANG v0.4.0
 
-FAIL — 1 CRITICAL, 2 HIGH, 6 MEDIUM, 3 LOW
+FAIL — 1 CRITICAL, 2 HIGH, 7 MEDIUM, 3 LOW
 
 H1: Tool Description Ambiguity
 
-  [CRITICAL] tool:process_ticket
+  [CRITICAL] H1.1 tool:process_ticket
   Tool 'process_ticket' has no description.
 
-  [HIGH] tool:get_user_info
+  [HIGH] H1.2 tool:get_user_info
   Tool 'get_user_info' has a very short description (13 chars):
   "Get user info"
 
@@ -136,7 +140,7 @@ By default, findings are reported without failing the process.
 - `--fail-on review` blocks on `REVIEW` or `FAIL`.
 - Missing, malformed, unreadable, or otherwise unscannable requested inputs
   remain nonzero regardless of the chosen finding threshold.
-- A requested directory with no eligible files also exits nonzero.
+- An invocation that finds no eligible files exits nonzero.
 
 Filters such as `--min-severity` are applied before the verdict. For initial
 adoption, keep the full output visible and use `--fail-on fail` to block only
@@ -151,10 +155,10 @@ jobs:
   lint-agent-instructions:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       - name: Inspect agent instructions
-        uses: hermes-labs-ai/lintlang@v0.3.8
+        uses: hermes-labs-ai/lintlang@v0.4.0
         with:
           path: AGENTS.md
 ```
@@ -171,7 +175,7 @@ to scan:
 ```yaml
 repos:
   - repo: https://github.com/hermes-labs-ai/lintlang
-    rev: v0.3.8
+    rev: v0.4.0
     hooks:
       - id: lintlang
         args: [AGENTS.md]
@@ -197,11 +201,60 @@ hooks:
 
 Missing, unreadable, or malformed configured inputs still return nonzero.
 
+## Machine-readable output and GitHub Code Scanning
+
 For machine-readable output:
 
 ```bash
 lintlang scan AGENTS.md --format json --fail-on fail
 ```
+
+For deterministic SARIF 2.1.0 output on stdout:
+
+```bash
+lintlang scan AGENTS.md --format sarif --fail-on fail > lintlang.sarif
+```
+
+Relative inputs are resolved from the current directory. Artifact URIs are
+URI-encoded paths relative to the nearest Git worktree root (or the current
+directory when there is no Git worktree). A resolved source outside that root
+is a fatal output error rather than an absolute-path leak. Python AST findings
+carry supported line spans; YAML, JSON, and text findings intentionally remain
+file-level.
+
+The composite Action can write the same report with its optional `sarif-file`
+input. In that mode SARIF stdout is redirected to the requested file, while
+verdict messages remain on stderr and `fail-on` keeps its normal exit status.
+Directory creation or file-write errors are fatal.
+
+To ask GitHub to ingest the report, keep generation and upload as separate
+steps so the upload still runs after a blocking LintLang verdict:
+
+```yaml
+permissions:
+  contents: read
+  security-events: write
+
+steps:
+  - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+  - name: Run LintLang
+    uses: hermes-labs-ai/lintlang@v0.4.0
+    with:
+      path: AGENTS.md
+      fail-on: fail
+      sarif-file: lintlang.sarif
+  - name: Upload LintLang SARIF
+    if: always() && (github.event_name == 'push' || (github.actor != 'dependabot[bot]' && github.event.pull_request.head.repo.full_name == github.repository))
+    uses: github/codeql-action/upload-sarif@5595ccaf912efad79be6eef63a5619ff05969be3 # v4
+    with:
+      sarif_file: lintlang.sarif
+```
+
+The complete copy-paste workflow is
+[`examples/github-code-scanning.yml`](examples/github-code-scanning.yml).
+LintLang emits code-quality/static-language results without security tags,
+security severity, source snippets, or custom fingerprints. GitHub's upload
+Action may calculate fingerprints during ingestion.
 
 ## What it inspects
 
@@ -247,11 +300,14 @@ Use narrow, intentional paths. Directory scans can discover Markdown and Python
 files that were not written as agent configuration; use `.lintlangignore` or
 `--exclude` where needed.
 
-For exact H-series and Python rule identifiers:
+For the exact H-series identifiers:
 
 ```bash
 lintlang patterns
 ```
+
+`lintlang patterns` lists the H1-H7 structural detectors only. Python pipeline
+findings report as `P1` and `P2` in scan, JSON, and SARIF output.
 
 See the [full technical reference](llms-full.txt) for detector details.
 
@@ -277,21 +333,6 @@ testing. It does not:
 - replace runtime evaluation or human review.
 
 Suggestions are review aids, not guaranteed meaning-preserving fixes.
-
-## Ecosystem
-
-Public ecosystem signals include:
-
-- [Character.AI's public Larch repository](https://github.com/character-ai/larch/pull/7960)
-  runs the pinned `lintlang==0.3.1` package in recurring CI.
-- [Agent Lint](https://github.com/zhupanov/agent-lint/issues/192) explicitly
-  attributes improvements to LintLang's ideas, including structured diagnostics,
-  rule selection, regression coverage, and prompt analysis.
-- [The Haven Gentoo overlay](https://github.com/thehaven/haven-overlay/tree/master/dev-util/lintlang)
-  packages LintLang for downstream installation.
-
-These represent three distinct ecosystem signals: direct package execution,
-product influence, and downstream packaging.
 
 ## Optional instruction preflight
 

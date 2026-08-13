@@ -89,6 +89,216 @@ class TestCLI:
         assert "score" in data[0]["herm"]
         assert "dimensions" in data[0]["herm"]
 
+    def test_scan_sarif_emits_sarif_2_1_0_document(self, capsys):
+        exit_code = main(["scan", str(SAMPLES_DIR / "clean_config.yaml"), "--format", "sarif"])
+
+        assert exit_code == 0
+        captured = capsys.readouterr()
+        document = json.loads(captured.out)
+        assert document["version"] == "2.1.0"
+        assert document["$schema"] == (
+            "https://docs.oasis-open.org/sarif/sarif/v2.1.0/errata01/os/"
+            "schemas/sarif-schema-2.1.0.json"
+        )
+        assert len(document["runs"]) == 1
+
+    def test_sarif_parser_error_does_not_expose_source_evidence_on_stderr(
+        self,
+        tmp_path,
+        monkeypatch,
+        capsys,
+    ):
+        monkeypatch.chdir(tmp_path)
+        source = tmp_path / "agent.yaml"
+        private_value = "PRIVATE_PROMPT_EVIDENCE"
+        source.write_text(f"system_prompt: [{private_value}\n", encoding="utf-8")
+
+        exit_code = main(["scan", str(source), "--format", "sarif"])
+
+        assert exit_code == 1
+        captured = capsys.readouterr()
+        json.loads(captured.out)
+        assert private_value not in captured.out
+        assert private_value not in captured.err
+        assert str(source) not in captured.err
+
+    def test_sarif_relative_input_from_git_subdirectory_uses_repository_path(
+        self,
+        tmp_path,
+        monkeypatch,
+        capsys,
+    ):
+        repository = tmp_path / "repository"
+        repository.mkdir()
+        (repository / ".git").write_text("gitdir: elsewhere\n", encoding="utf-8")
+        configs = repository / "configs"
+        configs.mkdir()
+        (configs / "agent.yaml").write_text(
+            "system_prompt: Keep trying until it works.\n",
+            encoding="utf-8",
+        )
+        monkeypatch.chdir(configs)
+
+        exit_code = main(["scan", "agent.yaml", "--format", "sarif"])
+
+        assert exit_code == 0
+        document = json.loads(capsys.readouterr().out)
+        artifact_uris = {
+            result["locations"][0]["physicalLocation"]["artifactLocation"]["uri"]
+            for result in document["runs"][0]["results"]
+        }
+        assert artifact_uris == {"configs/agent.yaml"}
+
+    def test_sarif_shared_filters_apply_before_emission_and_verdict(self, tmp_path, monkeypatch, capsys):
+        monkeypatch.chdir(tmp_path)
+        source = tmp_path / "agent.yaml"
+        source.write_text(
+            "system_prompt: Keep trying until it works. Respond in JSON and Markdown.\n",
+            encoding="utf-8",
+        )
+
+        exit_code = main(
+            [
+                "scan",
+                str(source),
+                "--format",
+                "sarif",
+                "--patterns",
+                "H6",
+                "--min-severity",
+                "medium",
+                "--no-suggestions",
+                "--fail-on",
+                "review",
+            ]
+        )
+
+        assert exit_code == 1
+        document = json.loads(capsys.readouterr().out)
+        run = document["runs"][0]
+        assert [rule["id"] for rule in run["tool"]["driver"]["rules"]] == ["H6"]
+        assert {result["ruleId"] for result in run["results"]} == {"H6"}
+        assert all(result["level"] == "warning" for result in run["results"])
+        assert all("Suggested action:" not in result["message"]["text"] for result in run["results"])
+
+    def test_sarif_preserves_legacy_fail_under_and_directory_exclude(self, tmp_path, monkeypatch, capsys):
+        monkeypatch.chdir(tmp_path)
+        source_dir = tmp_path / "configs"
+        source_dir.mkdir()
+        (source_dir / "clean.yaml").write_text("system_prompt: You are helpful.\n", encoding="utf-8")
+        (source_dir / "excluded.yaml").write_text(
+            "system_prompt: Keep trying until it works.\n",
+            encoding="utf-8",
+        )
+
+        exit_code = main(
+            [
+                "scan",
+                str(source_dir),
+                "--format",
+                "sarif",
+                "--exclude",
+                "excluded.yaml",
+                "--fail-under",
+                "101",
+            ]
+        )
+
+        assert exit_code == 1
+        document = json.loads(capsys.readouterr().out)
+        run = document["runs"][0]
+        assert run["invocations"][0]["executionSuccessful"] is True
+        assert run["results"] == []
+
+    def test_sarif_rejects_out_of_root_source_without_absolute_path_leakage(
+        self,
+        tmp_path,
+        monkeypatch,
+        capsys,
+    ):
+        repository = tmp_path / "repository"
+        repository.mkdir()
+        (repository / ".git").write_text("gitdir: elsewhere\n", encoding="utf-8")
+        outside = tmp_path / "private" / "agent.yaml"
+        outside.parent.mkdir()
+        outside.write_text("system_prompt: Keep trying until it works.\n", encoding="utf-8")
+        monkeypatch.chdir(repository)
+
+        exit_code = main(["scan", str(outside), "--format", "sarif"])
+
+        assert exit_code == 1
+        captured = capsys.readouterr()
+        assert str(tmp_path) not in captured.out
+        run = json.loads(captured.out)["runs"][0]
+        assert run["results"] == []
+        assert run["invocations"][0]["executionSuccessful"] is False
+        assert "inside the repository root" in captured.err
+
+    def test_sarif_out_of_root_error_preserves_valid_in_root_findings(
+        self,
+        tmp_path,
+        monkeypatch,
+        capsys,
+    ):
+        repository = tmp_path / "repository"
+        repository.mkdir()
+        (repository / ".git").write_text("gitdir: elsewhere\n", encoding="utf-8")
+        inside = repository / "agent.yaml"
+        inside.write_text("system_prompt: Keep trying until it works.\n", encoding="utf-8")
+        outside = tmp_path / "private" / "agent.yaml"
+        outside.parent.mkdir()
+        outside.write_text("system_prompt: Respond in JSON and Markdown.\n", encoding="utf-8")
+        monkeypatch.chdir(repository)
+
+        exit_code = main(["scan", str(inside), str(outside), "--format", "sarif"])
+
+        assert exit_code == 1
+        captured = capsys.readouterr()
+        assert str(tmp_path) not in captured.out
+        run = json.loads(captured.out)["runs"][0]
+        assert run["invocations"][0]["executionSuccessful"] is False
+        assert run["results"]
+        assert {
+            result["locations"][0]["physicalLocation"]["artifactLocation"]["uri"]
+            for result in run["results"]
+        } == {"agent.yaml"}
+
+    @pytest.mark.parametrize("output_format", ["terminal", "markdown", "json", "sarif"])
+    @pytest.mark.parametrize("fail_on", [None, "fail", "review"])
+    @pytest.mark.parametrize(
+        ("source_text", "expected"),
+        [
+            ("system_prompt: You are helpful.", {None: 0, "fail": 0, "review": 0}),
+            ("system_prompt: Respond in JSON and Markdown.", {None: 0, "fail": 0, "review": 1}),
+            ("system_prompt: Keep trying until it works.", {None: 0, "fail": 1, "review": 1}),
+            (None, {None: 1, "fail": 1, "review": 1}),
+        ],
+    )
+    def test_format_fail_on_and_verdict_exit_matrix(
+        self,
+        output_format,
+        fail_on,
+        source_text,
+        expected,
+        capsys,
+        monkeypatch,
+        tmp_path,
+    ):
+        monkeypatch.chdir(tmp_path)
+        source = tmp_path / "agent.yaml"
+        if source_text is not None:
+            source.write_text(source_text, encoding="utf-8")
+        args = ["scan", str(source), "--format", output_format]
+        if fail_on is not None:
+            args.extend(["--fail-on", fail_on])
+
+        exit_code = main(args)
+
+        assert exit_code == expected[fail_on]
+        captured = capsys.readouterr()
+        if output_format in {"json", "sarif"}:
+            json.loads(captured.out)
+
     def test_scan_json_verdict_values(self, capsys):
         """Clean config should have PASS verdict in JSON."""
         main(["scan", str(SAMPLES_DIR / "clean_config.yaml"), "--format", "json"])

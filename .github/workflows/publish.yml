@@ -5,25 +5,60 @@ on:
     types: [published]
 
 jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Check out the published release tag
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.event.release.tag_name }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Install build tools
+        run: python -m pip install build twine
+
+      - name: Verify release tag and commit
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          python scripts/verify_release_tag.py --tag "$RELEASE_TAG"
+          test "$(git rev-parse HEAD)" = "$(git rev-list -n 1 "$RELEASE_TAG")"
+
+      - name: Build package
+        run: python -m build
+
+      - name: Check package metadata
+        run: python -m twine check dist/*
+
+      - name: Preserve checked distributions
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-distributions
+          path: dist/
+          if-no-files-found: error
+
   publish:
+    needs: build
     runs-on: ubuntu-latest
     environment: pypi
     permissions:
       id-token: write
 
     steps:
-      - uses: actions/checkout@v7
-
-      - name: Set up Python
-        uses: actions/setup-python@v7
+      - name: Retrieve checked distributions
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          python-version: "3.12"
-
-      - name: Install build tools
-        run: pip install build
-
-      - name: Build package
-        run: python -m build
+          name: release-distributions
+          path: dist/
 
       - name: Publish to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
+        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # release/v1

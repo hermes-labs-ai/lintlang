@@ -157,8 +157,8 @@ automatically normalized.
 
 GitHub Actions:
 ```yaml
-- uses: actions/checkout@v7
-- uses: hermes-labs-ai/lintlang@v0.3.8
+- uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+- uses: hermes-labs-ai/lintlang@v0.4.0
   with:
     path: configs/
 ```
@@ -167,7 +167,7 @@ Add to `.pre-commit-config.yaml`:
 ```yaml
 repos:
   - repo: https://github.com/hermes-labs-ai/lintlang
-    rev: v0.3.8
+    rev: v0.4.0
     hooks:
       - id: lintlang
         args: [AGENTS.md]

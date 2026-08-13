@@ -114,3 +114,14 @@ def test_sdist_names_no_private_repositories(tmp_path: Path, monkeypatch) -> Non
         "published source distribution references unrelated private repositories: "
         + ", ".join(f"{name} ({ref})" for name, ref in sorted(offenders.items()))
     )
+
+
+def test_sdist_excludes_local_hermes_gate_onboarding_files(tmp_path: Path, monkeypatch) -> None:
+    names = _sdist_members(tmp_path, monkeypatch)
+    offenders = [
+        name
+        for name in names
+        if "/.hermes/" in name or name.endswith("/.github/workflows/hermes-quality.yml")
+    ]
+
+    assert offenders == []

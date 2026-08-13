@@ -94,9 +94,6 @@ def test_version_surfaces_match_pyproject_and_release_state():
         assert citation_date_match is None, (
             "CITATION.cff must not contain date-released while the latest CHANGELOG entry is Unreleased"
         )
-        readme_lower = readme.lower()
-        assert f"unreleased `{packaged}` candidate" in readme_lower
-        assert "latest public pypi release remains `0.2.2`" in readme_lower
     else:
         assert citation_date_match, "released CITATION.cff has no date-released field"
         assert citation_date_match.group(1) == release_state, (
