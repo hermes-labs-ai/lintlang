@@ -157,8 +157,9 @@ def _cmd_scan(args: argparse.Namespace) -> int:
     input_errors = [result for result in results.values() if result.input_error is not None]
     sarif_output_errors: list[str] = []
 
-    for result in input_errors:
-        print(f"Error: Input error: {result.file}: {result.input_error}", file=sys.stderr)
+    if args.format != "sarif":
+        for result in input_errors:
+            print(f"Error: Input error: {result.file}: {result.input_error}", file=sys.stderr)
 
     # Output
     if args.format == "terminal":

@@ -150,6 +150,36 @@ def test_sarif_step_rejects_output_that_is_the_input_without_overwriting_it(tmp_
     assert "must differ" in completed.stderr
 
 
+def test_sarif_step_rejects_an_existing_directory_as_the_output(tmp_path):
+    lintlang_bin = _real_lintlang_path(tmp_path)
+    source = tmp_path / "agent.yaml"
+    source.write_text("system_prompt: Be concise.\n", encoding="utf-8")
+    report_directory = tmp_path / "reports"
+    report_directory.mkdir()
+    sarif_scan = ACTION["runs"]["steps"][3]
+    env = {
+        **os.environ,
+        "PATH": f"{lintlang_bin}{os.pathsep}{os.environ['PATH']}",
+        "PYTHONPATH": str(REPO_ROOT / "src"),
+        "LINTLANG_PATH": str(source),
+        "LINTLANG_FAIL_ON": "fail",
+        "LINTLANG_SARIF_FILE": str(report_directory),
+    }
+
+    completed = subprocess.run(
+        ["bash", "-e", "-o", "pipefail", "-c", sarif_scan["run"]],
+        cwd=tmp_path,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert completed.returncode != 0
+    assert list(report_directory.iterdir()) == []
+    assert "must name a file" in completed.stderr
+
+
 def test_sarif_step_does_not_add_its_output_to_a_directory_scan(tmp_path):
     lintlang_bin = _real_lintlang_path(tmp_path)
     scan_root = tmp_path / "configs"

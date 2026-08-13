@@ -18,7 +18,7 @@ jobs:
       - name: Run LintLang
         uses: hermes-labs-ai/lintlang@v0.4.0
         with:
-          path: .
+          path: AGENTS.md
           fail-on: fail
           sarif-file: lintlang.sarif
 

@@ -102,6 +102,26 @@ class TestCLI:
         )
         assert len(document["runs"]) == 1
 
+    def test_sarif_parser_error_does_not_expose_source_evidence_on_stderr(
+        self,
+        tmp_path,
+        monkeypatch,
+        capsys,
+    ):
+        monkeypatch.chdir(tmp_path)
+        source = tmp_path / "agent.yaml"
+        private_value = "PRIVATE_PROMPT_EVIDENCE"
+        source.write_text(f"system_prompt: [{private_value}\n", encoding="utf-8")
+
+        exit_code = main(["scan", str(source), "--format", "sarif"])
+
+        assert exit_code == 1
+        captured = capsys.readouterr()
+        json.loads(captured.out)
+        assert private_value not in captured.out
+        assert private_value not in captured.err
+        assert str(source) not in captured.err
+
     def test_sarif_relative_input_from_git_subdirectory_uses_repository_path(
         self,
         tmp_path,

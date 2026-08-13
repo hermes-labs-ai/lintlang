@@ -57,6 +57,10 @@ runs:
           echo "Error: inputs path and sarif-file must differ." >&2
           exit 1
         fi
+        if [ -d "$LINTLANG_SARIF_FILE" ]; then
+          echo "Error: sarif-file must name a file, not a directory." >&2
+          exit 1
+        fi
         mkdir -p -- "$(dirname -- "$LINTLANG_SARIF_FILE")"
         LINTLANG_SARIF_TMP="$(mktemp "${RUNNER_TEMP:-${TMPDIR:-/tmp}}/lintlang-sarif.XXXXXX")"
         trap 'rm -f -- "$LINTLANG_SARIF_TMP"' EXIT
