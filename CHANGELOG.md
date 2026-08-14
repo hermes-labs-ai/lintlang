@@ -23,9 +23,11 @@
 
 ### Fixed
 
-- Quoted detector examples, inline code, and fenced code no longer trigger the
-  H4 missing-boundary heuristic merely by describing boundary language. This
-  post-0.3.8 fix was merged separately in PR #41 and remains regression-covered.
+- Quoted detector examples, inline code, fenced code, and metalinguistic
+  descriptions no longer trigger H2, H4, or H5 merely by mentioning detector
+  phrases. Live directives remain reportable, and scope-classification failures
+  preserve prior reporting. This post-0.3.8 fix was merged separately in PR #41
+  and remains regression-covered.
 
 ## [0.3.8] - 2026-08-05
 
