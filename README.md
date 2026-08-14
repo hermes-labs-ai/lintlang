@@ -23,14 +23,20 @@ It flags patterns such as:
 LintLang's default static checks are deterministic and local. They make no LLM,
 API, telemetry, or network calls.
 
+LintLang was developed as the engineering offshoot of
+[A Taxonomy of Epistemic Failure Modes in Large Language Models](https://doi.org/10.5281/zenodo.19042468),
+but its bounded detectors do not claim to implement or validate every failure
+mode in the paper.
+
 ## Technical note
 
 [Tool Differentia: Relational Static Analysis for AI Agent Tool Descriptions](https://hermes-labs.ai/research/tool-differentia)
 documents LintLang H1.6, the bounded pairwise check for tool descriptions that
 do not supply an analyzed distinction from a neighboring tool. It is a
 technical note, not a semantic-equivalence proof or a runtime-selection
-evaluation. Cite the archived Version 1.0 record at
-[10.5281/zenodo.21817243](https://doi.org/10.5281/zenodo.21817243).
+evaluation. Use its version-independent concept DOI,
+[10.5281/zenodo.21817243](https://doi.org/10.5281/zenodo.21817243), for citation;
+the current archived release is Version 1.0.1.
 
 ## Quick start
 
