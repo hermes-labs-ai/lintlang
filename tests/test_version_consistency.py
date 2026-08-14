@@ -35,6 +35,7 @@ CHANGELOG = REPO_ROOT / "CHANGELOG.md"
 CITATION = REPO_ROOT / "CITATION.cff"
 README = REPO_ROOT / "README.md"
 ZENODO = REPO_ROOT / ".zenodo.json"
+CODEMETA = REPO_ROOT / "codemeta.json"
 
 
 def _pyproject_version() -> str:
@@ -103,3 +104,21 @@ def test_version_surfaces_match_pyproject_and_release_state():
     assert f"LINTLANG v{packaged}" in readme or f"@v{packaged}" in readme
     assert "LINTLANG v0.2.0" not in readme
     assert "LINTLANG v0.2.1" not in readme
+
+
+def test_codemeta_matches_release_metadata():
+    """CodeMeta must use a stable context and track the packaged release."""
+    packaged = _pyproject_version()
+    citation = CITATION.read_text(encoding="utf-8")
+    codemeta = json.loads(CODEMETA.read_text(encoding="utf-8"))
+
+    repository_match = re.search(r'(?m)^repository-code:\s*["\']?([^"\'\s]+)', citation)
+    assert repository_match, "CITATION.cff has no repository-code field"
+
+    release_url = f"https://pypi.org/project/lintlang/{packaged}/"
+    assert codemeta["@context"] == "https://w3id.org/codemeta/3.1"
+    assert codemeta["@type"] == "SoftwareSourceCode"
+    assert codemeta["version"] == packaged
+    assert codemeta["codeRepository"] == repository_match.group(1)
+    assert codemeta["url"] == release_url
+    assert release_url in codemeta["identifier"]
