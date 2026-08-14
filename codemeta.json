@@ -13,7 +13,6 @@
     "https://pypi.org/project/lintlang/0.4.0/"
   ],
   "author": [{"@type": "Person", "givenName": "Rolando", "familyName": "Bosch Rodriguez", "identifier": "https://orcid.org/0009-0005-4896-1112"}],
-  "dateModified": "2026-08-13T06:08:46Z",
   "url": "https://pypi.org/project/lintlang/0.4.0/",
   "keywords": ["static analysis", "agent configuration", "prompt linting", "CI gating", "zero-LLM"]
 }
