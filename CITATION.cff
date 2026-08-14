@@ -34,5 +34,12 @@ references:
     authors:
       - family-names: "Bosch Rodriguez"
         given-names: "Rolando"
-    doi: "10.5281/zenodo.19042469"
+    doi: "10.5281/zenodo.19042468"
+    year: 2026
+  - type: report
+    title: "Tool Differentia: Relational Static Analysis for AI Agent Tool Descriptions"
+    authors:
+      - family-names: "Bosch Rodriguez"
+        given-names: "Rolando"
+    doi: "10.5281/zenodo.21817243"
     year: 2026

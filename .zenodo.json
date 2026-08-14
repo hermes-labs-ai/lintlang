@@ -23,8 +23,13 @@
   "license": "Apache-2.0",
   "related_identifiers": [
     {
-      "identifier": "10.5281/zenodo.19042469",
-      "relation": "references",
+      "identifier": "10.5281/zenodo.19042468",
+      "relation": "isDerivedFrom",
+      "scheme": "doi"
+    },
+    {
+      "identifier": "10.5281/zenodo.21817243",
+      "relation": "isDocumentedBy",
       "scheme": "doi"
     }
   ]
