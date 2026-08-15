@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.1] - 2026-08-15
+
+### Changed
+
+- PyPI Homepage and Documentation links now point to the dedicated LintLang
+  product page at https://hermes-labs.ai/lintlang. This is a metadata-only
+  release; LintLang's scan behavior and GitHub Action interface are unchanged.
+
 ## [0.4.0] - 2026-08-13
 
 ### Added
