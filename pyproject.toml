@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "lintlang"
-version = "0.4.0"
+version = "0.4.1"
 description = "Static linter for AI agent configs, tool descriptions, and system prompts with zero-LLM CI gating"
 readme = "README.md"
 license = {text = "Apache-2.0"}
@@ -41,8 +41,8 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/hermes-labs-ai/lintlang"
-Documentation = "https://github.com/hermes-labs-ai/lintlang#readme"
+Homepage = "https://hermes-labs.ai/lintlang"
+Documentation = "https://hermes-labs.ai/lintlang"
 Repository = "https://github.com/hermes-labs-ai/lintlang"
 "Bug Tracker" = "https://github.com/hermes-labs-ai/lintlang/issues"
 Changelog = "https://github.com/hermes-labs-ai/lintlang/blob/main/CHANGELOG.md"

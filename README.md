@@ -99,10 +99,10 @@ cd lintlang
 lintlang scan samples/bad_tool_descriptions.yaml --fail-on fail
 ```
 
-Excerpt from `lintlang 0.4.0`:
+Excerpt from `lintlang 0.4.1`:
 
 ```text
-LINTLANG v0.4.0
+LINTLANG v0.4.1
 
 FAIL — 1 CRITICAL, 2 HIGH, 7 MEDIUM, 3 LOW
 
