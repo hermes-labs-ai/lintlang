@@ -11,10 +11,11 @@ import yaml
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "publish.yml"
+CI_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "ci.yml"
 VERIFY_SCRIPT = REPO_ROOT / "scripts" / "verify_release_tag.py"
-CHECKOUT_V7_SHA = "9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0"
-UPLOAD_ARTIFACT_V4_SHA = "ea165f8d65b6e75b540449e92b4886f43607fa02"
-DOWNLOAD_ARTIFACT_V4_SHA = "d3f86a106a0bac45b974a628896c90dbdf5c8093"
+CHECKOUT_V7_SHA = "3d3c42e5aac5ba805825da76410c181273ba90b1"
+UPLOAD_ARTIFACT_V7_SHA = "043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
+DOWNLOAD_ARTIFACT_V8_SHA = "3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c"
 
 
 def test_release_tag_verifier_accepts_only_matching_v_prefixed_version(tmp_path):
@@ -86,14 +87,27 @@ def test_publish_workflow_builds_checked_out_release_tag_with_immutable_actions(
     download = next(
         step for step in publish["steps"] if step.get("uses", "").startswith("actions/download-artifact@")
     )
-    assert upload["uses"] == f"actions/upload-artifact@{UPLOAD_ARTIFACT_V4_SHA}"
+    assert upload["uses"] == f"actions/upload-artifact@{UPLOAD_ARTIFACT_V7_SHA}"
     assert upload["with"] == {
         "name": "release-distributions",
         "path": "dist/",
         "if-no-files-found": "error",
     }
-    assert download["uses"] == f"actions/download-artifact@{DOWNLOAD_ARTIFACT_V4_SHA}"
+    assert download["uses"] == f"actions/download-artifact@{DOWNLOAD_ARTIFACT_V8_SHA}"
     assert download["with"] == {
         "name": "release-distributions",
         "path": "dist/",
     }
+
+
+def test_ci_workflow_uses_immutable_checkout_v7():
+    workflow = yaml.safe_load(CI_WORKFLOW_PATH.read_text(encoding="utf-8"))
+    checkout_steps = [
+        step
+        for job in workflow["jobs"].values()
+        for step in job["steps"]
+        if step.get("uses", "").startswith("actions/checkout@")
+    ]
+
+    assert len(checkout_steps) == 2
+    assert all(step["uses"] == f"actions/checkout@{CHECKOUT_V7_SHA}" for step in checkout_steps)
