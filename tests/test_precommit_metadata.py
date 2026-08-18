@@ -33,7 +33,7 @@ def test_public_docs_show_exercised_install_and_hook_paths():
         assert "pipx install lintlang" in text
         assert "pipx ensurepath" in text
         assert "repo: https://github.com/hermes-labs-ai/lintlang" in text
-        assert "rev: v0.4.0" in text
+        assert "rev: v0.4.1" in text
         assert f"actions/checkout@{CHECKOUT_V7_SHA}" in text
         assert "actions/checkout@v7" not in text
         assert "id: lintlang" in text
