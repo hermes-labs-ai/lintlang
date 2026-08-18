@@ -74,10 +74,10 @@ lintlang scan AGENTS.md
 If your project uses another filename, replace `AGENTS.md` with its prompt,
 tool-definition, agent-configuration, or supported directory path.
 
-[Character.AI's public Larch repository](https://github.com/character-ai/larch/pull/7960)
-runs a pinned LintLang release in recurring CI. LintLang is also packaged for
-Gentoo through the third-party
-[Haven overlay](https://github.com/thehaven/haven-overlay/tree/master/dev-util/lintlang).
+[Character.AI's public Larch repository](https://github.com/character-ai/larch/blob/ef7ee4b7f946f29fa51981f5422a1a93e83c79a7/.github/workflows/requirements-agent-linters.txt)
+pins `lintlang==0.3.1` in recurring CI. LintLang also has independent Gentoo
+packaging in the unofficial
+[Haven overlay](https://github.com/thehaven/haven-overlay/tree/7754b33f332cd450784e9a0b69ec1bd997c20064/dev-util/lintlang), not the official tree or GURU.
 
 When you are ready to make `HIGH` or `CRITICAL` findings block CI:
 
