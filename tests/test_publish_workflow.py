@@ -11,6 +11,7 @@ import yaml
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "publish.yml"
+CI_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "ci.yml"
 VERIFY_SCRIPT = REPO_ROOT / "scripts" / "verify_release_tag.py"
 CHECKOUT_V7_SHA = "3d3c42e5aac5ba805825da76410c181273ba90b1"
 UPLOAD_ARTIFACT_V7_SHA = "043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
@@ -97,3 +98,16 @@ def test_publish_workflow_builds_checked_out_release_tag_with_immutable_actions(
         "name": "release-distributions",
         "path": "dist/",
     }
+
+
+def test_ci_workflow_uses_immutable_checkout_v7():
+    workflow = yaml.safe_load(CI_WORKFLOW_PATH.read_text(encoding="utf-8"))
+    checkout_steps = [
+        step
+        for job in workflow["jobs"].values()
+        for step in job["steps"]
+        if step.get("uses", "").startswith("actions/checkout@")
+    ]
+
+    assert len(checkout_steps) == 2
+    assert all(step["uses"] == f"actions/checkout@{CHECKOUT_V7_SHA}" for step in checkout_steps)
