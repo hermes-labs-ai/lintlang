@@ -41,8 +41,8 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://hermes-labs.ai/lintlang"
-Documentation = "https://hermes-labs.ai/lintlang"
+Homepage = "https://lintlang.ai/"
+Documentation = "https://lintlang.ai/"
 Repository = "https://github.com/hermes-labs-ai/lintlang"
 "Bug Tracker" = "https://github.com/hermes-labs-ai/lintlang/issues"
 Changelog = "https://github.com/hermes-labs-ai/lintlang/blob/main/CHANGELOG.md"

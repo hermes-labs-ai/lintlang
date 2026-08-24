@@ -6,7 +6,7 @@
 [![Python](https://img.shields.io/pypi/pyversions/lintlang)](https://pypi.org/project/lintlang/)
 [![License](https://img.shields.io/pypi/l/lintlang)](LICENSE)
 
-**Product page:** [hermes-labs.ai/lintlang](https://hermes-labs.ai/lintlang)
+**Product page:** [lintlang.ai](https://lintlang.ai/)
 
 **LintLang statically analyzes the natural-language instructions that control
 AI agents, catching ambiguous tools, missing limits, and conflicting directives
