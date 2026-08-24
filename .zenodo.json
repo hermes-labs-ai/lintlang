@@ -1,7 +1,7 @@
 {
   "upload_type": "software",
   "title": "lintlang: static linter for AI agent configs, system prompts, and tool definitions (zero-LLM)",
-  "version": "0.4.1",
+  "version": "0.5.0",
   "description": "lintlang is a deterministic static linter for AI agent configs, system prompts, tool definitions, and embedded Python prompt text. It applies HERM v1.1 scoring, seven structural detector groups (H1-H7), and two Python pipeline checks (P1-P2) without model or network calls. Findings identify bounded heuristic patterns and do not establish runtime correctness, safety, or detector accuracy on external projects.",
   "creators": [
     {

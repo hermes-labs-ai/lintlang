@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-08-24
+
 ### Added
 
 - `lintlang init --github` creates an idempotent, pinned GitHub Code Scanning
