@@ -11,6 +11,7 @@ from pathlib import Path
 import yaml
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
+PROOF_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "proof-benchmark.yml"
 RELEASE_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "release-sync.yml"
 SYNC_SCRIPT = REPO_ROOT / "scripts" / "sync-version-docs.py"
 
@@ -29,6 +30,25 @@ def project_version() -> str:
     match = re.search(r'(?m)^version\s*=\s*"([^"]+)"', text)
     assert match
     return match.group(1)
+
+
+def test_proof_workflow_is_nightly_clean_timed_and_sarif_backed():
+    text = PROOF_WORKFLOW.read_text(encoding="utf-8")
+    workflow = yaml.safe_load(text)
+    job = workflow["jobs"]["fail-fix-pass"]
+
+    assert 'cron: "17 8 * * *"' in text
+    assert "branches: [main]" in text
+    assert job["timeout-minutes"] == 5
+    checkout = next(step for step in job["steps"] if step.get("name") == "Clean clone")
+    assert checkout["with"]["clean"] is True
+    assert checkout["with"]["persist-credentials"] is False
+    loop = next(step["run"] for step in job["steps"] if step.get("name") == "Run fail, fix, pass proof loop")
+    assert "limit_seconds = 300.0" in loop
+    assert '"fail.sarif"' in loop
+    assert '"pass.sarif"' in loop
+    assert '"--fail-on"' in loop
+    assert '"fail"' in loop
 
 
 def test_release_workflow_is_tag_driven_read_only_and_publishes_a_release():
