@@ -1,0 +1,117 @@
+name: Proof-loop benchmark
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "17 8 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fail-fix-pass:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Clean clone
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          clean: true
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Assert clean source tree
+        run: test -z "$(git status --porcelain)"
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install benchmark subject
+        run: python -m pip install -e .
+
+      - name: Run fail, fix, pass proof loop
+        run: |
+          python - <<'PY'
+          import json
+          import shutil
+          import subprocess
+          import sys
+          import time
+          from pathlib import Path
+
+          limit_seconds = 300.0
+          started = time.monotonic()
+          output_dir = Path("proof-benchmark-results")
+          fixture_dir = Path(".proof-benchmark")
+          output_dir.mkdir()
+          fixture_dir.mkdir()
+          fixture = fixture_dir / "fixture.yaml"
+
+          def scan(output: Path) -> subprocess.CompletedProcess[str]:
+              remaining = limit_seconds - (time.monotonic() - started)
+              if remaining <= 0:
+                  raise TimeoutError("proof loop exceeded 300 seconds")
+              with output.open("w", encoding="utf-8") as stream:
+                  return subprocess.run(
+                      [
+                          sys.executable,
+                          "-m",
+                          "lintlang",
+                          "scan",
+                          str(fixture),
+                          "--format",
+                          "sarif",
+                          "--fail-on",
+                          "fail",
+                      ],
+                      stdout=stream,
+                      stderr=subprocess.PIPE,
+                      text=True,
+                      timeout=remaining,
+                      check=False,
+                  )
+
+          shutil.copyfile("samples/bad_tool_descriptions.yaml", fixture)
+          failing = scan(output_dir / "fail.sarif")
+          if failing.returncode == 0:
+              raise SystemExit("expected the deliberately bad fixture to fail")
+          fail_sarif = json.loads((output_dir / "fail.sarif").read_text(encoding="utf-8"))
+          if not fail_sarif["runs"][0]["results"]:
+              raise SystemExit("failing scan emitted no SARIF findings")
+
+          shutil.copyfile("samples/clean_config.yaml", fixture)
+          passing = scan(output_dir / "pass.sarif")
+          if passing.returncode != 0:
+              raise SystemExit(f"fixed fixture did not pass: {passing.stderr}")
+          json.loads((output_dir / "pass.sarif").read_text(encoding="utf-8"))
+
+          elapsed = time.monotonic() - started
+          (output_dir / "benchmark.json").write_text(
+              json.dumps(
+                  {
+                      "loop": ["fail", "fix", "pass"],
+                      "limit_seconds": limit_seconds,
+                      "elapsed_seconds": round(elapsed, 6),
+                  },
+                  indent=2,
+              )
+              + "\n",
+              encoding="utf-8",
+          )
+          if elapsed > limit_seconds:
+              raise SystemExit(f"proof loop took {elapsed:.3f}s; limit is 300s")
+          PY
+
+      - name: Preserve SARIF and timing evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: proof-benchmark-results
+          path: proof-benchmark-results/
+          if-no-files-found: error
