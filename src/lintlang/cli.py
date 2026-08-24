@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 from . import __version__
+from .github_init import configure_init_parser, run_init
 from .patterns import PATTERNS as _PATTERNS
 from .preflight_cli import configure_preflight_parser, run_preflight
 from .report import compute_verdict, format_markdown, format_summary_table, format_terminal
@@ -81,6 +82,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     # ── patterns command ───────────────────────────────────────────
     subparsers.add_parser("patterns", help="List all diagnostic patterns")
+    configure_init_parser(subparsers)
     # Preflight is a separate provider-neutral surface; it does not alter the
     # scan parser, structural verdicts, or existing exit behavior.
     configure_preflight_parser(subparsers)
@@ -93,6 +95,8 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_scan(args)
     elif args.command == "preflight":
         return run_preflight(args)
+    elif args.command == "init":
+        return run_init(args)
     else:
         parser.print_help()
         return 0

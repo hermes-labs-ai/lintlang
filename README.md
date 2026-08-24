@@ -156,6 +156,20 @@ the highest-severity findings.
 
 ## Add it to CI
 
+From a Git repository containing `AGENTS.md`, `CLAUDE.md`, a Copilot
+instructions file, or an agent YAML/JSON config, create the pinned GitHub Code
+Scanning workflow in one command:
+
+```bash
+lintlang init --github
+```
+
+Use `--path path/to/instructions` when auto-detection should not choose the
+input. The initializer will not replace a different existing workflow unless
+you pass `--force`; inspect that diff before committing it. Generated workflows
+pin the current release to its immutable commit, with the release tag retained
+as a human-readable comment.
+
 After choosing one real instruction path in your repository:
 
 ```yaml

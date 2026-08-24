@@ -1,5 +1,15 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- `lintlang init --github` creates an idempotent, pinned GitHub Code Scanning
+  workflow for an existing repository-owned instruction file. It auto-detects
+  common agent-instruction paths, supports an explicit repository-relative
+  `--path`, uploads native SARIF, and refuses silent overwrite unless `--force`
+  is supplied.
+
 ## [0.4.1] - 2026-08-15
 
 ### Changed
