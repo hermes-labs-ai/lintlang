@@ -32,6 +32,7 @@ jobs:
         run: |
           python scripts/verify_release_tag.py --tag "$RELEASE_TAG"
           test "$(git rev-parse HEAD)" = "$(git rev-list -n 1 "$RELEASE_TAG")"
+          python scripts/sync-version-docs.py --version "${RELEASE_TAG#v}" --check
 
       - name: Build package
         run: python -m build

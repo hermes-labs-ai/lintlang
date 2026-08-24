@@ -79,6 +79,8 @@ def test_publish_workflow_builds_checked_out_release_tag_with_immutable_actions(
     }
     assert verify["env"] == {"RELEASE_TAG": "${{ github.event.release.tag_name }}"}
     assert "scripts/verify_release_tag.py" in verify["run"]
+    assert "scripts/sync-version-docs.py" in verify["run"]
+    assert "--check" in verify["run"]
     assert "git rev-list -n 1" in verify["run"]
     assert any(step.get("run") == "python -m build" for step in steps)
     assert any(step.get("run") == "python -m twine check dist/*" for step in steps)
