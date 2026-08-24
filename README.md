@@ -6,7 +6,7 @@
 [![Python](https://img.shields.io/pypi/pyversions/lintlang)](https://pypi.org/project/lintlang/)
 [![License](https://img.shields.io/pypi/l/lintlang)](LICENSE)
 
-**Product page:** [hermes-labs.ai/lintlang](https://hermes-labs.ai/lintlang)
+**Product page:** [lintlang.ai](https://lintlang.ai/)
 
 **LintLang statically analyzes the natural-language instructions that control
 AI agents, catching ambiguous tools, missing limits, and conflicting directives
@@ -101,10 +101,10 @@ cd lintlang
 lintlang scan samples/bad_tool_descriptions.yaml --fail-on fail
 ```
 
-Excerpt from `lintlang 0.4.1`:
+Excerpt from `lintlang 0.5.0`:
 
 ```text
-LINTLANG v0.4.1
+LINTLANG v0.5.0
 
 FAIL — 1 CRITICAL, 2 HIGH, 7 MEDIUM, 3 LOW
 
@@ -156,6 +156,20 @@ the highest-severity findings.
 
 ## Add it to CI
 
+From a Git repository containing `AGENTS.md`, `CLAUDE.md`, a Copilot
+instructions file, or an agent YAML/JSON config, create the pinned GitHub Code
+Scanning workflow in one command:
+
+```bash
+lintlang init --github
+```
+
+Use `--path path/to/instructions` when auto-detection should not choose the
+input. The initializer will not replace a different existing workflow unless
+you pass `--force`; inspect that diff before committing it. Generated workflows
+pin the current release to its immutable commit, with the release tag retained
+as a human-readable comment.
+
 After choosing one real instruction path in your repository:
 
 ```yaml
@@ -166,7 +180,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Inspect agent instructions
-        uses: hermes-labs-ai/lintlang@v0.4.1
+        uses: hermes-labs-ai/lintlang@v0.5.0
         with:
           path: AGENTS.md
 ```
@@ -183,7 +197,7 @@ to scan:
 ```yaml
 repos:
   - repo: https://github.com/hermes-labs-ai/lintlang
-    rev: v0.4.1
+    rev: v0.5.0
     hooks:
       - id: lintlang
         args: [AGENTS.md]
@@ -246,7 +260,7 @@ permissions:
 steps:
   - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
   - name: Run LintLang
-    uses: hermes-labs-ai/lintlang@v0.4.1
+    uses: hermes-labs-ai/lintlang@v0.5.0
     with:
       path: AGENTS.md
       fail-on: fail
