@@ -1,6 +1,12 @@
 # Changelog
 
-## [Unreleased]
+## [0.5.1] - Unreleased
+
+### Fixed
+
+- Generated GitHub Code Scanning workflows now isolate SARIF upload permission
+  in a second job, disable persisted checkout credentials, and preserve failed
+  scan results through an artifact handoff.
 
 ## [0.5.0] - 2026-08-24
 

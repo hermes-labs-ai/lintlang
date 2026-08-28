@@ -101,10 +101,10 @@ cd lintlang
 lintlang scan samples/bad_tool_descriptions.yaml --fail-on fail
 ```
 
-Excerpt from `lintlang 0.5.0`:
+Excerpt from `lintlang 0.5.1`:
 
 ```text
-LINTLANG v0.5.0
+LINTLANG v0.5.1
 
 FAIL — 1 CRITICAL, 2 HIGH, 7 MEDIUM, 3 LOW
 
@@ -167,8 +167,10 @@ lintlang init --github
 Use `--path path/to/instructions` when auto-detection should not choose the
 input. The initializer will not replace a different existing workflow unless
 you pass `--force`; inspect that diff before committing it. Generated workflows
-pin the current release to its immutable commit, with the release tag retained
-as a human-readable comment.
+pin the latest reviewed, already-released LintLang action to its immutable
+commit, with the release tag retained as a human-readable comment. The pin can
+intentionally trail the package being prepared because that package's release
+commit does not exist yet when its artifacts are built.
 
 After choosing one real instruction path in your repository:
 
@@ -178,9 +180,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Inspect agent instructions
-        uses: hermes-labs-ai/lintlang@v0.5.0
+        uses: hermes-labs-ai/lintlang@v0.5.1
         with:
           path: AGENTS.md
 ```
@@ -197,7 +201,7 @@ to scan:
 ```yaml
 repos:
   - repo: https://github.com/hermes-labs-ai/lintlang
-    rev: v0.5.0
+    rev: v0.5.1
     hooks:
       - id: lintlang
         args: [AGENTS.md]
@@ -249,27 +253,69 @@ input. In that mode SARIF stdout is redirected to the requested file, while
 verdict messages remain on stderr and `fail-on` keeps its normal exit status.
 Directory creation or file-write errors are fatal.
 
-To ask GitHub to ingest the report, keep generation and upload as separate
-steps so the upload still runs after a blocking LintLang verdict:
+To ask GitHub to ingest the report without exposing Code Scanning write
+permission to LintLang or its scan-time dependencies, use separate scan and
+upload jobs. The upload job checks out source without persisting credentials so
+GitHub can calculate missing fingerprints. The artifact handoff runs even after
+a blocking LintLang verdict; the scan job still keeps that failure as its
+conclusion:
 
 ```yaml
-permissions:
-  contents: read
-  security-events: write
+name: LintLang Code Scanning
 
-steps:
-  - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-  - name: Run LintLang
-    uses: hermes-labs-ai/lintlang@v0.5.0
-    with:
-      path: AGENTS.md
-      fail-on: fail
-      sarif-file: lintlang.sarif
-  - name: Upload LintLang SARIF
+on:
+  push:
+  pull_request:
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Run LintLang
+        uses: hermes-labs-ai/lintlang@cad2dca3054b8bfb5d0a6b93ecf19f9d74ab64fe # v0.5.0
+        with:
+          path: AGENTS.md
+          fail-on: fail
+          sarif-file: lintlang.sarif
+
+      - name: Preserve LintLang SARIF
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: lintlang-sarif
+          path: lintlang.sarif
+          if-no-files-found: error
+
+  upload-sarif:
+    needs: scan
     if: always() && (github.event_name == 'push' || (github.actor != 'dependabot[bot]' && github.event.pull_request.head.repo.full_name == github.repository))
-    uses: github/codeql-action/upload-sarif@5595ccaf912efad79be6eef63a5619ff05969be3 # v4
-    with:
-      sarif_file: lintlang.sarif
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    steps:
+      - name: Check out repository for SARIF fingerprinting
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Download LintLang SARIF
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: lintlang-sarif
+
+      - name: Upload LintLang SARIF
+        uses: github/codeql-action/upload-sarif@5595ccaf912efad79be6eef63a5619ff05969be3 # v4
+        with:
+          sarif_file: lintlang.sarif
 ```
 
 The complete copy-paste workflow is
