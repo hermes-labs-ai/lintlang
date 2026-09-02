@@ -3,18 +3,26 @@ name: Publish to PyPI
 on:
   release:
     types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing v-prefixed release tag to publish
+        required: true
+        type: string
 
 jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    env:
+      RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
 
     steps:
       - name: Check out the published release tag
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.event.release.tag_name }}
+          ref: ${{ github.event.release.tag_name || inputs.tag }}
           fetch-depth: 0
           persist-credentials: false
 
@@ -27,8 +35,6 @@ jobs:
         run: python -m pip install build twine
 
       - name: Verify release tag and commit
-        env:
-          RELEASE_TAG: ${{ github.event.release.tag_name }}
         run: |
           python scripts/verify_release_tag.py --tag "$RELEASE_TAG"
           test "$(git rev-parse HEAD)" = "$(git rev-list -n 1 "$RELEASE_TAG")"

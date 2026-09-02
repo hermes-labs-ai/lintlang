@@ -49,10 +49,15 @@ def test_release_tag_verifier_accepts_only_matching_v_prefixed_version(tmp_path)
 
 def test_publish_workflow_builds_checked_out_release_tag_with_immutable_actions():
     workflow = yaml.safe_load(WORKFLOW_PATH.read_text(encoding="utf-8"))
+    triggers = workflow[True]
+    assert triggers["release"] == {"types": ["published"]}
+    assert triggers["workflow_dispatch"]["inputs"]["tag"]["required"] is True
     assert set(workflow["jobs"]) == {"build", "publish"}
     build = workflow["jobs"]["build"]
     publish = workflow["jobs"]["publish"]
     assert build["permissions"] == {"contents": "read"}
+    release_tag = "${{ github.event.release.tag_name || inputs.tag }}"
+    assert build["env"] == {"RELEASE_TAG": release_tag}
     assert "environment" not in build
     assert publish["needs"] == "build"
     assert publish["environment"] == "pypi"
@@ -73,11 +78,11 @@ def test_publish_workflow_builds_checked_out_release_tag_with_immutable_actions(
     ))
     assert steps.index(checkout) < steps.index(next(step for step in steps if step.get("name") == "Build package"))
     assert checkout["with"] == {
-        "ref": "${{ github.event.release.tag_name }}",
+        "ref": release_tag,
         "fetch-depth": 0,
         "persist-credentials": False,
     }
-    assert verify["env"] == {"RELEASE_TAG": "${{ github.event.release.tag_name }}"}
+    assert "env" not in verify
     assert "scripts/verify_release_tag.py" in verify["run"]
     assert "scripts/sync-version-docs.py" in verify["run"]
     assert "--check" in verify["run"]
