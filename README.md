@@ -193,6 +193,30 @@ The release tag pins both the action and the LintLang source it installs.
 Upgrade that pin deliberately and inspect newly introduced findings before
 making them blocking.
 
+## Hermes Agent verification hook
+
+When LintLang and [Hermes Agent](https://github.com/NousResearch/hermes-agent)
+are installed in the same Python environment, Hermes discovers LintLang through
+its native `hermes_agent.plugins` entry-point contract. LintLang registers one
+bounded `pre_verify` hook: after a coding turn changes a recognized agent
+instruction, prompt, skill, tool, or agent-config surface, it runs the same
+local deterministic scan before the turn finishes.
+
+`PASS` and `REVIEW` do not interrupt the turn. `FAIL` or an input `ERROR` keeps
+the turn open once with the exact `lintlang scan` command to run. The hook
+self-throttles on Hermes' `attempt` field and ignores ordinary source and
+documentation files, so it cannot create an unbounded retry loop or turn a
+general code edit into a prompt-lint gate.
+
+Verify discovery with:
+
+```bash
+hermes plugins list
+```
+
+Disable the `lintlang` plugin through Hermes' normal plugin controls if the
+workspace should use only LintLang's CI or pre-commit surfaces.
+
 ## Add it to pre-commit
 
 Add the hook to `.pre-commit-config.yaml` with the explicit instruction paths
