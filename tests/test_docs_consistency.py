@@ -65,7 +65,7 @@ def test_unreleased_changelog_avoids_brittle_test_count_claim():
 def test_readme_keeps_regression_methodology_out_of_adoption_path():
     """The main README may show an excerpt without carrying eval methodology."""
     readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8").lower()
-    assert "excerpt from `lintlang 0.5.1`" in readme
+    assert "excerpt from `lintlang 0.5.2`" in readme
     assert "repository regression check" not in readme
     assert "external-project detector accuracy" not in readme
 

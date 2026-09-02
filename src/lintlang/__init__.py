@@ -14,7 +14,7 @@ Quick start::
         print(f"  [{f.severity.value}] {f.description}")
 """
 
-__version__ = "0.5.1"
+__version__ = "0.5.2"
 
 from lintlang.herm import HermResult, score_text
 from lintlang.patterns import AgentConfig, Finding, Severity
