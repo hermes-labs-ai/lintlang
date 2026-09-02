@@ -60,6 +60,9 @@ dev = [
 [project.scripts]
 lintlang = "lintlang.cli:main"
 
+[project.entry-points."hermes_agent.plugins"]
+lintlang = "lintlang.integrations.hermes_agent:register"
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/lintlang"]
 
