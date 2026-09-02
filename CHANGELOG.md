@@ -1,6 +1,15 @@
 # Changelog
 
-## [0.5.1] - Unreleased
+## [0.5.2] - Unreleased
+
+### Added
+
+- Native Hermes Agent `pre_verify` integration that scans changed
+  instruction-bearing files once before a coding turn finishes. `PASS` and
+  `REVIEW` remain non-blocking; `FAIL` or input `ERROR` reopens the turn with
+  the exact local scan command.
+
+## [0.5.1] - 2026-09-02
 
 ### Fixed
 

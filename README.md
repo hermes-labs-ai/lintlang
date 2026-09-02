@@ -101,10 +101,10 @@ cd lintlang
 lintlang scan samples/bad_tool_descriptions.yaml --fail-on fail
 ```
 
-Excerpt from `lintlang 0.5.1`:
+Excerpt from `lintlang 0.5.2`:
 
 ```text
-LINTLANG v0.5.1
+LINTLANG v0.5.2
 
 FAIL — 1 CRITICAL, 2 HIGH, 7 MEDIUM, 3 LOW
 
@@ -184,7 +184,7 @@ jobs:
           persist-credentials: false
 
       - name: Inspect agent instructions
-        uses: hermes-labs-ai/lintlang@v0.5.1
+        uses: hermes-labs-ai/lintlang@v0.5.2
         with:
           path: AGENTS.md
 ```
@@ -225,7 +225,7 @@ to scan:
 ```yaml
 repos:
   - repo: https://github.com/hermes-labs-ai/lintlang
-    rev: v0.5.1
+    rev: v0.5.2
     hooks:
       - id: lintlang
         args: [AGENTS.md]
