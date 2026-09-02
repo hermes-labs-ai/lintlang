@@ -24,26 +24,52 @@ on:
   push:
     branches: [main]
 
-permissions:
-  contents: read
-  security-events: write
-
 jobs:
-  language-contract:
+  scan:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Scan agent instructions
-        uses: hermes-labs-ai/lintlang@6be2907d557e534732865d3a3a3c55ea5f1a0ec9 # v0.4.1
+        uses: hermes-labs-ai/lintlang@cad2dca3054b8bfb5d0a6b93ecf19f9d74ab64fe # v0.5.0
         with:
           path: __LINTLANG_INPUT__
           fail-on: fail
           sarif-file: lintlang.sarif
 
+      - name: Preserve SARIF
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: lintlang-sarif
+          path: lintlang.sarif
+          if-no-files-found: error
+
+  upload-sarif:
+    needs: scan
+    if: always() && (github.event_name == 'push' || (github.actor != 'dependabot[bot]' && github.event.pull_request.head.repo.full_name == github.repository))
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    steps:
+      - name: Check out repository for SARIF fingerprinting
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Download SARIF
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: lintlang-sarif
+
       - name: Upload SARIF
-        if: always() && (github.event_name == 'push' || (github.actor != 'dependabot[bot]' && github.event.pull_request.head.repo.full_name == github.repository))
         uses: github/codeql-action/upload-sarif@5595ccaf912efad79be6eef63a5619ff05969be3 # v4
         with:
           sarif_file: lintlang.sarif

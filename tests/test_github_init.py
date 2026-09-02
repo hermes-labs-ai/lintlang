@@ -8,6 +8,16 @@ import yaml
 
 from lintlang.cli import main
 
+LINTLANG_V050_SHA = "cad2dca3054b8bfb5d0a6b93ecf19f9d74ab64fe"
+UPLOAD_ARTIFACT_V7_SHA = "043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
+DOWNLOAD_ARTIFACT_V8_SHA = "3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c"
+UPLOAD_SARIF_V4_SHA = "5595ccaf912efad79be6eef63a5619ff05969be3"
+FORK_SAFE_UPLOAD_CONDITION = (
+    "always() && (github.event_name == 'push' || "
+    "(github.actor != 'dependabot[bot]' && "
+    "github.event.pull_request.head.repo.full_name == github.repository))"
+)
+
 
 def _repository(tmp_path: Path) -> Path:
     root = tmp_path / "repository"
@@ -27,16 +37,52 @@ def test_init_github_creates_pinned_sarif_workflow(tmp_path, monkeypatch, capsys
 
     workflow = root / ".github" / "workflows" / "lintlang.yml"
     text = workflow.read_text(encoding="utf-8")
-    yaml.safe_load(text)
-    assert (
-        "hermes-labs-ai/lintlang@6be2907d557e534732865d3a3a3c55ea5f1a0ec9 # v0.4.1"
-        in text
+    document = yaml.safe_load(text)
+    assert "permissions" not in document
+    assert set(document[True]) == {"pull_request", "push"}
+    assert "pull_request_target" not in text
+
+    scan = document["jobs"]["scan"]
+    upload = document["jobs"]["upload-sarif"]
+    assert scan["permissions"] == {"contents": "read"}
+    assert upload["permissions"] == {
+        "actions": "read",
+        "contents": "read",
+        "security-events": "write",
+    }
+    assert upload["needs"] == "scan"
+    assert upload["if"] == FORK_SAFE_UPLOAD_CONDITION
+
+    checkout = next(step for step in scan["steps"] if step["name"] == "Check out repository")
+    lintlang = next(step for step in scan["steps"] if step["name"] == "Scan agent instructions")
+    preserve = next(step for step in scan["steps"] if step["name"] == "Preserve SARIF")
+    upload_checkout = next(
+        step for step in upload["steps"] if step["name"] == "Check out repository for SARIF fingerprinting"
     )
-    assert "path: \"AGENTS.md\"" in text
-    assert "fail-on: fail" in text
-    assert "sarif-file: lintlang.sarif" in text
-    assert "security-events: write" in text
-    assert "github.actor != 'dependabot[bot]'" in text
+    download = next(step for step in upload["steps"] if step["name"] == "Download SARIF")
+    sarif_upload = next(step for step in upload["steps"] if step["name"] == "Upload SARIF")
+
+    assert checkout["with"]["persist-credentials"] is False
+    assert lintlang["uses"] == f"hermes-labs-ai/lintlang@{LINTLANG_V050_SHA}"
+    assert lintlang["with"] == {
+        "path": "AGENTS.md",
+        "fail-on": "fail",
+        "sarif-file": "lintlang.sarif",
+    }
+    assert "continue-on-error" not in lintlang
+    assert preserve["if"] == "always()"
+    assert preserve["uses"] == f"actions/upload-artifact@{UPLOAD_ARTIFACT_V7_SHA}"
+    assert preserve["with"] == {
+        "name": "lintlang-sarif",
+        "path": "lintlang.sarif",
+        "if-no-files-found": "error",
+    }
+    assert upload_checkout["with"]["persist-credentials"] is False
+    assert download["uses"] == f"actions/download-artifact@{DOWNLOAD_ARTIFACT_V8_SHA}"
+    assert download["with"]["name"] == preserve["with"]["name"]
+    assert sarif_upload["uses"] == f"github/codeql-action/upload-sarif@{UPLOAD_SARIF_V4_SHA}"
+    assert sarif_upload["with"]["sarif_file"] == preserve["with"]["path"]
+    assert f"lintlang@{LINTLANG_V050_SHA} # v0.5.0" in text
     assert "Created: .github/workflows/lintlang.yml" in capsys.readouterr().out
 
 
