@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- External MegaLinter plugin exposing the pinned LintLang scanner as
+  `AI_LINTLANG`, with an exact configuration guide and clean/failing fixture
+  coverage.
+
 ## [0.5.3] - 2026-09-02
 
 ### Added
