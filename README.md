@@ -241,6 +241,7 @@ pre-commit run lintlang
 Replace or extend `args` with the prompt, tool-definition, agent-configuration,
 or supported directory paths your repository owns. The hook scans only those
 configured paths and reports findings without blocking on a verdict by default.
+
 After reviewing the repository's baseline, opt into blocking `FAIL` findings:
 
 ```yaml
@@ -250,6 +251,14 @@ hooks:
 ```
 
 Missing, unreadable, or malformed configured inputs still return nonzero.
+
+## Use it with Gemini CLI
+
+The repository root is also a Gemini CLI extension. Its non-blocking
+`AfterTool` hook returns LintLang repair guidance after Gemini changes supported
+files with `write_file` or `replace`. See the
+[Gemini CLI extension guide](docs/gemini-cli-extension.md) for the pinned,
+isolated dependency contract and installation steps.
 
 ## Machine-readable output and GitHub Code Scanning
 

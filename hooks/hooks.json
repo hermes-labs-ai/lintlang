@@ -1,0 +1,18 @@
+{
+  "hooks": {
+    "AfterTool": [
+      {
+        "matcher": "^(write_file|replace)$",
+        "hooks": [
+          {
+            "name": "lintlang-after-file-change",
+            "type": "command",
+            "command": "uv run --quiet --no-project --with PyYAML==6.0.3 -- python \"${extensionPath}${/}hooks${/}lintlang_after_tool.py\"",
+            "timeout": 30000,
+            "description": "Scan a successfully changed language-bearing file and return bounded repair guidance."
+          }
+        ]
+      }
+    ]
+  }
+}
