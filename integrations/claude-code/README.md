@@ -7,10 +7,10 @@ The adapter never rewrites files and never blocks a tool call.
 
 ## Prerequisites
 
-Install LintLang so `lintlang` is on `PATH`:
+Install the adapter's tested LintLang release so `lintlang` is on `PATH`:
 
 ```bash
-pipx install lintlang
+pipx install lintlang==0.5.2
 ```
 
 ## Try the plugin from this checkout

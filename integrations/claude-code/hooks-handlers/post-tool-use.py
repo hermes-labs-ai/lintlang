@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import shlex
 import shutil
 import subprocess
 import sys
@@ -13,6 +14,7 @@ from typing import Any
 
 SUPPORTED_SUFFIXES = {".json", ".md", ".prompt", ".py", ".txt", ".yaml", ".yml"}
 MAX_FINDINGS = 8
+PINNED_VERSION = "0.5.2"
 
 
 def _emit(context: str | None = None) -> None:
@@ -25,12 +27,24 @@ def _emit(context: str | None = None) -> None:
     print(json.dumps(output))
 
 
+def _is_pinned(command: list[str]) -> bool:
+    try:
+        completed = subprocess.run(
+            [*command, "--version"], capture_output=True, check=False, text=True, timeout=3
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    return completed.returncode == 0 and completed.stdout.strip() == f"lintlang {PINNED_VERSION}"
+
+
 def _lintlang_command() -> list[str] | None:
-    executable = shutil.which("lintlang")
-    if executable:
-        return [executable]
     if importlib.util.find_spec("lintlang") is not None:
-        return [sys.executable, "-m", "lintlang"]
+        module_command = [sys.executable, "-m", "lintlang"]
+        if _is_pinned(module_command):
+            return module_command
+    executable = shutil.which("lintlang")
+    if executable and _is_pinned([executable]):
+        return [executable]
     return None
 
 
@@ -60,7 +74,7 @@ def _format_result(path: Path, result: dict[str, Any]) -> str | None:
     if len(findings) > MAX_FINDINGS:
         lines.append(
             f"- {len(findings) - MAX_FINDINGS} additional finding(s) omitted; "
-            f"run `lintlang scan {path}` for all details."
+            f"run `lintlang scan -- {shlex.quote(str(path))}` for all details."
         )
     return "\n".join(lines)
 
@@ -88,14 +102,15 @@ def main() -> int:
     command = _lintlang_command()
     if command is None:
         _emit(
-            "LintLang could not check the changed file because `lintlang` is not installed. "
-            "Install it with `pipx install lintlang`, then retry the edit or run `lintlang scan <file>`."
+            f"LintLang could not check the changed file because lintlang {PINNED_VERSION} is not available. "
+            f"Install it with `pipx install lintlang=={PINNED_VERSION}`, then retry the edit or run "
+            "`lintlang scan <file>`."
         )
         return 0
 
     try:
         completed = subprocess.run(
-            [*command, "scan", str(path), "--format", "json"],
+            [*command, "scan", "--format", "json", "--", str(path)],
             capture_output=True,
             check=False,
             text=True,
@@ -108,7 +123,7 @@ def main() -> int:
     except (json.JSONDecodeError, OSError, subprocess.TimeoutExpired, ValueError) as error:
         _emit(
             f"LintLang could not check {path}: {error}. "
-            f"Run `lintlang scan {path}` directly for diagnostics."
+            f"Run `lintlang scan -- {shlex.quote(str(path))}` directly for diagnostics."
         )
         return 0
 

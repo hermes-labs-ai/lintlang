@@ -21,6 +21,7 @@ def _run_hook(path: Path) -> dict:
     }
     env = os.environ.copy()
     env["PYTHONPATH"] = str(ROOT / "src")
+    env["PATH"] = ""
     completed = subprocess.run(
         [sys.executable, str(HANDLER)],
         input=json.dumps(event),
