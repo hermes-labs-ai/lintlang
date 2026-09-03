@@ -1,0 +1,13 @@
+{
+  "$schema": "https://anthropic.com/claude-code/plugin.schema.json",
+  "name": "lintlang",
+  "version": "0.1.0",
+  "description": "Returns concise LintLang repair guidance after Claude Code changes a supported language-bearing file.",
+  "author": {
+    "name": "Hermes Labs",
+    "email": "roli@hermes-labs.ai"
+  },
+  "homepage": "https://lintlang.ai/",
+  "repository": "https://github.com/hermes-labs-ai/lintlang",
+  "license": "Apache-2.0"
+}
