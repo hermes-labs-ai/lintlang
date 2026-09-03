@@ -1,6 +1,19 @@
 # Changelog
 
-## [0.5.2] - Unreleased
+## [0.5.3] - 2026-09-02
+
+### Added
+
+- Native Gemini CLI `AfterTool` extension that returns bounded LintLang repair
+  context after successful `write_file` and `replace` edits.
+- Native Claude Code `PostToolUse` plugin for successful `Write` and `Edit`
+  operations, with shell-safe paths and an exact scanner-version contract.
+
+The Gemini extension passed a copied-install live host run and bundles the
+repository source with a pinned runtime dependency. Both adapters are
+non-blocking and never rewrite the changed file.
+
+## [0.5.2] - 2026-09-02
 
 ### Added
 

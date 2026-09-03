@@ -9,7 +9,7 @@ import yaml
 REPO_ROOT = Path(__file__).resolve().parent.parent
 HOOKS = yaml.safe_load((REPO_ROOT / ".pre-commit-hooks.yaml").read_text(encoding="utf-8"))
 CHECKOUT_V7_SHA = "3d3c42e5aac5ba805825da76410c181273ba90b1"
-LINTLANG_ACTION_VERSION = "v0.5.2"
+LINTLANG_ACTION_VERSION = "v0.5.3"
 LINTLANG_GENERATED_ACTION_SHA = "cad2dca3054b8bfb5d0a6b93ecf19f9d74ab64fe"
 
 
@@ -38,7 +38,7 @@ def test_public_docs_show_exercised_install_and_hook_paths():
         assert "pipx install lintlang" in text
         assert "pipx ensurepath" in text
         assert "repo: https://github.com/hermes-labs-ai/lintlang" in text
-        assert "rev: v0.5.2" in text
+        assert "rev: v0.5.3" in text
         assert "id: lintlang" in text
         assert "args: [AGENTS.md, --fail-on, fail]" in text
         assert f"hermes-labs-ai/lintlang@{LINTLANG_ACTION_VERSION}" in text
