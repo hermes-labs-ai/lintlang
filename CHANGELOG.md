@@ -8,9 +8,11 @@
   context after successful `write_file` and `replace` edits.
 - Native Claude Code `PostToolUse` plugin for successful `Write` and `Edit`
   operations, with shell-safe paths and an exact scanner-version contract.
+- Native OpenCode 1.18.27 `tool.execute.after` adapter that scans explicit
+  changed-file paths and skips ambiguous patch operations.
 
 The Gemini extension passed a copied-install live host run and bundles the
-repository source with a pinned runtime dependency. Both adapters are
+repository source with a pinned runtime dependency. All three adapters are
 non-blocking and never rewrite the changed file.
 
 ## [0.5.2] - 2026-09-02
