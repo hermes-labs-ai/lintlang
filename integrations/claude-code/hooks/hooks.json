@@ -1,0 +1,17 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks-handlers/post-tool-use.py\"",
+            "timeout": 30,
+            "statusMessage": "Checking changed language with LintLang..."
+          }
+        ]
+      }
+    ]
+  }
+}
