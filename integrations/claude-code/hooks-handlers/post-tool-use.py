@@ -14,7 +14,7 @@ from typing import Any
 
 SUPPORTED_SUFFIXES = {".json", ".md", ".prompt", ".py", ".txt", ".yaml", ".yml"}
 MAX_FINDINGS = 8
-PINNED_VERSION = "0.5.2"
+PINNED_VERSION = "0.5.3"
 
 
 def _emit(context: str | None = None) -> None:

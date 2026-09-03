@@ -4,15 +4,15 @@
   "name": "lintlang",
   "description": "Static linter for AI agent configs, tool descriptions, and system prompts with zero-LLM CI gating.",
   "codeRepository": "https://github.com/hermes-labs-ai/lintlang",
-  "version": "0.5.2",
+  "version": "0.5.3",
   "license": "https://spdx.org/licenses/Apache-2.0",
   "programmingLanguage": "Python",
   "runtimePlatform": "Python >=3.10",
   "identifier": [
     "https://doi.org/10.5281/zenodo.20471007",
-    "https://pypi.org/project/lintlang/0.5.2/"
+    "https://pypi.org/project/lintlang/0.5.3/"
   ],
   "author": [{"@type": "Person", "givenName": "Rolando", "familyName": "Bosch Rodriguez", "identifier": "https://orcid.org/0009-0005-4896-1112"}],
-  "url": "https://pypi.org/project/lintlang/0.5.2/",
+  "url": "https://pypi.org/project/lintlang/0.5.3/",
   "keywords": ["static analysis", "agent configuration", "prompt linting", "CI gating", "zero-LLM"]
 }
