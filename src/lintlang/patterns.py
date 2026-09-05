@@ -760,6 +760,36 @@ DANGEROUS_PATTERNS = [
 ]
 
 
+_SUCCESS_CRITERIA_PREFIX = re.compile(
+    r"\b(?:define|set|state|establish)\s+(?:clear\s+)?success\s+criteria\s*\.\s*$",
+    re.IGNORECASE,
+)
+_VERIFICATION_GUIDANCE = re.compile(
+    r"\bverify\s*:\s*\S|\b(?:write|run|ensure)\s+(?:[\w-]+\s+){0,6}(?:tests?|checks?)\b",
+    re.IGNORECASE,
+)
+
+
+def _is_bounded_verification_loop(text: str, match: re.Match[str]) -> bool:
+    """Recognize a documented verification loop with an explicit local exit.
+
+    ``loop until`` is usually an unsafe open-ended instruction.  The specific
+    ``Define success criteria. Loop until verified.`` form is different only
+    when the immediately surrounding guidance also names a concrete check.
+    Keep this deliberately narrow: it does not exempt retries, negative
+    termination, or a bare promise to define criteria.
+    """
+    if match.group().lower().split() != ["loop", "until"]:
+        return False
+
+    if not re.match(r"\s+verified\b", text[match.end() :], re.IGNORECASE):
+        return False
+
+    prefix = text[max(0, match.start() - 160) : match.start()]
+    guidance = text[match.end() : match.end() + 600]
+    return bool(_SUCCESS_CRITERIA_PREFIX.search(prefix) and _VERIFICATION_GUIDANCE.search(guidance))
+
+
 def detect_h2(config: AgentConfig) -> list[Finding]:
     """Detect missing constraint scaffolding."""
     findings: list[Finding] = []
@@ -795,6 +825,8 @@ def detect_h2(config: AgentConfig) -> list[Finding]:
         matches = list(re.finditer(pattern, text, re.IGNORECASE))
         for match in matches:
             if not _is_direct_match(scope, match.start(), match.end()):
+                continue
+            if _is_bounded_verification_loop(text, match):
                 continue
             start = max(0, match.start() - 20)
             end = min(len(text), match.end() + 40)
