@@ -1,0 +1,31 @@
+descriptor_id: AI
+descriptor_type: other
+descriptor_flavors:
+  - all_flavors
+file_extensions:
+  - ".json"
+  - ".md"
+  - ".py"
+  - ".txt"
+  - ".yaml"
+  - ".yml"
+linters:
+  - linter_name: lintlang
+    name: AI_LINTLANG
+    linter_url: https://lintlang.ai/
+    linter_repo: https://github.com/hermes-labs-ai/lintlang
+    cli_lint_mode: list_of_files
+    supported_cli_lint_modes:
+      - list_of_files
+    cli_lint_extra_args:
+      - scan
+      - --fail-on
+      - fail
+    cli_help_arg_name: --help
+    cli_version_arg_name: --version
+    examples:
+      - lintlang scan AGENTS.md --fail-on fail
+      - lintlang scan agent.yaml tools.json --fail-on fail
+    install:
+      dockerfile:
+        - RUN pip install --no-cache-dir lintlang==0.5.3

@@ -252,6 +252,14 @@ hooks:
 
 Missing, unreadable, or malformed configured inputs still return nonzero.
 
+## Use it with MegaLinter
+
+The external MegaLinter plugin exposes LintLang as `AI_LINTLANG`, installing the
+pinned release at run time through MegaLinter's plugin loader. See the
+[MegaLinter plugin guide](mega-linter-plugin-lintlang/README.md) for the exact
+`PLUGINS` and `ENABLE_LINTERS` configuration and the container verification
+steps.
+
 ## Use it with Gemini CLI
 
 The repository root is also a Gemini CLI extension. Its non-blocking
