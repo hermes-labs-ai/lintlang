@@ -32,6 +32,11 @@ Key success condition:
 - the same input files produce the same verdict and structural findings with no network or model calls
 - the same preflight request produces byte-stable redacted output; unavailable coverage never becomes clean
 
+## Third-party adoption (public sources)
+
+- Character.AI's Larch repository pins `lintlang==0.3.1` in CI and fails on HIGH or CRITICAL findings; its linting reference links this repository as the upstream: https://github.com/character-ai/larch/blob/210d08a8f6c1b0dd14c27b709c66471bd31a5636/docs/linting.md (merged via https://github.com/character-ai/larch/pull/7960)
+- Independent Gentoo packaging in the unofficial Haven overlay, whose `metadata.xml` records this repository as the upstream remote: https://github.com/thehaven/haven-overlay/tree/d052d950b05389fcd7c8f22939033319a5aec348/dev-util/lintlang
+
 ## About Hermes Labs
 
 Hermes Labs is an independent AI-reliability lab building open-source tools that catch silent failure modes in production AI. More at [hermes-labs.ai](https://hermes-labs.ai).
