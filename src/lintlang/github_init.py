@@ -12,6 +12,8 @@ _DEFAULT_INPUTS = (
     Path("AGENTS.md"),
     Path("CLAUDE.md"),
     Path(".github/copilot-instructions.md"),
+    Path(".github/instructions"),
+    Path("GEMINI.md"),
     Path("agent.yaml"),
     Path("agent.yml"),
     Path("agent.json"),

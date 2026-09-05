@@ -76,6 +76,25 @@ lintlang scan AGENTS.md
 If your project uses another filename, replace `AGENTS.md` with its prompt,
 tool-definition, agent-configuration, or supported directory path.
 
+## Lint the instructions your coding agent actually reads
+
+LintLang treats agent instruction files as ordinary local inputs. It does not
+need a vendor API, an always-running agent hook, or a separate integration for
+each host.
+
+| Coding-agent workflow | Native instruction surface | Local gate | Generate CI/SARIF gate |
+| --- | --- | --- | --- |
+| Codex | `AGENTS.md` | `lintlang scan AGENTS.md` | `lintlang init --github --path AGENTS.md` |
+| Claude Code | `CLAUDE.md` | `lintlang scan CLAUDE.md` | `lintlang init --github --path CLAUDE.md` |
+| GitHub Copilot | `.github/copilot-instructions.md` or `.github/instructions/` | `lintlang scan .github/copilot-instructions.md` | `lintlang init --github --path .github/copilot-instructions.md` |
+| Gemini CLI | `GEMINI.md` | `lintlang scan GEMINI.md` | `lintlang init --github --path GEMINI.md` |
+
+For a repository that has exactly one of these common paths, `lintlang init
+--github` detects it automatically. Pass `--path` when the repository has
+more than one instruction surface or when you want to scan an instruction
+directory. The generated workflow runs the same local scanner and uploads
+SARIF; it does not change how the coding agent loads its instructions.
+
 [Character.AI's public Larch repository](https://github.com/character-ai/larch/blob/ef7ee4b7f946f29fa51981f5422a1a93e83c79a7/.github/workflows/requirements-agent-linters.txt)
 pins `lintlang==0.3.1` in recurring CI. LintLang also has independent Gentoo
 packaging in the unofficial
@@ -156,9 +175,9 @@ the highest-severity findings.
 
 ## Add it to CI
 
-From a Git repository containing `AGENTS.md`, `CLAUDE.md`, a Copilot
-instructions file, or an agent YAML/JSON config, create the pinned GitHub Code
-Scanning workflow in one command:
+From a Git repository containing `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, a
+Copilot instructions file or directory, or an agent YAML/JSON config, create
+the pinned GitHub Code Scanning workflow in one command:
 
 ```bash
 lintlang init --github

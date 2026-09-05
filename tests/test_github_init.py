@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
 import yaml
 
 from lintlang.cli import main
@@ -97,6 +98,36 @@ def test_init_github_is_idempotent(tmp_path, monkeypatch, capsys):
 
     assert (root / ".github/workflows/lintlang.yml").read_bytes() == first
     assert "Up to date" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
+    "instruction_path",
+    (
+        "CLAUDE.md",
+        ".github/copilot-instructions.md",
+        ".github/instructions",
+        "GEMINI.md",
+    ),
+)
+def test_init_github_detects_common_coding_agent_instruction_paths(
+    tmp_path, monkeypatch, instruction_path
+):
+    root = tmp_path / "repository"
+    root.mkdir()
+    (root / ".git").mkdir()
+    target = root / instruction_path
+    if target.suffix:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text("# Instructions\n", encoding="utf-8")
+    else:
+        target.mkdir(parents=True)
+        (target / "review.instructions.md").write_text("# Instructions\n", encoding="utf-8")
+    monkeypatch.chdir(root)
+
+    assert main(["init", "--github"]) == 0
+
+    text = (root / ".github/workflows/lintlang.yml").read_text(encoding="utf-8")
+    assert f'path: "{instruction_path}"' in text
 
 
 def test_init_github_refuses_to_overwrite_without_force(tmp_path, monkeypatch, capsys):
