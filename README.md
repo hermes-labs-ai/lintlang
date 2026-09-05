@@ -96,9 +96,16 @@ directory. The generated workflow runs the same local scanner and uploads
 SARIF; it does not change how the coding agent loads its instructions.
 
 [Character.AI's public Larch repository](https://github.com/character-ai/larch/blob/ef7ee4b7f946f29fa51981f5422a1a93e83c79a7/.github/workflows/requirements-agent-linters.txt)
-pins `lintlang==0.3.1` in recurring CI. LintLang also has independent Gentoo
-packaging in the unofficial
-[Haven overlay](https://github.com/thehaven/haven-overlay/tree/7754b33f332cd450784e9a0b69ec1bd997c20064/dev-util/lintlang), not the official tree or GURU.
+pins `lintlang==0.3.1` in recurring CI. Larch's
+[linting reference](https://github.com/character-ai/larch/blob/210d08a8f6c1b0dd14c27b709c66471bd31a5636/docs/linting.md)
+links this repository as the upstream and documents the gate: its consolidated
+`agent-lint` job scans `agents/`, `.claude/agents/`, `skills/`, and
+`.claude/skills/` and fails on HIGH or CRITICAL findings
+([merged July 2026](https://github.com/character-ai/larch/pull/7960)).
+LintLang also has independent Gentoo packaging in the unofficial
+[Haven overlay](https://github.com/thehaven/haven-overlay/tree/d052d950b05389fcd7c8f22939033319a5aec348/dev-util/lintlang),
+not the official tree or GURU; its ebuilds have tracked upstream releases since
+0.2.1, and its `metadata.xml` records this repository as the upstream remote.
 
 When you are ready to make `HIGH` or `CRITICAL` findings block CI:
 
