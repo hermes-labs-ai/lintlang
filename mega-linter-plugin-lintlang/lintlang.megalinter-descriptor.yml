@@ -2,13 +2,11 @@ descriptor_id: AI
 descriptor_type: other
 descriptor_flavors:
   - all_flavors
-file_extensions:
-  - ".json"
-  - ".md"
-  - ".py"
-  - ".txt"
-  - ".yaml"
-  - ".yml"
+# Keep the default scope to files that conventionally carry agent language.
+# Consumers can set AI_LINTLANG_FILE_EXTENSIONS to deliberately broaden it.
+file_names_regex:
+  - "(?i:(AGENTS|CLAUDE|GEMINI)\\.md)"
+  - "(?i:.*(agent|agents|prompt|prompts|tool|tools|skill|skills|system|instruction|instructions).*\\.(json|md|prompt|py|txt|yaml|yml))"
 linters:
   - linter_name: lintlang
     name: AI_LINTLANG

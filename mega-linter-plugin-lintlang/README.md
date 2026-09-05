@@ -32,9 +32,20 @@ lintlang scan --fail-on fail <selected files>
 ```
 
 A LintLang `FAIL` verdict makes the linter exit nonzero. `REVIEW` remains
-advisory. MegaLinter's normal file filtering and exclusion settings determine
-which `.json`, `.md`, `.py`, `.txt`, `.yaml`, and `.yml` files are passed to
-LintLang.
+advisory. By default, the descriptor selects conventional agent-language names
+(`AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, Copilot `*.instructions.md`, and files
+whose names contain `agent`, `prompt`, `tool`, `skill`, `system`, or
+`instruction`) rather than every Markdown, YAML, JSON, or Python file.
+
+To deliberately broaden a repository's scope, configure MegaLinter's normal
+per-linter override with the file extensions you own:
+
+```yaml
+AI_LINTLANG_FILE_EXTENSIONS:
+  - .yaml
+  - .yml
+  - .json
+```
 
 ## Verify locally
 
@@ -102,6 +113,6 @@ one error, and the container exited 1; without the bad fixture it exited 0.
 The descriptor also validates against MegaLinter's published
 [descriptor JSON schema](https://github.com/oxsecurity/megalinter/blob/main/megalinter/descriptors/schemas/megalinter-descriptor.jsonschema.json).
 
-MegaLinter passes every matching file to LintLang, including `.mega-linter.yml`
-and this descriptor. Both scan clean; use `FILTER_REGEX_EXCLUDE` if you prefer
-to keep them out of the file list.
+MegaLinter passes every matching file to LintLang. Use its normal
+`FILTER_REGEX_EXCLUDE` or `AI_LINTLANG_FILE_NAMES_REGEX` controls when a
+repository needs a still narrower or differently named scope.

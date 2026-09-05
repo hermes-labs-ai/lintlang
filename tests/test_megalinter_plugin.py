@@ -24,14 +24,11 @@ def test_megalinter_descriptor_contract() -> None:
     assert descriptor["descriptor_id"] == "AI"
     assert descriptor["descriptor_type"] == "other"
     assert descriptor["descriptor_flavors"] == ["all_flavors"]
-    assert set(descriptor["file_extensions"]) == {
-        ".json",
-        ".md",
-        ".py",
-        ".txt",
-        ".yaml",
-        ".yml",
-    }
+    assert "file_extensions" not in descriptor
+    assert descriptor["file_names_regex"] == [
+        r"(?i:(AGENTS|CLAUDE|GEMINI)\.md)",
+        r"(?i:.*(agent|agents|prompt|prompts|tool|tools|skill|skills|system|instruction|instructions).*\.(json|md|prompt|py|txt|yaml|yml))",
+    ]
 
     assert len(descriptor["linters"]) == 1
     linter = descriptor["linters"][0]
