@@ -6,7 +6,9 @@
 
 - External MegaLinter plugin exposing the pinned LintLang scanner as
   `AI_LINTLANG`, with an exact configuration guide and clean/failing fixture
-  coverage.
+  coverage. Verified end to end in `oxsecurity/megalinter-python:v9.4.0`: the
+  descriptor loads, `lintlang==0.5.3` installs at run time, a failing fixture
+  exits 1, and a clean-only workspace exits 0.
 
 ## [0.5.3] - 2026-09-02
 

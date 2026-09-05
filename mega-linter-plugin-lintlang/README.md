@@ -23,10 +23,12 @@ PLUGINS:
   - file://mega-linter-plugin-lintlang/lintlang.megalinter-descriptor.yml
 ```
 
-MegaLinter installs the pinned LintLang release and runs the equivalent of:
+MegaLinter's plugin loader runs the descriptor's `install` step at run time
+(`pip install --no-cache-dir lintlang==0.5.3`) inside the existing MegaLinter
+image, then invokes:
 
 ```console
-lintlang scan <selected files> --fail-on fail
+lintlang scan --fail-on fail <selected files>
 ```
 
 A LintLang `FAIL` verdict makes the linter exit nonzero. `REVIEW` remains
@@ -44,4 +46,53 @@ python -m pytest -q tests/test_megalinter_plugin.py
 
 The test validates the descriptor contract and proves that the descriptor's
 arguments pass `samples/clean_config.yaml` while failing
-`samples/bad_tool_descriptions.yaml`.
+`samples/bad_tool_descriptions.yaml`. It exercises the CLI in-process; it does
+not exercise MegaLinter's loader.
+
+## Verify against a real MegaLinter container
+
+The checks above are in-process. To prove the loader, the run-time install, and
+the exit code, run the plugin inside a real MegaLinter image.
+
+Build a scratch workspace containing `.mega-linter.yml`, this plugin directory,
+and two fixtures copied from `samples/` — `agent-clean.yaml`
+(`clean_config.yaml`) and `agent-bad.yaml` (`bad_tool_descriptions.yaml`):
+
+```yaml
+# .mega-linter.yml
+PLUGINS:
+  - file://mega-linter-plugin-lintlang/lintlang.megalinter-descriptor.yml
+ENABLE_LINTERS:
+  - AI_LINTLANG
+VALIDATE_ALL_CODEBASE: true
+LOG_LEVEL: INFO
+```
+
+```console
+docker run --rm --platform linux/amd64 \
+  -v "$PWD:/tmp/lint:rw" -e DEFAULT_WORKSPACE=/tmp/lint \
+  oxsecurity/megalinter-python:v9.4.0
+```
+
+Observed on `oxsecurity/megalinter-python:v9.4.0`
+(digest `sha256:e83df3697c0547024b3a21938f19125564627d86a1ffe6f6a18747c0dfd80d69`):
+
+- `[Plugins] Successful initialization of AI plugins`
+- `- Using [lintlang v0.5.3] https://lintlang.ai/`
+- `- Command: [lintlang scan --fail-on fail .mega-linter.yml agent-bad.yaml
+  agent-clean.yaml mega-linter-plugin-lintlang/lintlang.megalinter-descriptor.yml]`
+- `agent-bad.yaml` → `FAIL` (1 critical, 2 high, 7 medium, 3 low);
+  `agent-clean.yaml` → `PASS`
+- MegaLinter reported `1` error and exited **1**
+
+Removing `agent-bad.yaml` and rerunning the same command yields
+`Successfully linted all files without errors` and exit **0**, confirming the
+nonzero exit is caused by the LintLang `FAIL` verdict and not by the plugin
+load or install path.
+
+The descriptor also validates against MegaLinter's published
+[descriptor JSON schema](https://github.com/oxsecurity/megalinter/blob/main/megalinter/descriptors/schemas/megalinter-descriptor.jsonschema.json).
+
+MegaLinter passes every matching file to LintLang, including `.mega-linter.yml`
+and this descriptor. Both scan clean; use `FILTER_REGEX_EXCLUDE` if you prefer
+to keep them out of the file list.
