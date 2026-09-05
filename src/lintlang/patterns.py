@@ -751,9 +751,12 @@ CONSTRAINT_SIGNALS = [
     "max_tokens",
 ]
 
+_RETRY_UNTIL_PATTERN = r"retry\s+(?:until|as\s+many\s+times)"
+
+
 DANGEROUS_PATTERNS = [
     (r"keep\s+trying\s+until", "Unbounded retry loop — 'keep trying until' needs an explicit limit."),
-    (r"retry\s+(?:until|as\s+many\s+times)", "Unbounded retry — add max_retries or a fallback."),
+    (_RETRY_UNTIL_PATTERN, "Unbounded retry — add max_retries or a fallback."),
     (r"don'?t\s+stop\s+until", "Negative termination condition — rephrase as a positive bound."),
     (r"loop\s+(?:through|over|until)", "Potential infinite loop — ensure a max iteration count."),
     (r"continue\s+(?:until|indefinitely)", "Unbounded continuation — add an explicit termination condition."),
@@ -768,6 +771,13 @@ _VERIFICATION_GUIDANCE = re.compile(
     r"\bverify\s*:\s*\S|\b(?:write|run|ensure)\s+(?:[\w-]+\s+){0,6}(?:tests?|checks?)\b",
     re.IGNORECASE,
 )
+_NEGATED_RETRY_PROHIBITION = re.compile(r"\b(?:never|do\s+not|don'?t)\s+$", re.IGNORECASE)
+
+
+def _is_negated_retry_prohibition(text: str, retry_start: int) -> bool:
+    """Return whether an adjacent negation forbids, rather than requires, retrying."""
+    prefix = text[max(0, retry_start - 20) : retry_start]
+    return bool(_NEGATED_RETRY_PROHIBITION.search(prefix))
 
 
 def _is_bounded_verification_loop(text: str, match: re.Match[str]) -> bool:
@@ -827,6 +837,8 @@ def detect_h2(config: AgentConfig) -> list[Finding]:
             if not _is_direct_match(scope, match.start(), match.end()):
                 continue
             if _is_bounded_verification_loop(text, match):
+                continue
+            if pattern == _RETRY_UNTIL_PATTERN and _is_negated_retry_prohibition(text, match.start()):
                 continue
             start = max(0, match.start() - 20)
             end = min(len(text), match.end() + 40)
