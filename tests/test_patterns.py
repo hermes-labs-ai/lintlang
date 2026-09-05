@@ -460,6 +460,28 @@ class TestH2:
         findings = detect_h2(config)
         assert any(f.severity == Severity.CRITICAL for f in findings)
 
+    def test_bounded_verification_loop_with_explicit_criteria_and_checks(self):
+        """A verification loop is bounded when its local exit is concrete."""
+        config = AgentConfig(
+            system_prompt=(
+                "## Goal-Driven Execution\n\n"
+                "Define success criteria. Loop until verified.\n\n"
+                "Transform tasks into verifiable goals: write tests for invalid inputs, "
+                "then make them pass.\n"
+            )
+        )
+
+        assert not any(f.severity == Severity.CRITICAL for f in detect_h2(config))
+
+    def test_bare_or_retry_loop_remains_critical_despite_success_criteria(self):
+        for prompt in (
+            "Define success criteria. Loop until verified.",
+            "Define success criteria. Loop until verified. Transform tasks into verifiable goals.",
+            "Define success criteria. Keep trying until it succeeds. Write tests and make them pass.",
+        ):
+            findings = detect_h2(AgentConfig(system_prompt=prompt))
+            assert any(f.severity == Severity.CRITICAL for f in findings)
+
     def test_missing_constraints_with_tools(self):
         config = AgentConfig(
             system_prompt="You are an assistant. Use the tools to help.",
