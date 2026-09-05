@@ -257,6 +257,14 @@ pre-commit install
 pre-commit run lintlang
 ```
 
+In CI, after installing `pre-commit`, run that same configured hook across the
+repository:
+
+```yaml
+- name: Lint agent instructions
+  run: pre-commit run lintlang --all-files
+```
+
 Replace or extend `args` with the prompt, tool-definition, agent-configuration,
 or supported directory paths your repository owns. The hook scans only those
 configured paths and reports findings without blocking on a verdict by default.
