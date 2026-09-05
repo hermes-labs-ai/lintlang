@@ -90,6 +90,15 @@ Removing `agent-bad.yaml` and rerunning the same command yields
 nonzero exit is caused by the LintLang `FAIL` verdict and not by the plugin
 load or install path.
 
+The same descriptor was also exercised in the full `oxsecurity/megalinter:v8`
+image (MegaLinter 8.8.0) with `docker run --rm -v "$PWD:/tmp/lint"
+oxsecurity/megalinter:v8`, adding unrelated `README.md`, `notes.txt`,
+`package.json`, and `src/app.py` files to the workspace. The plugin loader
+reported `[Plugins] Install command: pip install --no-cache-dir
+lintlang==0.5.3`, the version probe returned `lintlang 0.5.3`, only the bad
+fixture produced `FAIL`, the unrelated files passed clean, MegaLinter counted
+one error, and the container exited 1; without the bad fixture it exited 0.
+
 The descriptor also validates against MegaLinter's published
 [descriptor JSON schema](https://github.com/oxsecurity/megalinter/blob/main/megalinter/descriptors/schemas/megalinter-descriptor.jsonschema.json).
 
