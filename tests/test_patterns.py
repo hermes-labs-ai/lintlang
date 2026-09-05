@@ -452,6 +452,23 @@ class TestH2:
         findings = detect_h2(config)
         assert any(f.severity == Severity.CRITICAL for f in findings)
 
+    def test_retry_until_still_flags_an_unbounded_retry(self):
+        config = AgentConfig(system_prompt="If push fails, resolve and retry until it succeeds.")
+
+        findings = detect_h2(config)
+
+        assert any(f.severity == Severity.CRITICAL for f in findings)
+
+    def test_negated_retry_prohibition_does_not_flag(self):
+        for prompt in (
+            "Never retry until the prompt stops appearing.",
+            "Do not retry until the user updates the input.",
+            "Don't retry until the test is red again.",
+        ):
+            findings = detect_h2(AgentConfig(system_prompt=prompt))
+
+            assert not any(f.severity == Severity.CRITICAL for f in findings)
+
     def test_dont_stop_pattern(self):
         config = AgentConfig(
             system_prompt="Don't stop until the analysis is complete.",
