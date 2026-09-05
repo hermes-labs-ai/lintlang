@@ -1,8 +1,8 @@
 # LintLang for MegaLinter
 
-This external plugin adds `AI_LINTLANG` to MegaLinter. It scans agent
-instructions, tool definitions, prompts, and Python files containing embedded
-agent language. The plugin is deterministic and makes no LLM calls.
+This external plugin adds `AI_LINTLANG` to MegaLinter. By default, it selects
+conventionally named agent-instruction, prompt, tool, skill, and system files
+for LintLang's deterministic, local scan. The plugin makes no LLM calls.
 
 ## Configure
 
@@ -82,33 +82,16 @@ LOG_LEVEL: INFO
 ```console
 docker run --rm --platform linux/amd64 \
   -v "$PWD:/tmp/lint:rw" -e DEFAULT_WORKSPACE=/tmp/lint \
-  oxsecurity/megalinter-python:v9.4.0
+  oxsecurity/megalinter:v8
 ```
 
-Observed on `oxsecurity/megalinter-python:v9.4.0`
-(digest `sha256:e83df3697c0547024b3a21938f19125564627d86a1ffe6f6a18747c0dfd80d69`):
-
-- `[Plugins] Successful initialization of AI plugins`
-- `- Using [lintlang v0.5.3] https://lintlang.ai/`
-- `- Command: [lintlang scan --fail-on fail .mega-linter.yml agent-bad.yaml
-  agent-clean.yaml mega-linter-plugin-lintlang/lintlang.megalinter-descriptor.yml]`
-- `agent-bad.yaml` → `FAIL` (1 critical, 2 high, 7 medium, 3 low);
-  `agent-clean.yaml` → `PASS`
-- MegaLinter reported `1` error and exited **1**
-
-Removing `agent-bad.yaml` and rerunning the same command yields
-`Successfully linted all files without errors` and exit **0**, confirming the
-nonzero exit is caused by the LintLang `FAIL` verdict and not by the plugin
-load or install path.
-
-The same descriptor was also exercised in the full `oxsecurity/megalinter:v8`
-image (MegaLinter 8.8.0) with `docker run --rm -v "$PWD:/tmp/lint"
-oxsecurity/megalinter:v8`, adding unrelated `README.md`, `notes.txt`,
-`package.json`, and `src/app.py` files to the workspace. The plugin loader
-reported `[Plugins] Install command: pip install --no-cache-dir
-lintlang==0.5.3`, the version probe returned `lintlang 0.5.3`, only the bad
-fixture produced `FAIL`, the unrelated files passed clean, MegaLinter counted
-one error, and the container exited 1; without the bad fixture it exited 0.
+The current selector was exercised in MegaLinter 8.8.0 with a workspace
+containing `AGENTS.md`, `bad-agent.yaml`, and unrelated repository metadata.
+The loader initialized `AI_LINTLANG`, installed LintLang 0.5.3, and selected
+only the two conventionally named instruction surfaces. The bad fixture
+produced the expected `FAIL`; after removing it, MegaLinter selected only
+`AGENTS.md` and exited 0. This is loader and selector compatibility evidence,
+not a claim about a repository's agent behavior or adoption.
 
 The descriptor also validates against MegaLinter's published
 [descriptor JSON schema](https://github.com/oxsecurity/megalinter/blob/main/megalinter/descriptors/schemas/megalinter-descriptor.jsonschema.json).
