@@ -34,9 +34,25 @@ SAFE_PATH_ARGS = ("-P",) if SAFE_PATH_SUPPORTED else ()
 
 
 def _isolated_env() -> dict[str, str]:
-    """Return the parent environment with the working directory off sys.path."""
+    """Return the parent environment with no relative import path.
+
+    `-P` and PYTHONSAFEPATH drop the implicit working-directory entry, but
+    neither filters PYTHONPATH: an inherited relative entry such as `.` is
+    resolved against the child's working directory and would put a directory
+    back on `sys.path`. Absolute entries are the caller's deliberate choice and
+    are preserved.
+    """
     env = os.environ.copy()
     env["PYTHONSAFEPATH"] = "1"
+    python_path = env.get("PYTHONPATH")
+    if python_path:
+        absolute = [
+            entry for entry in python_path.split(os.pathsep) if entry and os.path.isabs(entry)
+        ]
+        if absolute:
+            env["PYTHONPATH"] = os.pathsep.join(absolute)
+        else:
+            env.pop("PYTHONPATH")
     return env
 
 

@@ -71,6 +71,10 @@ def test_repository_is_an_installable_claude_code_marketplace() -> None:
     # silently stopped resolving.
     assert entry["name"] == "lintlang" == plugin["name"]
 
+    # The entry duplicates the description so `/plugin` can show it before the
+    # plugin is fetched; guard it so the two copies cannot silently diverge.
+    assert entry["description"] == plugin["description"]
+
     source = ROOT / entry["source"]
     assert source.is_dir()
     assert (source / ".claude-plugin/plugin.json").is_file()
@@ -145,10 +149,24 @@ def test_isolation_actually_drops_the_working_directory(tmp_path: Path) -> None:
     assert _resolved_from_project(isolated=True) is False
 
 
-def test_executable_is_preferred_over_the_module_route() -> None:
+def test_executable_is_preferred_over_the_module_route(monkeypatch) -> None:
     """The installed console script never resolves against the project cwd."""
     handler = _handler_module()
-    handler.shutil.which = lambda _name: "/usr/local/bin/lintlang"
-    handler._is_pinned = lambda command: True
+    # `handler.shutil` is the shared sys.modules singleton, so this patch has to
+    # be undone at teardown or it leaks into every later test in the session.
+    monkeypatch.setattr(handler.shutil, "which", lambda _name: "/usr/local/bin/lintlang")
+    monkeypatch.setattr(handler, "_is_pinned", lambda command: True)
 
     assert handler._lintlang_command() == ["/usr/local/bin/lintlang"]
+
+
+def test_isolated_env_drops_relative_pythonpath_entries(monkeypatch) -> None:
+    """A relative PYTHONPATH entry would put a directory back on sys.path."""
+    handler = _handler_module()
+    absolute = str(ROOT / "src")
+
+    monkeypatch.setenv("PYTHONPATH", os.pathsep.join([".", absolute, "relative/dir"]))
+    assert handler._isolated_env()["PYTHONPATH"] == absolute
+
+    monkeypatch.setenv("PYTHONPATH", os.pathsep.join([".", "relative/dir"]))
+    assert "PYTHONPATH" not in handler._isolated_env()
