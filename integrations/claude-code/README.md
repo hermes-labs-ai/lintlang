@@ -20,9 +20,22 @@ claude --plugin-dir ./integrations/claude-code
 ```
 
 Claude Code also accepts a plugin ZIP through `--plugin-dir` or a hosted ZIP
-through `--plugin-url`. A marketplace may point at this plugin directory when
-the repository is released; users can then install it with
-`claude plugin install lintlang@<marketplace-name>`.
+through `--plugin-url`.
+
+## Install it as a plugin
+
+The repository root is a Claude Code marketplace
+(`.claude-plugin/marketplace.json`) that catalogs this directory, so no local
+checkout is needed:
+
+```
+/plugin marketplace add hermes-labs-ai/lintlang
+/plugin install lintlang@lintlang
+```
+
+The same two steps are available outside a session as
+`claude plugin marketplace add hermes-labs-ai/lintlang` and
+`claude plugin install lintlang@lintlang`.
 
 Validate the plugin against the installed Claude Code runtime:
 

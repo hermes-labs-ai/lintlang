@@ -12,6 +12,14 @@
 - Optional first-party GitHub Action `baseline` input for both terminal and
   SARIF output, with protection against a SARIF report overwriting the baseline.
   Reports disclose the acknowledged finding count; HERM scores are unchanged.
+- Root Claude Code marketplace manifest (`.claude-plugin/marketplace.json`)
+  cataloging the existing `integrations/claude-code` plugin. Claude Code cannot
+  install a plugin that no marketplace lists, so the adapter previously required
+  a local checkout and `--plugin-dir`; `/plugin marketplace add
+  hermes-labs-ai/lintlang` then `/plugin install lintlang@lintlang` now works
+  from the repository. The marketplace is named `lintlang` rather than
+  `hermes-labs`, which is already taken by the published
+  `hermes-labs-ai/agent-signage` catalog.
 - External MegaLinter plugin exposing the pinned LintLang scanner as
   `AI_LINTLANG`, with an exact configuration guide and clean/failing fixture
   coverage. Verified end to end in `oxsecurity/megalinter-python:v9.4.0`: the
