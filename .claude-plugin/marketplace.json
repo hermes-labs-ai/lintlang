@@ -12,9 +12,7 @@
       "name": "lintlang",
       "source": "./integrations/claude-code",
       "description": "Returns concise LintLang repair guidance after Claude Code changes a supported language-bearing file.",
-      "category": "development",
-      "homepage": "https://lintlang.ai/",
-      "license": "Apache-2.0"
+      "category": "development"
     }
   ]
 }

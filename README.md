@@ -327,7 +327,9 @@ installs without a checkout:
 ```
 
 Its non-blocking `PostToolUse` hook returns LintLang repair guidance after
-Claude Code changes supported files with `Write` or `Edit`. See the
+Claude Code changes supported files with `Write` or `Edit`. Reverse it with
+`claude plugin disable lintlang@lintlang` or `claude plugin uninstall
+lintlang@lintlang`. See the
 [Claude Code plugin guide](integrations/claude-code/README.md) for the
 prerequisite LintLang release and the local `--plugin-dir` route.
 

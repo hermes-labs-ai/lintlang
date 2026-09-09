@@ -12,6 +12,12 @@
 - Optional first-party GitHub Action `baseline` input for both terminal and
   SARIF output, with protection against a SARIF report overwriting the baseline.
   Reports disclose the acknowledged finding count; HERM scores are unchanged.
+- The Claude Code hook now resolves LintLang without putting the edited
+  project's directory on the import path. It prefers the installed `lintlang`
+  executable, and uses `python3 -m lintlang` only with `-P` and
+  `PYTHONSAFEPATH=1` on interpreters that support them. Previously the `-m`
+  probe ran before the pinned version was compared, so a `lintlang.py` in an
+  opened project could be executed by the hook.
 - Root Claude Code marketplace manifest (`.claude-plugin/marketplace.json`)
   cataloging the existing `integrations/claude-code` plugin. Claude Code cannot
   install a plugin that no marketplace lists, so the adapter previously required

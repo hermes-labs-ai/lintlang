@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import shlex
 import shutil
 import subprocess
@@ -15,6 +16,24 @@ from typing import Any
 SUPPORTED_SUFFIXES = {".json", ".md", ".prompt", ".py", ".txt", ".yaml", ".yml"}
 MAX_FINDINGS = 8
 PINNED_VERSION = "0.5.3"
+
+# Claude Code runs hooks with the user's project directory as the working
+# directory, and `python3 -m lintlang` prepends that directory to the child's
+# sys.path. A file named lintlang.py (or a lintlang/ package) in the opened
+# project would then run instead of the installed linter -- including during the
+# `--version` probe, which happens before the pin is compared, so the pin cannot
+# prevent it. `-P` and PYTHONSAFEPATH both drop that entry; they exist from
+# Python 3.11, so on older interpreters the module route is not used at all and
+# the installed `lintlang` executable is the supported path.
+SAFE_PATH_SUPPORTED = sys.version_info >= (3, 11)
+SAFE_PATH_ARGS = ("-P",) if SAFE_PATH_SUPPORTED else ()
+
+
+def _isolated_env() -> dict[str, str]:
+    """Return the parent environment with the working directory off sys.path."""
+    env = os.environ.copy()
+    env["PYTHONSAFEPATH"] = "1"
+    return env
 
 
 def _emit(context: str | None = None) -> None:
@@ -30,21 +49,34 @@ def _emit(context: str | None = None) -> None:
 def _is_pinned(command: list[str]) -> bool:
     try:
         completed = subprocess.run(
-            [*command, "--version"], capture_output=True, check=False, text=True, timeout=3
+            [*command, "--version"],
+            capture_output=True,
+            check=False,
+            text=True,
+            timeout=3,
+            env=_isolated_env(),
         )
     except (OSError, subprocess.TimeoutExpired):
         return False
     return completed.returncode == 0 and completed.stdout.strip() == f"lintlang {PINNED_VERSION}"
 
 
+def _module_command() -> list[str] | None:
+    """Return the `-m lintlang` command only when the cwd can be kept off sys.path."""
+    if not SAFE_PATH_SUPPORTED or importlib.util.find_spec("lintlang") is None:
+        return None
+    return [sys.executable, *SAFE_PATH_ARGS, "-m", "lintlang"]
+
+
 def _lintlang_command() -> list[str] | None:
-    if importlib.util.find_spec("lintlang") is not None:
-        module_command = [sys.executable, "-m", "lintlang"]
-        if _is_pinned(module_command):
-            return module_command
+    # The installed executable is preferred: its sys.path[0] is its own
+    # directory, never the project the hook was invoked in.
     executable = shutil.which("lintlang")
     if executable and _is_pinned([executable]):
         return [executable]
+    module_command = _module_command()
+    if module_command is not None and _is_pinned(module_command):
+        return module_command
     return None
 
 
@@ -115,6 +147,7 @@ def main() -> int:
             check=False,
             text=True,
             timeout=20,
+            env=_isolated_env(),
         )
         payload = json.loads(completed.stdout)
         result = payload[0] if isinstance(payload, list) and payload else None
