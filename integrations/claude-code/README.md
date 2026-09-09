@@ -33,7 +33,7 @@ The repository root is a Claude Code marketplace
 (`.claude-plugin/marketplace.json`) that catalogs this directory, so no local
 checkout is needed:
 
-```
+```text
 /plugin marketplace add hermes-labs-ai/lintlang
 /plugin install lintlang@lintlang
 ```
@@ -44,7 +44,7 @@ The same two steps are available outside a session as
 
 To turn it off again, use the `/plugin` menu or the exact counterparts:
 
-```
+```bash
 claude plugin disable lintlang@lintlang     # keep it installed, stop the hook
 claude plugin uninstall lintlang@lintlang   # remove the plugin
 claude plugin marketplace remove lintlang   # remove the catalog entry too

@@ -98,47 +98,51 @@ def test_module_route_keeps_the_project_directory_off_sys_path() -> None:
     handler = _handler_module()
 
     assert handler._isolated_env()["PYTHONSAFEPATH"] == "1"
+    # The neutral directory is the handler's own; it holds no lintlang module.
+    assert HANDLER.parent == handler.NEUTRAL_CWD
+    assert not list(handler.NEUTRAL_CWD.glob("lintlang*"))
 
+    # The module route stays available on every supported interpreter; only the
+    # extra flag is version-gated.
     command = handler._module_command()
+    assert command is not None
+    assert command[-2:] == ["-m", "lintlang"]
     if handler.SAFE_PATH_SUPPORTED:
-        assert command is not None
         assert "-P" in command
-        assert command.index("-P") < command.index("-m")
-    else:
-        # Nothing can drop the cwd entry on this interpreter, so the module
-        # route is not offered at all and the installed executable is used.
-        assert command is None
 
 
-def test_isolation_flags_actually_drop_the_working_directory(tmp_path: Path) -> None:
+def test_isolation_actually_drops_the_working_directory(tmp_path: Path) -> None:
     """Benign fixture: a uniquely named module, shadowing nothing.
 
-    It only demonstrates whether `-m` resolves modules out of the working
-    directory the hook was invoked in. No real module is shadowed and nothing
-    is overridden.
+    It only demonstrates whether `-m` resolves modules out of the directory the
+    subprocess runs in. No real module is shadowed and nothing is overridden.
     """
     handler = _handler_module()
     probe = "lintlang_cwd_isolation_probe"
     (tmp_path / f"{probe}.py").write_text("print('loaded from cwd')\n", encoding="utf-8")
 
-    def _resolved_from_cwd(args: tuple[str, ...], env: dict[str, str]) -> bool:
+    def _resolved_from_project(*, isolated: bool) -> bool:
+        env = os.environ.copy()
+        env.pop("PYTHONSAFEPATH", None)
         completed = subprocess.run(
-            [sys.executable, *args, "-m", probe],
+            [
+                sys.executable,
+                *(handler.SAFE_PATH_ARGS if isolated else ()),
+                "-m",
+                probe,
+            ],
             capture_output=True,
             check=False,
             text=True,
-            cwd=tmp_path,
-            env=env,
+            cwd=handler.NEUTRAL_CWD if isolated else tmp_path,
+            env=handler._isolated_env() if isolated else env,
         )
         return completed.returncode == 0 and "loaded from cwd" in completed.stdout
 
-    plain = os.environ.copy()
-    plain.pop("PYTHONSAFEPATH", None)
-
-    # Without isolation, `-m` runs code out of the project directory.
-    assert _resolved_from_cwd((), plain) is True
-    # With the flags the handler uses, it does not.
-    assert _resolved_from_cwd(handler.SAFE_PATH_ARGS, handler._isolated_env()) is False
+    # Running from the edited project, `-m` executes code found there.
+    assert _resolved_from_project(isolated=False) is True
+    # Running the way the handler does, it does not.
+    assert _resolved_from_project(isolated=True) is False
 
 
 def test_executable_is_preferred_over_the_module_route() -> None:

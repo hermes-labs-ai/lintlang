@@ -321,7 +321,7 @@ steps.
 The repository root is also a Claude Code marketplace, so the native plugin
 installs without a checkout:
 
-```
+```text
 /plugin marketplace add hermes-labs-ai/lintlang
 /plugin install lintlang@lintlang
 ```
