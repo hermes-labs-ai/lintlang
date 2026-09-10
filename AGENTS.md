@@ -26,6 +26,13 @@
 - proving an agent is safe in production
 - retrieving preferences from history, deciding truth, or silently rewriting/sending prompts
 
+## Key paths
+
+- `src/lintlang/` — package source (detectors, CLI, preflight)
+- `tests/` — pytest suite, including packaging-boundary and doc-consistency checks
+- `samples/` — clean and deliberately bad fixtures used by CI and docs
+- `action.yml` — the GitHub Action wrapper around the CLI
+
 ## Minimal commands
 
 ```bash
@@ -35,6 +42,7 @@ lintlang scan samples/bad_tool_descriptions.yaml
 printf '%s' 'Is it true that X?' | lintlang preflight - --format json
 pytest -q
 ruff check src/ tests/
+python -m build
 ```
 
 ## Output shape
@@ -65,3 +73,11 @@ ruff check src/ tests/
 - keep the tool fully offline and deterministic
 - keep repository `scan` and in-flight `preflight` result types and exit semantics separate
 - keep heuristic preflight findings notice-only; only exact contract/conflict rules may hold
+
+## Definition of done
+
+- `pytest -q` and `ruff check src/ tests/` pass
+- new or changed detector behavior has a covering test and a fixture in `samples/` if user-visible
+- `lintlang scan samples/clean_config.yaml` still exits clean
+- README, `AGENTS.md`, and CLI `--help` output stay consistent with the change
+- no new performance, accuracy, or production-readiness claim was added without evidence
