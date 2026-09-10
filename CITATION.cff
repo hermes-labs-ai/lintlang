@@ -11,7 +11,7 @@ version: "0.5.3"
 date-released: "2026-09-02"
 license: "Apache-2.0"
 repository-code: "https://github.com/hermes-labs-ai/lintlang"
-url: "https://github.com/hermes-labs-ai/lintlang"
+url: "https://lintlang.ai/"
 abstract: >
   lintlang is a zero-LLM static linter for AI agent configurations, tool descriptions,
   and system prompts. It combines HERM v1.1 dimensional scoring (6 dimensions,
