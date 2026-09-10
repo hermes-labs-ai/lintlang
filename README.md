@@ -138,6 +138,85 @@ Baseline matching is exact and count-limited. Changed findings and findings in
 another file remain visible. Invalid inputs still fail; HERM scores are
 unchanged. See the guide for CI configuration, maintenance, and matching limits.
 
+## First run without a checkout
+
+No clone, no credential. You write two small files and run three scans.
+
+Only the install reaches the network — `pip` resolves and downloads from your
+package index. Every `lintlang scan` below is offline and deterministic: it
+reads the file you name and nothing else, no credential, no private file, no
+network.
+
+```bash
+python -m pip install lintlang==0.5.3
+
+cat > /tmp/agent.yaml <<'YAML'
+system_prompt: |
+  You are a support agent. Use the tools to help the user.
+tools:
+  - name: process_ticket
+    description: ""
+    parameters:
+      type: object
+      properties:
+        ticket_id:
+          type: string
+YAML
+
+lintlang scan /tmp/agent.yaml --fail-on fail
+```
+
+The pin is the release this block was verified against; drop it to take the
+latest, and re-read the counts below as approximate if you do.
+
+`lintlang 0.5.3` reports `FAIL — 1 CRITICAL, 1 HIGH, 1 MEDIUM` and exits `1`.
+The `CRITICAL` is `H1.1 tool:process_ticket` — "Tool 'process_ticket' has no
+description." Under `--fail-on fail` that exit `1` is a successful detection,
+not a broken install. Do not hide it with `|| true`.
+
+Give the tool a disambiguating description and add the bounds `H2` looks for:
+
+```bash
+cat > /tmp/agent-fixed.yaml <<'YAML'
+system_prompt: |
+  You are a support agent. Use the tools to help the user.
+  Stop and report the failure once the retry limit is reached.
+tools:
+  - name: process_ticket
+    description: "Apply a resolution action to one existing support ticket. Use this only after the ticket has been read; do NOT use it to look tickets up."
+    parameters:
+      type: object
+      properties:
+        ticket_id:
+          type: string
+          description: "Identifier of the existing ticket to act on"
+      required: [ticket_id]
+constraints:
+  max_iterations: 3
+  timeout_seconds: 30
+YAML
+
+lintlang scan /tmp/agent-fixed.yaml --fail-on fail
+```
+
+`H1.1` is gone. On `lintlang 0.5.3` this pair of files scans `PASS — 0
+findings` and exits `0`.
+
+An input that cannot be scanned stays a separate outcome, so CI can tell
+"findings" apart from "the linter never ran":
+
+```bash
+lintlang scan /tmp/does-not-exist.yaml --fail-on fail
+```
+
+That prints the verdict `ERROR` with `Input error: File not found` and exits
+nonzero. `--format json` carries the same distinction as `verdict` plus a
+non-null `input_error`.
+
+`PASS` here means the selected checks found nothing above `LOW` in the content
+lintlang extracted from these two files. It is not evidence that the agent is
+safe or runtime-correct.
+
 ## Try the bundled example
 
 The source repository includes a deliberately broken example:
