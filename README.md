@@ -166,8 +166,15 @@ YAML
 lintlang scan /tmp/agent.yaml --fail-on fail
 ```
 
-The pin is the release this block was verified against; drop it to take the
-latest, and re-read the counts below as approximate if you do.
+The pin is the release this block was verified against. To take the latest
+release instead, run:
+
+```bash
+python -m pip install --upgrade lintlang
+```
+
+and re-read the counts below as approximate — a newer release may report
+different findings.
 
 `lintlang 0.5.3` reports `FAIL — 1 CRITICAL, 1 HIGH, 1 MEDIUM` and exits `1`.
 The `CRITICAL` is `H1.1 tool:process_ticket` — "Tool 'process_ticket' has no
@@ -199,8 +206,9 @@ YAML
 lintlang scan /tmp/agent-fixed.yaml --fail-on fail
 ```
 
-`H1.1` is gone. On `lintlang 0.5.3` this pair of files scans `PASS — 0
-findings` and exits `0`.
+`H1.1` is gone. On `lintlang 0.5.3` the fixed file scans `PASS — 0 findings`
+and exits `0`. Only `/tmp/agent-fixed.yaml` passes: the original
+`/tmp/agent.yaml` still scans `FAIL` and still exits `1`.
 
 An input that cannot be scanned stays a separate outcome, so CI can tell
 "findings" apart from "the linter never ran":
@@ -214,8 +222,8 @@ nonzero. `--format json` carries the same distinction as `verdict` plus a
 non-null `input_error`.
 
 `PASS` here means the selected checks found nothing above `LOW` in the content
-lintlang extracted from these two files. It is not evidence that the agent is
-safe or runtime-correct.
+lintlang extracted from `/tmp/agent-fixed.yaml`. It is not evidence that the
+agent is safe or runtime-correct.
 
 ## Try the bundled example
 

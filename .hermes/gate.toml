@@ -1,0 +1,67 @@
+version = 1
+
+[gate]
+fast_budget_seconds = 8.0
+full_required_local = false
+adapter_status = "NATIVE_DEFAULT"
+exclusions = [".git/**", ".hermes/hermes_gate_runner.py", ".pytest_cache/**", ".ruff_cache/**", "**/__pycache__/**", "vendor/**", "node_modules/**", "dist/**", "build/**"]
+
+[adapter]
+enabled = false
+name = "native"
+argv = []
+minimum_version = ""
+
+[lintlang]
+enabled = true
+argv = ["lintlang", "scan", "--format", "json", "--fail-on", "review", "{files}"]
+trigger_globs = ["**/AGENTS.md", "**/CLAUDE.md", "**/prompts/**", "**/*.prompt", ".codex/**", ".claude/**"]
+timeout_seconds = 4.0
+blocking_threshold = "MEDIUM"
+
+[review]
+provider = "coderabbit"
+argv = ["coderabbit", "review", "--agent"]
+timeout_seconds = 180.0
+material_severities = ["critical", "major"]
+material_categories = ["correctness", "security", "data-loss", "concurrency", "api-contract"]
+fallback_argv = []
+
+[[fast]]
+name = "ruff"
+argv = ["ruff", "check", "{files}"]
+timeout_seconds = 6.0
+globs = ["**/*.py"]
+
+[[fast]]
+name = "python-parse"
+argv = ["python3", "-c", "import ast,pathlib,sys; [ast.parse(pathlib.Path(p).read_bytes(), filename=p) for p in sys.argv[1:]]", "{files}"]
+timeout_seconds = 6.0
+globs = ["**/*.py"]
+
+[[fast]]
+name = "diff-check"
+argv = ["python3", ".hermes/hermes_gate_runner.py", "diff-check", "{files}"]
+timeout_seconds = 4.0
+globs = ["**/*"]
+
+[[full]]
+name = "ruff"
+# The generated runner is kept byte-for-byte (see .hermes/gate.toml exclusions
+# and the recorded runner_sha256), so its three SIM105 findings cannot be
+# repaired here. Exclude only that file; everything else is still linted.
+argv = ["ruff", "check", "--exclude", ".hermes/hermes_gate_runner.py", "."]
+timeout_seconds = 60.0
+globs = ["**/*"]
+
+[[full]]
+name = "pytest"
+argv = ["python3", "-c", "import sys; sys.path.insert(0, 'src'); import pytest; raise SystemExit(pytest.main(['-q']))"]
+timeout_seconds = 180.0
+globs = ["**/*"]
+
+[[repair]]
+name = "ruff-fix"
+argv = ["ruff", "check", "--fix", "{files}"]
+timeout_seconds = 8.0
+globs = ["**/*.py"]
