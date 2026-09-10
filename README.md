@@ -316,6 +316,23 @@ pinned release at run time through MegaLinter's plugin loader. See the
 `PLUGINS` and `ENABLE_LINTERS` configuration and the container verification
 steps.
 
+## Use it with Claude Code
+
+The repository root is also a Claude Code marketplace, so the native plugin
+installs without a checkout:
+
+```text
+/plugin marketplace add hermes-labs-ai/lintlang
+/plugin install lintlang@lintlang
+```
+
+Its non-blocking `PostToolUse` hook returns LintLang repair guidance after
+Claude Code changes supported files with `Write` or `Edit`. Reverse it with
+`claude plugin disable lintlang@lintlang` or `claude plugin uninstall
+lintlang@lintlang`. See the
+[Claude Code plugin guide](integrations/claude-code/README.md) for the
+prerequisite LintLang release and the local `--plugin-dir` route.
+
 ## Use it with Gemini CLI
 
 The repository root is also a Gemini CLI extension. Its non-blocking

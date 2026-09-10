@@ -13,6 +13,11 @@ Install the adapter's tested LintLang release so `lintlang` is on `PATH`:
 pipx install lintlang==0.5.3
 ```
 
+The hook prefers that installed `lintlang` executable. It falls back to
+`python3 -m lintlang` only on interpreters that support `-P` and
+`PYTHONSAFEPATH`, so the directory Claude Code happens to be working in is never
+placed on the resolver's import path.
+
 ## Try the plugin from this checkout
 
 ```bash
@@ -20,9 +25,30 @@ claude --plugin-dir ./integrations/claude-code
 ```
 
 Claude Code also accepts a plugin ZIP through `--plugin-dir` or a hosted ZIP
-through `--plugin-url`. A marketplace may point at this plugin directory when
-the repository is released; users can then install it with
-`claude plugin install lintlang@<marketplace-name>`.
+through `--plugin-url`.
+
+## Install it as a plugin
+
+The repository root is a Claude Code marketplace
+(`.claude-plugin/marketplace.json`) that catalogs this directory, so no local
+checkout is needed:
+
+```text
+/plugin marketplace add hermes-labs-ai/lintlang
+/plugin install lintlang@lintlang
+```
+
+The same two steps are available outside a session as
+`claude plugin marketplace add hermes-labs-ai/lintlang` and
+`claude plugin install lintlang@lintlang`.
+
+To turn it off again, use the `/plugin` menu or the exact counterparts:
+
+```bash
+claude plugin disable lintlang@lintlang     # keep it installed, stop the hook
+claude plugin uninstall lintlang@lintlang   # remove the plugin
+claude plugin marketplace remove lintlang   # remove the catalog entry too
+```
 
 Validate the plugin against the installed Claude Code runtime:
 

@@ -1,0 +1,18 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "lintlang",
+  "description": "The LintLang Claude Code plugin from Hermes Labs.",
+  "owner": {
+    "name": "Hermes Labs",
+    "email": "roli@hermes-labs.ai",
+    "url": "https://github.com/hermes-labs-ai"
+  },
+  "plugins": [
+    {
+      "name": "lintlang",
+      "source": "./integrations/claude-code",
+      "description": "Returns concise LintLang repair guidance after Claude Code changes a supported language-bearing file.",
+      "category": "development"
+    }
+  ]
+}
