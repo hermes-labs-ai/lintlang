@@ -1,0 +1,16 @@
+name: LintLang
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  language-contract:
+    uses: hermes-labs-ai/.github/.github/workflows/reusable-lintlang.yml@main
+    with:
+      path: AGENTS.md
