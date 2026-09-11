@@ -1,6 +1,13 @@
 name: Archive to Software Heritage
 
 on:
+  # release-sync.yml creates the GitHub Release with the workflow token, and
+  # GitHub does not fire release events for token-created releases, so the
+  # tag push is the trigger that actually runs. Save Code Now archives the
+  # whole origin, so a duplicate request on a manual release is harmless.
+  push:
+    tags:
+      - "v*"
   release:
     types: [published]
 
@@ -13,6 +20,8 @@ jobs:
       - name: Request Save Code Now archival
         run: |
           curl --fail --silent --show-error \
+            --connect-timeout 10 \
+            --max-time 60 \
             --request POST \
             "https://archive.softwareheritage.org/api/1/origin/save/git/url/https://github.com/${GITHUB_REPOSITORY}/"
         env:
