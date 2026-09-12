@@ -10,7 +10,7 @@ never rewrites files or blocks a tool call.
 Install the pinned LintLang release so `lintlang` is on `PATH`:
 
 ```bash
-pipx install lintlang==0.5.3
+pipx install lintlang==0.6.0
 ```
 
 Copy `lintlang.js` into `.opencode/plugins/` (project-local) or

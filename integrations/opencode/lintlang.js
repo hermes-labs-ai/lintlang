@@ -3,7 +3,7 @@
 const SUPPORTED_SUFFIXES = new Set([".json", ".md", ".prompt", ".py", ".txt", ".yaml", ".yml"])
 const EDIT_TOOLS = new Set(["edit", "multiedit", "patch", "write", "apply_patch"])
 const MAX_FINDINGS = 8
-const PINNED_VERSION = "0.5.3"
+const PINNED_VERSION = "0.6.0"
 
 function pathsFrom(value) {
   if (!value || typeof value !== "object") return []

@@ -4,18 +4,11 @@ Baselines acknowledge a reviewed set of existing structural findings. They let
 a repository enable a gate while its maintainers work through that backlog.
 The default scanner behavior is unchanged until you pass `--baseline`.
 
-**Availability:** this feature is unreleased. After this change is merged,
-install the development source, preferably in a virtual environment:
+**Availability:** included in LintLang 0.6.0 and later. Install the release:
 
 ```bash
-python -m pip install 'git+https://github.com/hermes-labs-ai/lintlang.git@main'
+python -m pip install lintlang==0.6.0
 ```
-
-For reproducible installation, replace `main` with the full reviewed commit
-SHA. You can also install an existing checkout with
-`python -m pip install /path/to/lintlang`. The published `lintlang==0.5.3`
-package and `v0.5.3` Action do not support these options; source installations
-may report that same version until the next release.
 
 ## Start from a reviewed scan
 
@@ -53,10 +46,9 @@ never acknowledged.
 
 ## GitHub Action
 
-Use the optional `baseline` input with an Action commit that contains this
-feature. The Action installs the scanner from that same commit. After the
-change is merged, replace `<BASELINE_ENABLED_COMMIT_SHA>` below with its full
-reviewed commit SHA; `v0.5.3` cannot be used for this workflow.
+Use the optional `baseline` input with the released Action. The Action installs
+the scanner from the same version. Teams requiring immutable pins can replace
+`v0.6.0` with the full commit SHA from that release.
 
 ```yaml
 name: Lint agent instructions
@@ -70,7 +62,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: hermes-labs-ai/lintlang@<BASELINE_ENABLED_COMMIT_SHA>
+      - uses: hermes-labs-ai/lintlang@v0.6.0
         with:
           path: AGENTS.md
           baseline: .lintlang-baseline.json
