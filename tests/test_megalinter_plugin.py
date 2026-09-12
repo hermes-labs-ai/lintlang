@@ -4,6 +4,7 @@ from pathlib import Path
 
 import yaml
 
+from lintlang import __version__
 from lintlang.cli import main
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -38,7 +39,7 @@ def test_megalinter_descriptor_contract() -> None:
     assert linter["supported_cli_lint_modes"] == ["list_of_files"]
     assert linter["cli_lint_extra_args"] == ["scan", "--fail-on", "fail"]
     assert linter["install"]["dockerfile"] == [
-        "RUN pip install --no-cache-dir lintlang==0.5.3"
+        f"RUN pip install --no-cache-dir lintlang=={__version__}"
     ]
 
 
