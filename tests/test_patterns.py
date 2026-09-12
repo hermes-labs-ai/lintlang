@@ -469,6 +469,35 @@ class TestH2:
 
             assert not any(f.severity == Severity.CRITICAL for f in findings)
 
+    def test_negated_loop_prohibition_does_not_flag(self):
+        """A config that FORBIDS the unbounded behavior must not be reported as unbounded.
+
+        Regression: scanning a real agent config scored CRITICAL on the clause
+        "call `codex-claude await <lane-id>` once; do not loop over `claude
+        agents`" — the detector matched the verb and ignored the negation,
+        inverting the config's own meaning.
+        """
+        for prompt in (
+            "Call `codex-claude await <lane-id>` once; do not loop over `claude agents`.",
+            "Never loop through the agent roster; request one snapshot instead.",
+            "Don't loop until the queue drains; report the first terminal result.",
+            "Do not continue indefinitely; stop at the first terminal result.",
+        ):
+            findings = detect_h2(AgentConfig(system_prompt=prompt))
+
+            assert not any(f.severity == Severity.CRITICAL for f in findings), prompt
+
+    def test_unbounded_patterns_still_flag_without_adjacent_negation(self):
+        """The negation guard must not open a false negative."""
+        for prompt in (
+            "Loop over every candidate until the score improves.",
+            "Never stop: loop until done.",
+            "Continue indefinitely while new items arrive.",
+        ):
+            findings = detect_h2(AgentConfig(system_prompt=prompt))
+
+            assert any(f.severity == Severity.CRITICAL for f in findings), prompt
+
     def test_dont_stop_pattern(self):
         config = AgentConfig(
             system_prompt="Don't stop until the analysis is complete.",

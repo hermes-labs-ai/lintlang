@@ -771,13 +771,19 @@ _VERIFICATION_GUIDANCE = re.compile(
     r"\bverify\s*:\s*\S|\b(?:write|run|ensure)\s+(?:[\w-]+\s+){0,6}(?:tests?|checks?)\b",
     re.IGNORECASE,
 )
-_NEGATED_RETRY_PROHIBITION = re.compile(r"\b(?:never|do\s+not|don'?t)\s+$", re.IGNORECASE)
+_NEGATED_PROHIBITION = re.compile(r"\b(?:never|do\s+not|don'?t)\s+$", re.IGNORECASE)
 
 
-def _is_negated_retry_prohibition(text: str, retry_start: int) -> bool:
-    """Return whether an adjacent negation forbids, rather than requires, retrying."""
-    prefix = text[max(0, retry_start - 20) : retry_start]
-    return bool(_NEGATED_RETRY_PROHIBITION.search(prefix))
+def _is_negated_prohibition(text: str, match_start: int) -> bool:
+    """Return whether an adjacent negation forbids, rather than requires, the behavior.
+
+    A config that says ``do not loop over the agent list`` is prohibiting the
+    unbounded behavior, not instructing it, so reporting it inverts the config's
+    own meaning.  The negation must sit immediately before the matched verb,
+    which keeps a genuinely unbounded ``Never stop: loop until done`` flagged.
+    """
+    prefix = text[max(0, match_start - 20) : match_start]
+    return bool(_NEGATED_PROHIBITION.search(prefix))
 
 
 def _is_bounded_verification_loop(text: str, match: re.Match[str]) -> bool:
@@ -838,7 +844,7 @@ def detect_h2(config: AgentConfig) -> list[Finding]:
                 continue
             if _is_bounded_verification_loop(text, match):
                 continue
-            if pattern == _RETRY_UNTIL_PATTERN and _is_negated_retry_prohibition(text, match.start()):
+            if _is_negated_prohibition(text, match.start()):
                 continue
             start = max(0, match.start() - 20)
             end = min(len(text), match.end() + 40)
