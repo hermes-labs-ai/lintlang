@@ -1,7 +1,7 @@
 {
   "$schema": "https://anthropic.com/claude-code/plugin.schema.json",
   "name": "lintlang",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Returns concise LintLang repair guidance after Claude Code changes a supported language-bearing file.",
   "author": {
     "name": "Hermes Labs",

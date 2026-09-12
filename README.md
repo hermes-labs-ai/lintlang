@@ -150,7 +150,7 @@ reads the file you name and nothing else, no credential, no private file, no
 network.
 
 ```bash
-python -m pip install lintlang==0.5.3
+python -m pip install lintlang==0.6.0
 
 cat > /tmp/agent.yaml <<'YAML'
 system_prompt: |
@@ -178,7 +178,7 @@ python -m pip install --upgrade lintlang
 and re-read the counts below as approximate — a newer release may report
 different findings.
 
-`lintlang 0.5.3` reports `FAIL — 1 CRITICAL, 1 HIGH, 1 MEDIUM` and exits `1`.
+`lintlang 0.6.0` reports `FAIL — 1 CRITICAL, 1 HIGH, 1 MEDIUM` and exits `1`.
 The `CRITICAL` is `H1.1 tool:process_ticket` — "Tool 'process_ticket' has no
 description." Under `--fail-on fail` that exit `1` is a successful detection,
 not a broken install. Do not hide it with `|| true`.
@@ -208,7 +208,7 @@ YAML
 lintlang scan /tmp/agent-fixed.yaml --fail-on fail
 ```
 
-`H1.1` is gone. On `lintlang 0.5.3` the fixed file scans `PASS — 0 findings`
+`H1.1` is gone. On `lintlang 0.6.0` the fixed file scans `PASS — 0 findings`
 and exits `0`. Only `/tmp/agent-fixed.yaml` passes: the original
 `/tmp/agent.yaml` still scans `FAIL` and still exits `1`.
 
@@ -238,10 +238,10 @@ cd lintlang
 lintlang scan samples/bad_tool_descriptions.yaml --fail-on fail
 ```
 
-Excerpt from `lintlang 0.5.3`:
+Excerpt from `lintlang 0.6.0`:
 
 ```text
-LINTLANG v0.5.3
+LINTLANG v0.6.0
 
 FAIL — 1 CRITICAL, 2 HIGH, 7 MEDIUM, 3 LOW
 
@@ -321,7 +321,7 @@ jobs:
           persist-credentials: false
 
       - name: Inspect agent instructions
-        uses: hermes-labs-ai/lintlang@v0.5.3
+        uses: hermes-labs-ai/lintlang@v0.6.0
         with:
           path: AGENTS.md
 ```
@@ -362,7 +362,7 @@ to scan:
 ```yaml
 repos:
   - repo: https://github.com/hermes-labs-ai/lintlang
-    rev: v0.5.3
+    rev: v0.6.0
     hooks:
       - id: lintlang
         args: [AGENTS.md]

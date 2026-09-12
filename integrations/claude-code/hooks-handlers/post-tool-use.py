@@ -15,7 +15,7 @@ from typing import Any
 
 SUPPORTED_SUFFIXES = {".json", ".md", ".prompt", ".py", ".txt", ".yaml", ".yml"}
 MAX_FINDINGS = 8
-PINNED_VERSION = "0.5.3"
+PINNED_VERSION = "0.6.0"
 
 # Claude Code runs hooks with the user's project directory as the working
 # directory, and `python3 -m lintlang` prepends the working directory to the

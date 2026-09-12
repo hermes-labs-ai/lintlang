@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## [0.6.0] - 2026-09-12
 
 ### Added
 
@@ -31,6 +31,11 @@
   coverage. Verified end to end in `oxsecurity/megalinter-python:v9.4.0`: the
   descriptor loads, `lintlang==0.5.3` installs at run time, a failing fixture
   exits 1, and a clean-only workspace exits 0.
+
+### Fixed
+
+- H2 recognizes explicit local verification bounds and negated retry
+  prohibitions, reducing false positives for those instruction patterns.
 
 ## [0.5.3] - 2026-09-02
 

@@ -10,7 +10,7 @@ The adapter never rewrites files and never blocks a tool call.
 Install the adapter's tested LintLang release so `lintlang` is on `PATH`:
 
 ```bash
-pipx install lintlang==0.5.3
+pipx install lintlang==0.6.0
 ```
 
 The hook prefers that installed `lintlang` executable. It falls back to
