@@ -8,6 +8,8 @@
 
 **Product page:** [lintlang.ai](https://lintlang.ai/)
 
+**Try in your browser:** [hermes-labs.ai/lintlang#playground](https://hermes-labs.ai/lintlang#playground) runs a real LintLang scan locally in your browser, with no account, API key, model call, or upload.
+
 **LintLang statically analyzes the natural-language instructions that control
 AI agents, catching ambiguous tools, missing limits, and conflicting directives
 before runtime.**
