@@ -24,7 +24,7 @@ PLUGINS:
 ```
 
 MegaLinter's plugin loader runs the descriptor's `install` step at run time
-(`pip install --no-cache-dir lintlang==0.5.3`) inside the existing MegaLinter
+(`pip install --no-cache-dir lintlang==0.6.0`) inside the existing MegaLinter
 image, then invokes:
 
 ```console
@@ -87,7 +87,8 @@ docker run --rm --platform linux/amd64 \
 
 The current selector was exercised in MegaLinter 8.8.0 with a workspace
 containing `AGENTS.md`, `bad-agent.yaml`, and unrelated repository metadata.
-The loader initialized `AI_LINTLANG`, installed LintLang 0.5.3, and selected
+The recorded MegaLinter 8.8.0 trial initialized `AI_LINTLANG`, installed
+LintLang 0.5.3, and selected
 only the two conventionally named instruction surfaces. The bad fixture
 produced the expected `FAIL`; after removing it, MegaLinter selected only
 `AGENTS.md` and exited 0. This is loader and selector compatibility evidence,
