@@ -80,9 +80,9 @@ def _normalize(data: dict, source_file: str) -> AgentConfig:
     # Extract tools
     tools_data = data.get("tools", data.get("functions", []))
     if isinstance(tools_data, list):
-        for td in tools_data:
+        for index, td in enumerate(tools_data):
             if isinstance(td, dict):
-                tool = _parse_tool(td)
+                tool = _parse_tool(td, index=index)
                 if tool:
                     config.tools.append(tool)
 
@@ -116,7 +116,7 @@ def _normalize(data: dict, source_file: str) -> AgentConfig:
     return config
 
 
-def _parse_tool(data: dict) -> ToolDef | None:
+def _parse_tool(data: dict, index: int | None = None) -> ToolDef | None:
     """Parse a tool definition from various formats."""
     # OpenAI function calling format
     if data.get("type") == "function" and "function" in data:
@@ -129,8 +129,20 @@ def _parse_tool(data: dict) -> ToolDef | None:
 
     # Direct format (name + description at top level)
     if "name" in data:
+        name = data["name"]
+        if not isinstance(name, str):
+            location = f"tools[{index}].name" if index is not None else "tools.name"
+            yaml_type = {
+                bool: "boolean",
+                int: "integer",
+                float: "number",
+                type(None): "null",
+                list: "array",
+                dict: "object",
+            }.get(type(name), type(name).__name__)
+            raise ValueError(f"{location} must be a string, got {yaml_type}")
         return ToolDef(
-            name=data["name"],
+            name=name,
             description=data.get("description", ""),
             parameters=data.get("parameters", data.get("input_schema", {})),
         )
