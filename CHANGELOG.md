@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- HERM recognizes explicit prose priority statements such as
+  `Priority order is: … then …` without treating absence or uncertainty
+  language as an ordering. A public-safe machine-readable case and scanner
+  fixture preserve this boundary.
+
 ## [0.6.0] - 2026-09-12
 
 ### Added
