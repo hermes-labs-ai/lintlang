@@ -499,6 +499,34 @@ class TestH2:
             findings = detect_h2(AgentConfig(system_prompt=prompt))
             assert any(f.severity == Severity.CRITICAL for f in findings)
 
+    def test_loop_over_through_finite_collection_does_not_flag(self):
+        """'Loop over/through' describing ordinary enumeration is not an infinite-loop risk."""
+        for prompt in (
+            "Loop through each file in the folder, appending its contents to the report.",
+            "Loop over the search results and extract the title of each one.",
+            "Loop through every brick and check if the ball's center is within its bounds.",
+        ):
+            findings = detect_h2(AgentConfig(system_prompt=prompt))
+            assert not any(f.severity == Severity.CRITICAL for f in findings)
+
+    def test_loop_over_through_with_indefinite_signal_still_flags(self):
+        """An explicit indefinite-continuation signal keeps 'loop over/through' as a real risk."""
+        for prompt in (
+            "Loop over the queue indefinitely, processing new items as they arrive.",
+            "Loop through the task list forever until told otherwise.",
+        ):
+            findings = detect_h2(AgentConfig(system_prompt=prompt))
+            assert any(f.severity == Severity.CRITICAL for f in findings)
+
+    def test_negated_indefinite_loop_traversal_does_not_flag(self):
+        """A prohibition against indefinite traversal is not an unbounded-loop instruction."""
+        for prompt in (
+            "Do not loop over the queue indefinitely.",
+            "Never loop through the task list forever.",
+        ):
+            findings = detect_h2(AgentConfig(system_prompt=prompt))
+            assert not any(f.severity == Severity.CRITICAL for f in findings)
+
     def test_missing_constraints_with_tools(self):
         config = AgentConfig(
             system_prompt="You are an assistant. Use the tools to help.",
@@ -661,6 +689,28 @@ class TestH4:
         )
         findings = detect_h4(config)
         assert any("entire history" in f.description.lower() for f in findings)
+
+    def test_always_persist_domain_invariant_does_not_flag(self):
+        """'Always keep/maintain/remember' over a domain object is not context-boundary erosion."""
+        for prompt in (
+            "Always maintain respect for the author's voice while improving clarity.",
+            "Always maintain backward compatibility.",
+            "Always keep responses under 200 words.",
+            "Always maintain state consistency.",
+            "Always keep results sorted.",
+        ):
+            findings = detect_h4(AgentConfig(system_prompt=prompt))
+            assert not any("persistence without scope" in f.description.lower() for f in findings)
+
+    def test_always_persist_cross_context_still_flags(self):
+        """'Always keep/maintain/remember' naming context/history/prior state is still erosion risk."""
+        for prompt in (
+            "Always keep track of what the user said before.",
+            "Always remember the full conversation history so nothing is lost between requests.",
+            "Always maintain the previous session's state across tasks.",
+        ):
+            findings = detect_h4(AgentConfig(system_prompt=prompt))
+            assert any("persistence without scope" in f.description.lower() for f in findings)
 
     def test_long_prompt_no_boundaries(self):
         config = AgentConfig(system_prompt="x " * 300)  # Long prompt, no boundary markers
