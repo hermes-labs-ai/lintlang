@@ -65,6 +65,9 @@ SIGNALS = {
     ],
     "priority": [
         r"priority\s*\d",
+        r"\bpriority\s+(?:order|ordering)\s+is\s*:"
+        r"(?![^.!?]{0,240}\b(?:unclear|absent|unknown|unspecified|missing|not|no)\b)"
+        r"[^.!?]{1,240}\b(?:then|before|after|over)\b",
         r"most important",
         r"override",
         r"when conflict",
