@@ -518,6 +518,26 @@ class TestH2:
             findings = detect_h2(AgentConfig(system_prompt=prompt))
             assert any(f.severity == Severity.CRITICAL for f in findings)
 
+    def test_loop_over_through_signal_in_later_clause_does_not_flag(self):
+        """An indefinite signal in a later sentence or clause does not qualify the traversal."""
+        for prompt in (
+            "Loop through the files in the folder. Continuously monitor the log for errors.",
+            "Loop over the results; the service runs continuously.",
+            "Loop through each file, then continuously watch for new uploads.",
+            "Loop over the rows\nRun the scheduler forever.",
+        ):
+            findings = detect_h2(AgentConfig(system_prompt=prompt))
+            assert not any(f.severity == Severity.CRITICAL for f in findings), prompt
+
+    def test_loop_over_through_signal_in_same_clause_still_flags(self):
+        """Clause scoping keeps same-clause signals and ignores negations in earlier sentences."""
+        for prompt in (
+            "Loop over incoming events, continuously polling for new ones.",
+            "Do not stop early. Loop over the queue indefinitely.",
+        ):
+            findings = detect_h2(AgentConfig(system_prompt=prompt))
+            assert any(f.severity == Severity.CRITICAL for f in findings), prompt
+
     def test_negated_indefinite_loop_traversal_does_not_flag(self):
         """A prohibition against indefinite traversal is not an unbounded-loop instruction."""
         for prompt in (
@@ -701,6 +721,27 @@ class TestH4:
         ):
             findings = detect_h4(AgentConfig(system_prompt=prompt))
             assert not any("persistence without scope" in f.description.lower() for f in findings)
+
+    def test_always_persist_bare_temporal_or_later_clause_does_not_flag(self):
+        """Bare temporal words and context nouns in a later clause are not persistence evidence."""
+        for prompt in (
+            "Always keep results sorted before returning them.",
+            "Always keep responses short. Previous messages are irrelevant.",
+            "Always maintain a formal tone; the conversation history is handled elsewhere.",
+            "Always keep answers concise, and never reuse past context.",
+        ):
+            findings = detect_h4(AgentConfig(system_prompt=prompt))
+            assert not any("persistence without scope" in f.description.lower() for f in findings), prompt
+
+    def test_always_persist_contextual_prior_phrases_still_flag(self):
+        """Temporal words tied to a prior-state object in the same clause remain erosion risk."""
+        for prompt in (
+            "Always remember details from before.",
+            "Always keep the prior session's decisions in mind.",
+            "Always maintain consistency with previous answers.",
+        ):
+            findings = detect_h4(AgentConfig(system_prompt=prompt))
+            assert any("persistence without scope" in f.description.lower() for f in findings), prompt
 
     def test_always_persist_cross_context_still_flags(self):
         """'Always keep/maintain/remember' naming context/history/prior state is still erosion risk."""
