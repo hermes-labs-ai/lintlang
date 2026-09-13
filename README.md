@@ -415,6 +415,8 @@ installs without a checkout:
 /plugin install lintlang@lintlang
 ```
 
+LintLang is also indexed in the third-party [Claude Market directory](https://claudemarket.ai/hermes/tools/tools-lintlang); the marketplace commands above remain the supported install route.
+
 Its non-blocking `PostToolUse` hook returns LintLang repair guidance after
 Claude Code changes supported files with `Write` or `Edit`. Reverse it with
 `claude plugin disable lintlang@lintlang` or `claude plugin uninstall
