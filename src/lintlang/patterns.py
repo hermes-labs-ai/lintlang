@@ -784,6 +784,24 @@ _NEGATED_UNBOUNDED_LOOP = re.compile(
 )
 
 
+_CLAUSE_BOUNDARY = re.compile(
+    r"[.!?](?=\s|$)|[;\n]|,\s*(?:and|but|or|so|then|while|whereas)\b",
+    re.IGNORECASE,
+)
+
+
+def _immediate_clause(text: str, start: int, limit: int = 80) -> str:
+    """Return text from ``start`` up to the nearest sentence or clause boundary.
+
+    Qualifier signals for a matched phrase must come from the phrase's own
+    clause; a later sentence, semicolon clause, or coordinated clause says
+    nothing about it.
+    """
+    window = text[start : start + limit]
+    boundary = _CLAUSE_BOUNDARY.search(window)
+    return window[: boundary.start()] if boundary else window
+
+
 def _is_negated_retry_prohibition(text: str, retry_start: int) -> bool:
     """Return whether an adjacent negation forbids, rather than requires, retrying."""
     prefix = text[max(0, retry_start - 20) : retry_start]
@@ -799,7 +817,7 @@ def _is_unbounded_loop_traversal(text: str, match: re.Match[str]) -> bool:
     infinite loop when the same clause also carries an explicit indefinite-
     continuation signal (e.g. "loop over tasks indefinitely").
     """
-    window = text[match.end() : match.end() + 80]
+    window = _immediate_clause(text, match.end())
     signal = _UNBOUNDED_CONTINUATION_SIGNALS.search(window)
     if signal is None:
         return False
@@ -1040,7 +1058,11 @@ EROSION_PATTERNS = [
 ]
 
 _CROSS_CONTEXT_PERSISTENCE_SIGNALS = re.compile(
-    r"\b(?:context|history|conversation|memory|session|thread|prior|previous|past|before|"
+    r"\b(?:context|history|conversation|memory|session|thread|"
+    r"(?:prior|previous|past|earlier)\s+(?:[\w'-]+\s+){0,2}?"
+    r"(?:state|sessions?|tasks?|turns?|requests?|conversations?|contexts?|messages?|"
+    r"results?|interactions?|exchanges?|answers?|responses?|outputs?|chats?)|"
+    r"from\s+(?:before|earlier)|"
     r"carry(?:ing|over)?|cross[- ]?(?:task|session|turn|request)|"
     r"across\s+(?:tasks?|sessions?|turns?|requests?)|between\s+(?:tasks?|sessions?|turns?|requests?)|"
     r"what\s+(?:the\s+)?user\s+(?:said|told|asked))\b",
@@ -1055,9 +1077,10 @@ def _is_cross_context_persistence(text: str, match: re.Match[str]) -> bool:
     "always keep responses under 200 words" state a domain invariant, not an
     instruction to carry state across tasks or sessions. Only flag it when the
     object names context, memory, history, prior state/results, or cross-task/
-    session carryover.
+    session carryover within the same clause. Bare temporal words such as
+    "before" ("keep results sorted before returning them") are not evidence.
     """
-    window = text[match.end() : match.end() + 80]
+    window = _immediate_clause(text, match.end())
     return bool(_CROSS_CONTEXT_PERSISTENCE_SIGNALS.search(window))
 
 
