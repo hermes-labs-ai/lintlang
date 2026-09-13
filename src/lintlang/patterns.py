@@ -752,13 +752,15 @@ CONSTRAINT_SIGNALS = [
 ]
 
 _RETRY_UNTIL_PATTERN = r"retry\s+(?:until|as\s+many\s+times)"
+_LOOP_OVER_THROUGH_PATTERN = r"loop\s+(?:through|over)"
 
 
 DANGEROUS_PATTERNS = [
     (r"keep\s+trying\s+until", "Unbounded retry loop — 'keep trying until' needs an explicit limit."),
     (_RETRY_UNTIL_PATTERN, "Unbounded retry — add max_retries or a fallback."),
     (r"don'?t\s+stop\s+until", "Negative termination condition — rephrase as a positive bound."),
-    (r"loop\s+(?:through|over|until)", "Potential infinite loop — ensure a max iteration count."),
+    (r"loop\s+until", "Potential infinite loop — ensure a max iteration count."),
+    (_LOOP_OVER_THROUGH_PATTERN, "Potential infinite loop — ensure a max iteration count."),
     (r"continue\s+(?:until|indefinitely)", "Unbounded continuation — add an explicit termination condition."),
 ]
 
@@ -772,12 +774,29 @@ _VERIFICATION_GUIDANCE = re.compile(
     re.IGNORECASE,
 )
 _NEGATED_RETRY_PROHIBITION = re.compile(r"\b(?:never|do\s+not|don'?t)\s+$", re.IGNORECASE)
+_UNBOUNDED_CONTINUATION_SIGNALS = re.compile(
+    r"\b(?:indefinitely|forever|endlessly|continuously|perpetually|non-?stop|without\s+(?:end|stopping|limit))\b",
+    re.IGNORECASE,
+)
 
 
 def _is_negated_retry_prohibition(text: str, retry_start: int) -> bool:
     """Return whether an adjacent negation forbids, rather than requires, retrying."""
     prefix = text[max(0, retry_start - 20) : retry_start]
     return bool(_NEGATED_RETRY_PROHIBITION.search(prefix))
+
+
+def _is_unbounded_loop_traversal(text: str, match: re.Match[str]) -> bool:
+    """Return whether ``loop over/through`` describes an unbounded loop, not enumeration.
+
+    ``loop over`` and ``loop through`` ordinarily introduce enumeration of a
+    finite collection ("loop through the search results") — that is normal
+    control flow, not a missing-constraint risk. Only treat it as a potential
+    infinite loop when the same clause also carries an explicit indefinite-
+    continuation signal (e.g. "loop over tasks indefinitely").
+    """
+    window = text[match.end() : match.end() + 80]
+    return bool(_UNBOUNDED_CONTINUATION_SIGNALS.search(window))
 
 
 def _is_bounded_verification_loop(text: str, match: re.Match[str]) -> bool:
@@ -839,6 +858,8 @@ def detect_h2(config: AgentConfig) -> list[Finding]:
             if _is_bounded_verification_loop(text, match):
                 continue
             if pattern == _RETRY_UNTIL_PATTERN and _is_negated_retry_prohibition(text, match.start()):
+                continue
+            if pattern == _LOOP_OVER_THROUGH_PATTERN and not _is_unbounded_loop_traversal(text, match):
                 continue
             start = max(0, match.start() - 20)
             end = min(len(text), match.end() + 40)
@@ -987,14 +1008,36 @@ BOUNDARY_SIGNALS = [
     "boundary",
 ]
 
+_ALWAYS_PERSIST_PATTERN = r"always\s+(?:keep|maintain|remember)"
+
 EROSION_PATTERNS = [
     (r"remember\s+everything", "Unbounded memory — context will grow until it erodes task boundaries."),
     (
         r"use\s+(?:all|entire)\s+(?:conversation|history|context)",
         "Referencing entire history without scoping — promotes boundary erosion.",
     ),
-    (r"always\s+(?:keep|maintain|remember)", "Persistence without scope — specify WHAT to persist and for HOW LONG."),
+    (_ALWAYS_PERSIST_PATTERN, "Persistence without scope — specify WHAT to persist and for HOW LONG."),
 ]
+
+_CROSS_CONTEXT_PERSISTENCE_SIGNALS = re.compile(
+    r"\b(?:context|history|conversation|memory|session|thread|state|prior|previous|past|before|"
+    r"everything|results?|carry(?:ing|over)?|cross[- ]?(?:task|session|turn|request)|"
+    r"what\s+(?:the\s+)?user\s+(?:said|told|asked))\b",
+    re.IGNORECASE,
+)
+
+
+def _is_cross_context_persistence(text: str, match: re.Match[str]) -> bool:
+    """Return whether ``always keep/maintain/remember`` targets cross-context state.
+
+    The verb alone is ambiguous: "always maintain backward compatibility" or
+    "always keep responses under 200 words" state a domain invariant, not an
+    instruction to carry state across tasks or sessions. Only flag it when the
+    object names context, memory, history, prior state/results, or cross-task/
+    session carryover.
+    """
+    window = text[match.end() : match.end() + 80]
+    return bool(_CROSS_CONTEXT_PERSISTENCE_SIGNALS.search(window))
 
 
 def detect_h4(config: AgentConfig) -> list[Finding]:
@@ -1029,6 +1072,8 @@ def detect_h4(config: AgentConfig) -> list[Finding]:
             matches = list(re.finditer(pattern, prompt, re.IGNORECASE))
             for match in matches:
                 if not _is_direct_match(scope, match.start(), match.end()):
+                    continue
+                if pattern == _ALWAYS_PERSIST_PATTERN and not _is_cross_context_persistence(prompt, match):
                     continue
                 start = max(0, match.start() - 20)
                 end = min(len(prompt), match.end() + 40)
