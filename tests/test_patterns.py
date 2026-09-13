@@ -518,6 +518,15 @@ class TestH2:
             findings = detect_h2(AgentConfig(system_prompt=prompt))
             assert any(f.severity == Severity.CRITICAL for f in findings)
 
+    def test_negated_indefinite_loop_traversal_does_not_flag(self):
+        """A prohibition against indefinite traversal is not an unbounded-loop instruction."""
+        for prompt in (
+            "Do not loop over the queue indefinitely.",
+            "Never loop through the task list forever.",
+        ):
+            findings = detect_h2(AgentConfig(system_prompt=prompt))
+            assert not any(f.severity == Severity.CRITICAL for f in findings)
+
     def test_missing_constraints_with_tools(self):
         config = AgentConfig(
             system_prompt="You are an assistant. Use the tools to help.",
@@ -687,6 +696,8 @@ class TestH4:
             "Always maintain respect for the author's voice while improving clarity.",
             "Always maintain backward compatibility.",
             "Always keep responses under 200 words.",
+            "Always maintain state consistency.",
+            "Always keep results sorted.",
         ):
             findings = detect_h4(AgentConfig(system_prompt=prompt))
             assert not any("persistence without scope" in f.description.lower() for f in findings)
