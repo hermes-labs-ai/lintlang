@@ -778,6 +778,10 @@ _UNBOUNDED_CONTINUATION_SIGNALS = re.compile(
     r"\b(?:indefinitely|forever|endlessly|continuously|perpetually|non-?stop|without\s+(?:end|stopping|limit))\b",
     re.IGNORECASE,
 )
+_NEGATED_UNBOUNDED_LOOP = re.compile(
+    r"\b(?:never|do\s+not|don'?t|should\s+not)\b\s*$",
+    re.IGNORECASE,
+)
 
 
 def _is_negated_retry_prohibition(text: str, retry_start: int) -> bool:
@@ -796,7 +800,23 @@ def _is_unbounded_loop_traversal(text: str, match: re.Match[str]) -> bool:
     continuation signal (e.g. "loop over tasks indefinitely").
     """
     window = text[match.end() : match.end() + 80]
-    return bool(_UNBOUNDED_CONTINUATION_SIGNALS.search(window))
+    signal = _UNBOUNDED_CONTINUATION_SIGNALS.search(window)
+    if signal is None:
+        return False
+
+    # A prohibition such as "do not loop over the queue indefinitely" must
+    # not be treated as an instruction to run indefinitely. Check both a
+    # negation immediately before the traversal and one attached to the
+    # continuation signal later in the same clause.
+    before_match = text[max(0, match.start() - 40) : match.start()]
+    if _NEGATED_UNBOUNDED_LOOP.search(before_match):
+        return False
+    before_signal = window[: signal.start()]
+    return not re.search(
+        r"\b(?:never|do\s+not|don'?t|should\s+not)\b(?:\s+\w+){0,6}\s*$",
+        before_signal,
+        re.IGNORECASE,
+    )
 
 
 def _is_bounded_verification_loop(text: str, match: re.Match[str]) -> bool:
@@ -1020,8 +1040,9 @@ EROSION_PATTERNS = [
 ]
 
 _CROSS_CONTEXT_PERSISTENCE_SIGNALS = re.compile(
-    r"\b(?:context|history|conversation|memory|session|thread|state|prior|previous|past|before|"
-    r"everything|results?|carry(?:ing|over)?|cross[- ]?(?:task|session|turn|request)|"
+    r"\b(?:context|history|conversation|memory|session|thread|prior|previous|past|before|"
+    r"carry(?:ing|over)?|cross[- ]?(?:task|session|turn|request)|"
+    r"across\s+(?:tasks?|sessions?|turns?|requests?)|between\s+(?:tasks?|sessions?|turns?|requests?)|"
     r"what\s+(?:the\s+)?user\s+(?:said|told|asked))\b",
     re.IGNORECASE,
 )
