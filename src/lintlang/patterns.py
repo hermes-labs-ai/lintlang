@@ -778,8 +778,11 @@ _UNBOUNDED_CONTINUATION_SIGNALS = re.compile(
     r"\b(?:indefinitely|forever|endlessly|continuously|perpetually|non-?stop|without\s+(?:end|stopping|limit))\b",
     re.IGNORECASE,
 )
+# Allow up to two adverbial modifiers between the negator and ``loop``
+# ("don't continuously loop", "never ever loop"), but not arbitrary words, so
+# "never give up and loop ... forever" is still an instruction, not a prohibition.
 _NEGATED_UNBOUNDED_LOOP = re.compile(
-    r"\b(?:never|do\s+not|don'?t|should\s+not)\b\s*$",
+    r"\b(?:never|do\s+not|don'?t|should\s+not)(?:\s+(?!only\b)(?:\w+ly|ever)\b){0,2}\s*$",
     re.IGNORECASE,
 )
 
@@ -827,6 +830,8 @@ def _is_unbounded_loop_traversal(text: str, match: re.Match[str]) -> bool:
     # negation immediately before the traversal and one attached to the
     # continuation signal later in the same clause.
     before_match = text[max(0, match.start() - 40) : match.start()]
+    # Only a negation in the traversal's own clause counts.
+    before_match = re.split(r"[.!?;,\n]", before_match)[-1]
     if _NEGATED_UNBOUNDED_LOOP.search(before_match):
         return False
     before_signal = window[: signal.start()]
