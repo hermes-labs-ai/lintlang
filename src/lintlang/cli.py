@@ -326,8 +326,16 @@ def _cmd_scan(args: argparse.Namespace) -> int:
         print(format_summary_table(results, elapsed))
 
     if not results:
-        print("Error: No files were successfully scanned.", file=sys.stderr)
-        return 1
+        # This branch is only reachable when every argument was a directory
+        # and none of them contained a single matching, non-skipped file
+        # (e.g. a docs-only directory, or an --exclude that matched
+        # everything). That is a legitimate "nothing to lint" outcome, not a
+        # scan failure — file-not-found and parse-error inputs always
+        # populate `results` with an input_error entry and are handled by
+        # the fatal channel below. Treating "found nothing to check" as
+        # exit 1 broke CI on perfectly valid directories.
+        print("No matching files found to scan.", file=sys.stderr)
+        return 0
 
     # Input integrity is a fatal channel, independent of lint severity and
     # --fail-on. Never let another valid input mask a requested input error.
