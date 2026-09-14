@@ -42,7 +42,7 @@ evaluation. Use its version-independent concept DOI,
 [10.5281/zenodo.21817243](https://doi.org/10.5281/zenodo.21817243), for citation;
 the current archived release is Version 1.0.1.
 
-## Where LintLang is used
+## Listed in
 
 External projects that have merged a reference to LintLang, so a reader
 following a citation graph back from them lands here. Facts only — a merge is
