@@ -14,6 +14,15 @@ from .patterns import PATTERNS, AgentConfig, Finding
 # Pipeline detectors (P-series) — registered lazily to avoid circular imports
 _PIPELINE_DETECTORS_LOADED = False
 
+# H1 (Tool Description Ambiguity), H3 (Schema-Intent Mismatch), and H7 all
+# reason over an agent config's declared schema/tool surface, which Python
+# AST extraction does not produce — scan_python_file() below skips them for
+# every extracted prompt. Exposed here (rather than inlined as a literal in
+# scan_python_file) so callers, such as the CLI, can warn when a user's
+# --patterns selection is entirely made up of patterns that never run on
+# .py inputs instead of silently reporting zero findings.
+PYTHON_EXTRACTION_EXCLUDED_PATTERNS = frozenset({"H1", "H3", "H7"})
+
 # Files that are never agent configs — skip during directory scans
 NON_PROMPT_FILENAMES = {
     "changelog.md",
@@ -371,7 +380,7 @@ def scan_python_file(
             if pid not in PATTERNS:
                 continue
             # Only run prompt-relevant detectors (H2, H4, H5, H6 — not H1/H3/H7)
-            if pid in ("H1", "H3", "H7"):
+            if pid in PYTHON_EXTRACTION_EXCLUDED_PATTERNS:
                 continue
             detector = PATTERNS[pid]["detect"]
             findings = detector(config)

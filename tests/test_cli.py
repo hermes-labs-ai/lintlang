@@ -390,6 +390,46 @@ class TestCLI:
         captured = capsys.readouterr()
         assert "Error:" not in captured.err
 
+    def test_python_scan_with_only_python_excluded_patterns_warns(self, tmp_path, capsys):
+        """scan_python_file() never runs H1/H3/H7 against extracted prompts —
+        they reason over a declared config schema that AST extraction from
+        .py source does not produce. Requesting --patterns H1 against a .py
+        file therefore always scores zero structural findings, which would
+        otherwise look identical to a genuinely clean PASS to a CI gate using
+        --fail-on. The CLI must warn instead of staying silent.
+        """
+        python_file = tmp_path / "pipeline.py"
+        python_file.write_text("CONFIDENCE_THRESHOLD = 0.75\n")
+
+        exit_code = main(["scan", str(python_file), "--patterns", "H1", "--fail-on", "fail"])
+
+        assert exit_code == 0
+        captured = capsys.readouterr()
+        assert "Warning" in captured.err
+        assert "H1" in captured.err
+        assert "do not apply to Python extraction mode" in captured.err
+
+    def test_python_scan_with_applicable_pattern_does_not_warn(self, tmp_path, capsys):
+        """The warning is specific to patterns scan_python_file() always
+        skips — a pattern it actually runs (H2) must not trigger it."""
+        python_file = tmp_path / "pipeline.py"
+        python_file.write_text("CONFIDENCE_THRESHOLD = 0.75\n")
+
+        exit_code = main(["scan", str(python_file), "--patterns", "H2"])
+
+        assert exit_code == 0
+        captured = capsys.readouterr()
+        assert "do not apply to Python extraction mode" not in captured.err
+
+    def test_non_python_scan_with_excluded_patterns_does_not_warn(self, capsys):
+        """The warning only fires for .py inputs — H1/H3/H7 are the normal,
+        fully-applicable detectors for YAML/JSON/text config files."""
+        exit_code = main(["scan", str(SAMPLES_DIR / "bad_tool_descriptions.yaml"), "--patterns", "H1"])
+
+        assert exit_code == 0
+        captured = capsys.readouterr()
+        assert "do not apply to Python extraction mode" not in captured.err
+
     def test_fail_on_with_missing_file(self):
         """CLI should not silently pass when all files are missing."""
         exit_code = main(["scan", "/nonexistent/file.yaml", "--fail-on", "fail"])

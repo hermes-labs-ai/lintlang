@@ -11,7 +11,13 @@ from .github_init import configure_init_parser, run_init
 from .patterns import PATTERNS as _PATTERNS
 from .preflight_cli import configure_preflight_parser, run_preflight
 from .report import compute_verdict, format_markdown, format_summary_table, format_terminal
-from .scanner import ScanResult, input_error_result, scan_directory, scan_file
+from .scanner import (
+    PYTHON_EXTRACTION_EXCLUDED_PATTERNS,
+    ScanResult,
+    input_error_result,
+    scan_directory,
+    scan_file,
+)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -224,6 +230,24 @@ def _cmd_scan(args: argparse.Namespace) -> int:
     if args.format != "sarif":
         for result in input_errors:
             print(f"Error: Input error: {result.file}: {result.input_error}", file=sys.stderr)
+
+    # scan_python_file() never runs H1/H3/H7 (they reason over a declared
+    # config schema, which AST extraction from .py source does not produce).
+    # If the user explicitly asked for --patterns made up entirely of those,
+    # every .py input silently scores zero structural findings — which would
+    # otherwise look identical to a clean PASS to a CI gate using
+    # --fail-on. Surface it instead of staying silent.
+    if args.patterns and set(args.patterns) <= PYTHON_EXTRACTION_EXCLUDED_PATTERNS:
+        scanned_python_files = sorted(fp for fp in results if Path(fp).suffix == ".py")
+        if scanned_python_files:
+            requested = ", ".join(sorted(args.patterns))
+            print(
+                f"Warning: --patterns {requested} do not apply to Python extraction mode "
+                "(only H2, H4, H5, H6 run against prompts extracted from .py files); "
+                f"{len(scanned_python_files)} Python file(s) will report zero structural "
+                "findings for these patterns regardless of content.",
+                file=sys.stderr,
+            )
 
     # Output
     if args.format == "terminal":
