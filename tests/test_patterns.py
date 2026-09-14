@@ -543,9 +543,22 @@ class TestH2:
         for prompt in (
             "Do not loop over the queue indefinitely.",
             "Never loop through the task list forever.",
+            "Don't continuously loop over the queue indefinitely.",
+            "Never ever loop through the task list forever.",
         ):
             findings = detect_h2(AgentConfig(system_prompt=prompt))
-            assert not any(f.severity == Severity.CRITICAL for f in findings)
+            assert not any(f.severity == Severity.CRITICAL for f in findings), prompt
+
+    def test_negation_not_attached_to_traversal_still_flags(self):
+        """A negator separated from the traversal by non-adverbs or a clause break is not a prohibition."""
+        for prompt in (
+            "Never give up and loop over tasks forever.",
+            "Do not stop, just loop over the queue indefinitely.",
+            "Never stop; loop over the queue forever.",
+            "Don't only loop over the queue indefinitely.",
+        ):
+            findings = detect_h2(AgentConfig(system_prompt=prompt))
+            assert any(f.severity == Severity.CRITICAL for f in findings), prompt
 
     def test_missing_constraints_with_tools(self):
         config = AgentConfig(
