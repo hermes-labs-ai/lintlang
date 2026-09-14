@@ -42,6 +42,28 @@ evaluation. Use its version-independent concept DOI,
 [10.5281/zenodo.21817243](https://doi.org/10.5281/zenodo.21817243), for citation;
 the current archived release is Version 1.0.1.
 
+## Where LintLang is used
+
+External projects that have merged a reference to LintLang, so a reader
+following a citation graph back from them lands here. Facts only — a merge is
+not adoption or endorsement:
+
+- [MegaLinter's External Plugins Catalog](https://github.com/oxsecurity/megalinter/pull/8899)
+  lists `mega-linter-plugin-lintlang` (merged 2026-09-11).
+- [Piebald-AI/awesome-gemini-cli](https://github.com/Piebald-AI/awesome-gemini-cli/pull/124)
+  lists LintLang's Gemini CLI extension (merged 2026-09-13).
+- [ml-tooling/best-of-python-dev](https://github.com/ml-tooling/best-of-python-dev/pull/286)
+  lists LintLang in the generated best-of list (merged 2026-08-13).
+- [ZeroPointRepo/awesome-hermes-skills](https://github.com/ZeroPointRepo/awesome-hermes-skills/pull/37)
+  lists LintLang as a Claude skill (merged 2026-08-12).
+
+## Registries
+
+- [Software Heritage](https://archive.softwareheritage.org/browse/origin/?origin_url=https://github.com/hermes-labs-ai/lintlang)
+  preserves this repository's history.
+- [Research Software Directory](https://research-software-directory.org/software/lintlang)
+  carries a published software entry.
+
 ## Quick start
 
 Run once without installing, using [uv](https://docs.astral.sh/uv/):
