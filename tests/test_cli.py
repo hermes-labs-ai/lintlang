@@ -375,6 +375,21 @@ class TestCLI:
         exit_code = main(["scan", "/nonexistent/file.yaml"])
         assert exit_code == 1
 
+    def test_directory_scan_with_no_matching_files_is_not_an_error(self, tmp_path, capsys):
+        """A valid directory containing only non-prompt files (README, LICENSE)
+        has zero scannable candidates. That is a legitimate "nothing to
+        lint" outcome, not a scan failure, and must not exit 1 or print an
+        "Error:"-prefixed line — unlike a genuinely missing/malformed input.
+        """
+        (tmp_path / "README.md").write_text("# hi\n")
+        (tmp_path / "LICENSE").write_text("MIT\n")
+
+        exit_code = main(["scan", str(tmp_path)])
+
+        assert exit_code == 0
+        captured = capsys.readouterr()
+        assert "Error:" not in captured.err
+
     def test_fail_on_with_missing_file(self):
         """CLI should not silently pass when all files are missing."""
         exit_code = main(["scan", "/nonexistent/file.yaml", "--fail-on", "fail"])
