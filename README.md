@@ -27,6 +27,50 @@ It flags patterns such as:
 LintLang's default static checks are deterministic and local. They make no LLM,
 API, telemetry, or network calls.
 
+```bash
+python -m pip install lintlang
+lintlang scan AGENTS.md
+```
+
+Or run it once without installing, using [uv](https://docs.astral.sh/uv/):
+`uvx lintlang scan AGENTS.md`.
+
+Example run against this repo's `samples/bad_tool_descriptions.yaml`, a fixture
+with two tools (`get_user_info`, `fetch_user_data`) that carry no distinguishing
+term:
+
+```
+$ lintlang scan samples/bad_tool_descriptions.yaml
+LINTLANG v0.6.0
+  samples/bad_tool_descriptions.yaml
+  ──────────────────────────────────────────────────
+
+  ❌ FAIL — 1 CRITICAL, 2 HIGH, 7 MEDIUM, 3 LOW
+
+  H1: Tool Description Ambiguity
+
+    !! [CRITICAL] H1.1 tool:process_ticket
+      Tool 'process_ticket' has no description.
+      → Add a specific, disambiguating description that explains WHEN to use this tool, not just WHAT it does.
+
+    ! [HIGH] H1.2 tool:get_user_info
+      Tool 'get_user_info' has a very short description (13 chars): "Get user info"
+      Evidence: "Get user info"
+      → Expand description to include: purpose, when to use vs alternatives, expected input shape, output behavior.
+
+    ~ [MEDIUM] H1.6 tool:get_user_info vs tool:fetch_user_data
+      Tools 'get_user_info' and 'fetch_user_data' carry no differentia — every meaning-bearing term in one is present, or has a synonym, in the other. Both descriptions may be accurate and still give a model nothing to choose between them.
+      Evidence: "'Get user info' vs 'Get user data from the system'"
+      → Name a condition that selects one over the other. State what each tool is for that the other is NOT for — e.g. 'use X for orders already placed, use Y for carts not yet submitted'.
+
+  ──────────────────────────────────────────────────
+  lintlang v0.6.0 | H1-H7 structural analysis | Zero LLM calls
+```
+
+(Full output has 13 findings across H1, H2, and H3; the block above is
+truncated for length. See the Quick start section below for `pipx` and other
+install options.)
+
 LintLang was developed as the engineering offshoot of
 [A Taxonomy of Epistemic Failure Modes in Large Language Models](https://doi.org/10.5281/zenodo.19042468),
 but its bounded detectors do not claim to implement or validate every failure
@@ -642,6 +686,13 @@ inspects one present instruction plus explicit context.
 - [Contributing](CONTRIBUTING.md)
 - [Report an issue or disputed finding](https://github.com/hermes-labs-ai/lintlang/issues)
 - [Security policy](SECURITY.md)
+
+## Also from Hermes Labs
+
+- [zer0dex](https://github.com/hermes-labs-ai/zer0dex) — a local dual-layer memory pattern for AI agents: a compact, human-readable markdown index paired with semantic retrieval from a local vector store, queried before each message.
+- [little-canary](https://github.com/hermes-labs-ai/little-canary) — detects prompt injection by its effect on a sacrificial canary model: untrusted input hits a powerless model first, a behavioral check reads the residue, and it returns block, flag, or pass.
+- [fidelis](https://github.com/hermes-labs-ai/fidelis) — zero-LLM agent memory using local-first BM25, dense-vector, and reciprocal-rank-fusion retrieval, returning original passages verbatim by default. Available on PyPI as `fidelis-memory`.
+- [quick-gate-js](https://github.com/hermes-labs-ai/quick-gate-js) — a deterministic JS/TS CI quality gate unifying ESLint, TypeScript, build, and Lighthouse checks into one fail-fast result, with bounded auto-repair and structured escalation evidence. npm: `quick-gate`. Python counterpart: [quick-gate-python](https://github.com/hermes-labs-ai/quick-gate-python) (PyPI: `pygate-ci`), the same pattern for Ruff, Pyright, and pytest.
 
 ## License
 
