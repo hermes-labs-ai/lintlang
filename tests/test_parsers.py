@@ -3,6 +3,8 @@
 import json
 from pathlib import Path
 
+import pytest
+
 from lintlang.parsers import parse_file, parse_json, parse_text, parse_yaml
 
 SAMPLES_DIR = Path(__file__).parent.parent / "samples"
@@ -35,6 +37,19 @@ system_prompt: "You are a helpful assistant."
     def test_parse_plain_string(self):
         config = parse_yaml("just a string")
         assert config.system_prompt == "just a string"
+
+    def test_rejects_non_string_tool_name(self):
+        with pytest.raises(
+            ValueError,
+            match=r"tools\[0\]\.name must be a string, got boolean",
+        ):
+            parse_yaml("""
+tools:
+  - name: false
+    description: "Look up status"
+    parameters:
+      type: object
+""")
 
 
 class TestParseJson:
