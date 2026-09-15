@@ -358,6 +358,17 @@ def _cmd_scan(args: argparse.Namespace) -> int:
         # populate `results` with an input_error entry and are handled by
         # the fatal channel below. Treating "found nothing to check" as
         # exit 1 broke CI on perfectly valid directories.
+        #
+        # --write-baseline is the exception: a baseline recorded from zero
+        # scanned files is a silent, permanently-empty suppression list, so
+        # "nothing to lint" stays an error on that path and no file is written.
+        if args.write_baseline:
+            print(
+                "Error: No files were successfully scanned; "
+                f"baseline {args.write_baseline} was not written.",
+                file=sys.stderr,
+            )
+            return 1
         print("No matching files found to scan.", file=sys.stderr)
         return 0
 
