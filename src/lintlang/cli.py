@@ -349,6 +349,13 @@ def _cmd_scan(args: argparse.Namespace) -> int:
         elapsed = time.monotonic() - t_start
         print(format_summary_table(results, elapsed))
 
+    # One-line, TTY-only pointer back to the project home. Never shown in
+    # machine-readable formats or when output is piped/redirected.
+    if args.format == "terminal" and sys.stdout.isatty():
+        from .report import DIM, RESET
+
+        print(f"  {DIM}lintlang v{__version__} — https://github.com/hermes-labs-ai/lintlang{RESET}")
+
     if not results:
         # This branch is only reachable when every argument was a directory
         # and none of them contained a single matching, non-skipped file
