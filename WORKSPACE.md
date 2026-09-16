@@ -5,12 +5,12 @@ This file answers one question: where should development begin?
 ## Canonical workspace
 
 - Upstream repository: `https://github.com/hermes-labs-ai/lintlang.git`
-- Hermes Labs maintainer checkout: `/Users/rbr_lpci/github-projects/lintlang`
+- Hermes Labs maintainer checkout: `~/github-projects/lintlang`
 - Codex local project: `lintlang`, with that checkout as its primary folder
 - Claude Code: start it from that checkout:
 
   ```bash
-  cd /Users/rbr_lpci/github-projects/lintlang
+  cd ~/github-projects/lintlang
   claude
   ```
 
@@ -29,10 +29,10 @@ Then read `AGENTS.md`, `INTENT.md`, and the relevant product documentation. Do n
 ## Repository topology
 
 - Paths reported by `git worktree list` are linked working trees that share this repository's history. Their branches may contain unfinished or intentionally isolated work.
-- `/Users/rbr_lpci/Documents/projects/hermes-flagship-outsider-journey/lintlang` is a task-specific clone created for the August 2026 outsider-adoption mission. It is not the canonical development checkout. Preserve any unpushed commit there until it is deliberately adopted or retired.
-- `/Users/rbr_lpci/ai-infra/_workspace/` contains staging, archaeology, evaluation, and reconciliation artifacts. These are evidence inputs, not alternate source-of-truth repositories.
-- `/Users/rbr_lpci/Documents/Codex/` and `/Users/rbr_lpci/Documents/HAL/_handoffs/` contain task receipts, release artifacts, and review packets. They document prior work but do not supersede live Git state.
-- `/Users/rbr_lpci/Documents/projects/hermes-labs-hackathon-2/lintlang` is a distinct `lintlang-v2` experiment inside another repository. Never use it to infer this package's version, branch, or release state.
+- `~/Documents/projects/hermes-flagship-outsider-journey/lintlang` is a task-specific clone created for the August 2026 outsider-adoption mission. It is not the canonical development checkout. Preserve any unpushed commit there until it is deliberately adopted or retired.
+- `~/ai-infra/_workspace/` contains staging, archaeology, evaluation, and reconciliation artifacts. These are evidence inputs, not alternate source-of-truth repositories.
+- `~/Documents/Codex/` and `~/Documents/HAL/_handoffs/` contain task receipts, release artifacts, and review packets. They document prior work but do not supersede live Git state.
+- `~/Documents/projects/hermes-labs-hackathon-2/lintlang` is a distinct `lintlang-v2` experiment inside another repository. Never use it to infer this package's version, branch, or release state.
 
 Historical artifacts should keep their original paths and hashes for provenance. Do not move, duplicate, or delete them as part of routine onboarding.
 
