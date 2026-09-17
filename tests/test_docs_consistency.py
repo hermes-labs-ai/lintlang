@@ -85,4 +85,16 @@ def test_readme_opener_labels_the_failing_demo_and_its_clean_comparison():
 
     assert "This is a deliberately failing fixture" in opener
     assert "`lintlang scan samples/clean_config.yaml --fail-on fail`" in opener
+    assert "from a source\ncheckout" in opener
+    assert "[checkout-free clean example](#first-run-without-a-checkout)" in opener
     assert "A clean static scan is not evidence" in opener
+
+
+def test_readme_matches_released_baseline_and_scan_default_contracts():
+    """Keep the adoption prose aligned with released CLI and Action behavior."""
+    readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
+
+    assert "Baseline support is included in released LintLang 0.6.0." in readme
+    assert "The CLI has no verdict-failure threshold by default; the first-party GitHub\nAction defaults to `fail`." in readme
+    assert "directory invocation that finds no eligible files" in readme
+    assert "this “nothing scanned” outcome is\n  distinct from `ERROR`" in readme
