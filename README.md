@@ -74,10 +74,9 @@ install options.)
 This is a deliberately failing fixture: its `FAIL` verdict shows that LintLang
 found the seeded instruction problems, not that installation failed. A normal
 scan reports findings and exits `0`; add `--fail-on fail` when CI should block
-on `HIGH` or `CRITICAL` findings. After installing, a known-clean comparison is
-`lintlang scan samples/clean_config.yaml --fail-on fail`, which reports `PASS`
-and exits `0` on the released 0.6.0 fixture. A clean static scan is not evidence
-that an agent is safe or runtime-correct.
+on `HIGH` or `CRITICAL` findings. For a known-clean comparison from a source
+checkout, run `lintlang scan samples/clean_config.yaml --fail-on fail`; it
+reports `PASS` and exits `0` on the released 0.6.0 fixture. Without a checkout, use the [checkout-free clean example](#first-run-without-a-checkout) below. A clean static scan is not evidence that an agent is safe or runtime-correct.
 
 LintLang was developed as the engineering offshoot of
 [A Taxonomy of Epistemic Failure Modes in Large Language Models](https://doi.org/10.5281/zenodo.19042468),
@@ -196,8 +195,8 @@ An existing instruction backlog does not have to delay a CI gate. The
 same scanner report and gate findings that are not acknowledged. It works in
 the CLI and the first-party GitHub Action, without disabling an entire rule.
 
-This feature is **unreleased**; use a source checkout containing this change.
-From the root of the project you want to scan:
+Baseline support is included in released LintLang 0.6.0. From the root of the
+project you want to scan:
 
 ```bash
 # Review the full report before committing the generated baseline.
@@ -425,11 +424,16 @@ A clean LintLang scan is not evidence that an agent is safe or runtime-correct.
 
 By default, findings are reported without failing the process.
 
+The CLI has no verdict-failure threshold by default; the first-party GitHub
+Action defaults to `fail`.
+
 - `--fail-on fail` blocks on `FAIL`.
 - `--fail-on review` blocks on `REVIEW` or `FAIL`.
 - Missing, malformed, unreadable, or otherwise unscannable requested inputs
   remain nonzero regardless of the chosen finding threshold.
-- An invocation that finds no eligible files exits nonzero.
+- A directory invocation that finds no eligible files reports “No matching
+  files found to scan.” and exits `0`; this “nothing scanned” outcome is
+  distinct from `ERROR` for a requested input that could not be inspected.
 
 Filters such as `--min-severity` are applied before the verdict. For initial
 adoption, keep the full output visible and use `--fail-on fail` to block only
