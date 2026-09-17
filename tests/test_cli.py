@@ -1,6 +1,7 @@
 """Tests for the CLI interface."""
 
 import json
+import sys
 from pathlib import Path
 
 import pytest
@@ -327,6 +328,24 @@ class TestCLI:
         assert "PASS" in captured.out
         # HERM score should NOT appear in terminal output
         assert "HERM Score:" not in captured.out
+
+    def test_scan_terminal_multi_file_repo_pointer_is_emitted_once(self, capsys, monkeypatch):
+        """Interactive multi-file scans should point to the repo once overall."""
+        monkeypatch.setattr(sys.stdout, "isatty", lambda: True)
+
+        exit_code = main(
+            [
+                "scan",
+                str(SAMPLES_DIR / "clean_config.yaml"),
+                str(SAMPLES_DIR / "bad_tool_descriptions.yaml"),
+            ]
+        )
+
+        assert exit_code == 0
+        captured = capsys.readouterr()
+        pointer = "https://github.com/hermes-labs-ai/lintlang"
+        assert captured.out.count(pointer) == 1
+        assert captured.out.rfind(pointer) > captured.out.find("SUMMARY")
 
     def test_fail_on_fail_passes_clean(self):
         """Clean config should pass with --fail-on fail."""
