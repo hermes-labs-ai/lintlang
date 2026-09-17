@@ -76,3 +76,13 @@ def test_public_docs_do_not_claim_a_clean_scan_proves_safety():
     intent = (REPO_ROOT / "INTENT.md").read_text(encoding="utf-8").lower()
     assert "clean lintlang scan is not evidence" in readme
     assert "clean scan does not establish safety or correctness" in intent
+
+
+def test_readme_opener_labels_the_failing_demo_and_its_clean_comparison():
+    """A first-run FAIL must read as an intentional detection, not a broken install."""
+    readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
+    opener = readme[:5000]
+
+    assert "This is a deliberately failing fixture" in opener
+    assert "`lintlang scan samples/clean_config.yaml --fail-on fail`" in opener
+    assert "A clean static scan is not evidence" in opener
