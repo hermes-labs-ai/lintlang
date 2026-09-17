@@ -110,6 +110,14 @@ not adoption or endorsement:
 
 ## Quick start
 
+Requires Python 3.10+.
+
+Run the command for an instruction file that is actually present in your
+project. The examples below use `AGENTS.md`; use the matching `CLAUDE.md`,
+`GEMINI.md`, Copilot, or agent-config path from the
+[supported-path matrix](#lint-the-instructions-your-coding-agent-actually-reads)
+when that is what your coding agent reads.
+
 Run once without installing, using [uv](https://docs.astral.sh/uv/):
 
 ```bash
@@ -132,17 +140,6 @@ Or install from PyPI into the current Python environment:
 ```bash
 python -m pip install lintlang
 ```
-
-Requires Python 3.10+.
-
-From your project root, point LintLang at an actual instruction file:
-
-```bash
-lintlang scan AGENTS.md
-```
-
-If your project uses another filename, replace `AGENTS.md` with its prompt,
-tool-definition, agent-configuration, or supported directory path.
 
 ## Lint the instructions your coding agent actually reads
 
