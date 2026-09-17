@@ -302,6 +302,20 @@ non-null `input_error`.
 lintlang extracted from `/tmp/agent-fixed.yaml`. It is not evidence that the
 agent is safe or runtime-correct.
 
+### Keep a successful check in GitHub CI
+
+When the file that passed is a real instruction surface in a Git repository,
+generate a pinned GitHub workflow for that same path:
+
+```bash
+lintlang init --github --path AGENTS.md
+```
+
+Run this from the repository root and replace `AGENTS.md` with the path you
+actually scanned. It writes `.github/workflows/lintlang.yml`, scans the chosen
+path, and uploads SARIF. A different existing LintLang workflow is left alone;
+inspect it before deliberately replacing it with `--force`.
+
 ### Windows PowerShell
 
 The POSIX recipe above uses `/tmp` and shell heredocs. Windows PowerShell 5.1

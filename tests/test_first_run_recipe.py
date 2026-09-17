@@ -181,6 +181,19 @@ def test_section_publishes_an_explicit_latest_install():
     assert "re-read the counts below as approximate" in section
 
 
+def test_successful_first_run_surfaces_the_non_destructive_github_next_step():
+    """The CI generator belongs at the PASS moment and must not imply overwrite."""
+    section = _section()
+    heading = "### Keep a successful check in GitHub CI"
+
+    assert heading in section
+    assert section.index(heading) > section.index("`PASS` here means")
+    assert "lintlang init --github --path AGENTS.md" in section
+    assert "Run this from the repository root" in section
+    assert "left alone" in section
+    assert "replacing it with `--force`" in section
+
+
 def test_windows_powershell_recipe_matches_the_verified_fixtures(fixtures):
     """Windows users must get the same two inputs and three outcomes as POSIX users."""
     section = _windows_section()
