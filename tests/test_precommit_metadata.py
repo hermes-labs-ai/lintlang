@@ -10,7 +10,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 HOOKS = yaml.safe_load((REPO_ROOT / ".pre-commit-hooks.yaml").read_text(encoding="utf-8"))
 CHECKOUT_V7_SHA = "3d3c42e5aac5ba805825da76410c181273ba90b1"
 LINTLANG_ACTION_VERSION = "v0.6.0"
-LINTLANG_V053_SHA = "f89c3b0b8986fad162859dca052a8d5fe227eede"
+LINTLANG_V060_SHA = "58e66871531eb585869336189d07b4334e963a5f"
 
 
 def test_precommit_hook_is_explicit_and_advisory_by_default():
@@ -48,5 +48,5 @@ def test_public_docs_show_exercised_install_and_hook_paths():
         assert "actions/checkout@v7" not in text
         assert "hermes-labs-ai/lintlang@v0.4.0" not in text
 
-    assert f"hermes-labs-ai/lintlang@{LINTLANG_V053_SHA} # v0.5.3" in code_scanning_example
+    assert f"hermes-labs-ai/lintlang@{LINTLANG_V060_SHA} # v0.6.0" in code_scanning_example
     assert f"hermes-labs-ai/lintlang@{LINTLANG_ACTION_VERSION}" not in code_scanning_example

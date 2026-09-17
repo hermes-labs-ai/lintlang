@@ -38,7 +38,7 @@ jobs:
           persist-credentials: false
 
       - name: Scan agent instructions
-        uses: hermes-labs-ai/lintlang@f89c3b0b8986fad162859dca052a8d5fe227eede # v0.5.3
+        uses: hermes-labs-ai/lintlang@58e66871531eb585869336189d07b4334e963a5f # v0.6.0
         with:
           path: __LINTLANG_INPUT__
           fail-on: fail
