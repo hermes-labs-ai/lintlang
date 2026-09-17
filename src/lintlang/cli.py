@@ -255,7 +255,6 @@ def _cmd_scan(args: argparse.Namespace) -> int:
             print(format_terminal(
                 result, show_suggestions=not args.no_suggestions,
                 baseline_count=baseline_counts.get(key, 0) if args.baseline else None,
-                show_repo_pointer=sys.stdout.isatty(),
             ))
     elif args.format == "markdown":
         for key, result in results.items():
@@ -349,6 +348,13 @@ def _cmd_scan(args: argparse.Namespace) -> int:
     if args.format == "terminal" and len(results) > 1:
         elapsed = time.monotonic() - t_start
         print(format_summary_table(results, elapsed))
+
+    # One-line, TTY-only pointer back to the project home. Never shown in
+    # machine-readable formats or when output is piped/redirected.
+    if args.format == "terminal" and sys.stdout.isatty():
+        from .report import DIM, RESET
+
+        print(f"  {DIM}lintlang v{__version__} — https://github.com/hermes-labs-ai/lintlang{RESET}")
 
     if not results:
         # This branch is only reachable when every argument was a directory

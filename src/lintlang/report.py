@@ -109,7 +109,6 @@ def format_terminal(
     result: ScanResult,
     show_suggestions: bool = True,
     baseline_count: int | None = None,
-    show_repo_pointer: bool = False,
 ) -> str:
     """Format a ScanResult for terminal output with ANSI colors."""
     lines: list[str] = []
@@ -170,10 +169,7 @@ def format_terminal(
         lines.append("")
 
     lines.append(f"  {DIM}{'─' * 50}{RESET}")
-    footer = f"lintlang v{__version__} | H1-H7 structural analysis | Zero LLM calls"
-    if show_repo_pointer:
-        footer += " | https://github.com/hermes-labs-ai/lintlang"
-    lines.append(f"  {DIM}{footer}{RESET}")
+    lines.append(f"  {DIM}lintlang v{__version__} | H1-H7 structural analysis | Zero LLM calls{RESET}")
     lines.append("")
 
     return "\n".join(lines)
