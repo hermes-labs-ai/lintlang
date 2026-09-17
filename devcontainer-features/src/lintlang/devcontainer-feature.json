@@ -1,0 +1,15 @@
+{
+    "id": "lintlang",
+    "version": "1.0.0",
+    "name": "LintLang",
+    "description": "Install the pinned LintLang static analyzer for AI agent configurations, tool descriptions, and system prompts.",
+    "documentationURL": "https://lintlang.ai/",
+    "licenseURL": "https://github.com/hermes-labs-ai/lintlang/blob/main/LICENSE",
+    "options": {
+        "version": {
+            "type": "string",
+            "default": "0.6.0",
+            "description": "Exact LintLang PyPI version to install. The default is the latest reviewed release."
+        }
+    }
+}
