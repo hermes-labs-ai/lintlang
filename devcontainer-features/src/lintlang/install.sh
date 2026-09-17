@@ -51,7 +51,6 @@ if ! REQUESTED_VERSION="${requested_version}" python3 -c 'from packaging.version
     echo "LintLang version must be a valid PEP 440 version string; found '${requested_version}'." >&2
     exit 1
 fi
-
 python3 -m venv "${install_root}"
 "${install_root}/bin/python" -m pip install \
     --disable-pip-version-check \
