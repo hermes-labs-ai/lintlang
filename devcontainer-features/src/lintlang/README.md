@@ -37,3 +37,11 @@ lintlang scan AGENTS.md --fail-on fail
 
 LintLang is zero-LLM and deterministic. A `FAIL` scan is an expected analyzer
 result, while a missing or malformed input remains an error.
+
+## Publishing
+
+The repository workflow validates this Feature on pull requests and publishes
+only from `main` through the protected `devcontainer-publish` environment. The
+environment must provide a dedicated `DEVCONTAINER_GHCR_TOKEN` secret with
+permission to publish the repository's GHCR package; the workflow's default
+job token remains read-only and repository tag creation is disabled.

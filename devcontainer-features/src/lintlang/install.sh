@@ -18,25 +18,37 @@ case "$(uname -m)" in
         ;;
 esac
 
-if ! command -v apt-get >/dev/null 2>&1; then
-    echo "LintLang Feature supports Debian/Ubuntu images with apt-get; this base image is unsupported." >&2
+if [ ! -r /etc/os-release ]; then
+    echo "LintLang Feature supports Debian/Ubuntu images; /etc/os-release is missing." >&2
     exit 1
 fi
 
-case "${requested_version}" in
-    ''|*[!0-9A-Za-z.+-]*)
-        echo "LintLang version must be an exact PyPI version string; found '${requested_version}'." >&2
+# Keep the support boundary aligned with the Feature documentation.  Merely
+# having apt-get is not sufficient: several non-Debian images provide it as a
+# compatibility tool while having incompatible package/runtime semantics.
+# shellcheck disable=SC1091
+. /etc/os-release
+case "${ID:-}" in
+    debian|ubuntu)
+        ;;
+    *)
+        echo "LintLang Feature supports Debian/Ubuntu images; found '${ID:-unknown}'." >&2
         exit 1
         ;;
 esac
 
 export DEBIAN_FRONTEND=noninteractive
 apt-get update
-apt-get install --no-install-recommends -y ca-certificates python3 python3-venv
+apt-get install --no-install-recommends -y ca-certificates python3 python3-packaging python3-venv
 rm -rf /var/lib/apt/lists/*
 
 if ! python3 -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 10) else 1)'; then
     echo "LintLang ${requested_version} requires Python 3.10 or newer; found $(python3 --version)." >&2
+    exit 1
+fi
+
+if ! REQUESTED_VERSION="${requested_version}" python3 -c 'from packaging.version import Version; import os; Version(os.environ["REQUESTED_VERSION"])'; then
+    echo "LintLang version must be a valid PEP 440 version string; found '${requested_version}'." >&2
     exit 1
 fi
 

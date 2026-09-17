@@ -34,17 +34,25 @@ jobs:
 
   publish:
     if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    environment: devcontainer-publish
     runs-on: ubuntu-24.04
     permissions:
       contents: read
-      packages: write
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.0.0
+      - name: Verify publish credential is configured
+        env:
+          DEVCONTAINER_GHCR_TOKEN: ${{ secrets.DEVCONTAINER_GHCR_TOKEN }}
+        run: test -n "${DEVCONTAINER_GHCR_TOKEN}"
       - name: Publish Feature and metadata namespace
         uses: devcontainers/action@1082abd5d2bf3a11abccba70eef98df068277772 # v1.5.1
         with:
           publish-features: true
           base-path-to-features: ./devcontainer-features/src
           generate-docs: false
+          disable-repo-tagging: true
+          devcontainer-cli-version: 0.89.0
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # The protected environment supplies a dedicated least-privilege
+          # token with package publication authority; the job token stays read-only.
+          GITHUB_TOKEN: ${{ secrets.DEVCONTAINER_GHCR_TOKEN }}
