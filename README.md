@@ -71,6 +71,14 @@ LINTLANG v0.6.0
 truncated for length. See the Quick start section below for `pipx` and other
 install options.)
 
+This is a deliberately failing fixture: its `FAIL` verdict shows that LintLang
+found the seeded instruction problems, not that installation failed. A normal
+scan reports findings and exits `0`; add `--fail-on fail` when CI should block
+on `HIGH` or `CRITICAL` findings. After installing, a known-clean comparison is
+`lintlang scan samples/clean_config.yaml --fail-on fail`, which reports `PASS`
+and exits `0` on the released 0.6.0 fixture. A clean static scan is not evidence
+that an agent is safe or runtime-correct.
+
 LintLang was developed as the engineering offshoot of
 [A Taxonomy of Epistemic Failure Modes in Large Language Models](https://doi.org/10.5281/zenodo.19042468),
 but its bounded detectors do not claim to implement or validate every failure
