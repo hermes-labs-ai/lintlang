@@ -154,6 +154,10 @@ LintLang treats agent instruction files as ordinary local inputs. It does not
 need a vendor API, an always-running agent hook, or a separate integration for
 each host.
 
+See the [integrations and ecosystem guide](docs/integrations.md) for a
+machine-readable-friendly index of native adapters, CI integrations, and
+external projects that reference LintLang.
+
 | Coding-agent workflow | Native instruction surface | Local gate | Generate CI/SARIF gate |
 | --- | --- | --- | --- |
 | Codex | `AGENTS.md` | `lintlang scan AGENTS.md` | `lintlang init --github --path AGENTS.md` |
@@ -167,8 +171,13 @@ more than one instruction surface or when you want to scan an instruction
 directory. The generated workflow runs the same local scanner and uploads
 SARIF; it does not change how the coding agent loads its instructions.
 
-[Character.AI's public Larch repository](https://github.com/character-ai/larch/blob/ef7ee4b7f946f29fa51981f5422a1a93e83c79a7/.github/workflows/requirements-agent-linters.txt)
-pins `lintlang==0.3.1` in recurring CI. Larch's
+The [MegaLinter external plugin](https://github.com/oxsecurity/megalinter)
+integrates LintLang as `AI_LINTLANG` in a broader multi-language CI catalog.
+Its
+[plugin documentation](https://github.com/oxsecurity/megalinter/blob/main/docs/plugins.md)
+describes the runtime-pinned setup. [Character.AI's public Larch
+repository](https://github.com/character-ai/larch/blob/ef7ee4b7f946f29fa51981f5422a1a93e83c79a7/.github/workflows/requirements-agent-linters.txt)
+also pins `lintlang==0.3.1` in recurring CI. Larch's
 [linting reference](https://github.com/character-ai/larch/blob/210d08a8f6c1b0dd14c27b709c66471bd31a5636/docs/linting.md)
 links this repository as the upstream and documents the gate: its consolidated
 `agent-lint` job scans `agents/`, `.claude/agents/`, `skills/`, and
