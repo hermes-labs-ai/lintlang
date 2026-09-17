@@ -220,6 +220,10 @@ package index. Every `lintlang scan` below is offline and deterministic: it
 reads the file you name and nothing else, no credential, no private file, no
 network.
 
+The recipe immediately below uses POSIX shell syntax. A fully equivalent
+[Windows PowerShell recipe](#windows-powershell) follows the three scan
+outcomes.
+
 ```bash
 python -m pip install lintlang==0.6.0
 
@@ -297,6 +301,61 @@ non-null `input_error`.
 `PASS` here means the selected checks found nothing above `LOW` in the content
 lintlang extracted from `/tmp/agent-fixed.yaml`. It is not evidence that the
 agent is safe or runtime-correct.
+
+### Windows PowerShell
+
+The POSIX recipe above uses `/tmp` and shell heredocs. Windows PowerShell 5.1
+and PowerShell 7 can run the same pinned first check with literal here-strings
+in the user temp directory. This uses `python -m lintlang` so it invokes the
+same Python environment that installed the package.
+
+```powershell
+python -m pip install lintlang==0.6.0
+
+$badPath = Join-Path $env:TEMP "agent.yaml"
+$fixedPath = Join-Path $env:TEMP "agent-fixed.yaml"
+
+@'
+system_prompt: |
+  You are a support agent. Use the tools to help the user.
+tools:
+  - name: process_ticket
+    description: ""
+    parameters:
+      type: object
+      properties:
+        ticket_id:
+          type: string
+'@ | Set-Content -LiteralPath $badPath -Encoding utf8
+
+python -m lintlang scan $badPath --fail-on fail
+
+@'
+system_prompt: |
+  You are a support agent. Use the tools to help the user.
+  Stop and report the failure once the retry limit is reached.
+tools:
+  - name: process_ticket
+    description: "Apply a resolution action to one existing support ticket. Use this only after the ticket has been read; do NOT use it to look tickets up."
+    parameters:
+      type: object
+      properties:
+        ticket_id:
+          type: string
+          description: "Identifier of the existing ticket to act on"
+      required: [ticket_id]
+constraints:
+  max_iterations: 3
+  timeout_seconds: 30
+'@ | Set-Content -LiteralPath $fixedPath -Encoding utf8
+
+python -m lintlang scan $fixedPath --fail-on fail
+python -m lintlang scan (Join-Path $env:TEMP "does-not-exist.yaml") --fail-on fail
+```
+
+The three PowerShell scans have the same outcomes as the POSIX recipe: the
+first exits `1` after detecting the seeded findings, the repaired file reports
+`PASS` and exits `0`, and the missing file reports `ERROR` and exits nonzero.
 
 ## Try the bundled example
 

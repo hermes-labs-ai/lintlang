@@ -30,6 +30,8 @@ from lintlang.scanner import scan_file
 README = Path(__file__).resolve().parent.parent / "README.md"
 SECTION = "## First run without a checkout"
 HEREDOC = re.compile(r"<<'YAML'\n(.*?)\nYAML\n", re.DOTALL)
+WINDOWS_HEADING = "### Windows PowerShell"
+POWERSHELL_HERE_STRING = re.compile(r"@'\n(.*?)\n'@", re.DOTALL)
 
 
 def _section() -> str:
@@ -48,6 +50,16 @@ def _section() -> str:
 
 def _readme_fixtures() -> list[str]:
     return HEREDOC.findall(_section())
+
+
+def _windows_section() -> str:
+    section = _section()
+    start = section.index(WINDOWS_HEADING)
+    return section[start:]
+
+
+def _powershell_fixtures() -> list[str]:
+    return POWERSHELL_HERE_STRING.findall(_windows_section())
 
 
 @pytest.fixture(scope="module")
@@ -167,6 +179,18 @@ def test_section_publishes_an_explicit_latest_install():
     section = _section()
     assert "python -m pip install --upgrade lintlang" in section
     assert "re-read the counts below as approximate" in section
+
+
+def test_windows_powershell_recipe_matches_the_verified_fixtures(fixtures):
+    """Windows users must get the same two inputs and three outcomes as POSIX users."""
+    section = _windows_section()
+
+    assert _powershell_fixtures() == fixtures
+    assert 'Join-Path $env:TEMP "agent.yaml"' in section
+    assert 'Join-Path $env:TEMP "agent-fixed.yaml"' in section
+    assert "python -m lintlang scan $badPath --fail-on fail" in section
+    assert "python -m lintlang scan $fixedPath --fail-on fail" in section
+    assert "python -m lintlang scan (Join-Path $env:TEMP" in section
 
 
 # --- outbound-network deny guard ------------------------------------------
