@@ -11,6 +11,6 @@ permissions:
 
 jobs:
   language-contract:
-    uses: hermes-labs-ai/.github/.github/workflows/reusable-lintlang.yml@main
+    uses: hermes-labs-ai/.github/.github/workflows/reusable-lintlang.yml@24f689992794ea08d905419f1e94a0274ba99ae4 # centralized workflow source
     with:
       path: AGENTS.md
