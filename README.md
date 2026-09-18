@@ -14,7 +14,7 @@
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/hermes-labs-ai/lintlang/badge)](https://scorecard.dev/viewer/?uri=github.com/hermes-labs-ai/lintlang)
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.20471007.svg)](https://doi.org/10.5281/zenodo.20471007)
 
-[Product page](https://hermes-labs.ai/lintlang) · [Browser playground](https://hermes-labs.ai/lintlang#playground) · [PyPI](https://pypi.org/project/lintlang/) · [Documentation](llms-full.txt)
+[Product page](https://lintlang.ai/) · [Browser playground](https://hermes-labs.ai/lintlang#playground) · [PyPI](https://pypi.org/project/lintlang/) · [Documentation](llms-full.txt)
 
 <img src="assets/preview.png" alt="lintlang scan reporting a CRITICAL tool-description finding" width="760">
 
