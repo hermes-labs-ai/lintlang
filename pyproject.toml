@@ -67,12 +67,12 @@ lintlang = "lintlang.integrations.hermes_agent:register"
 packages = ["src/lintlang"]
 
 [tool.hatch.build.targets.sdist]
-# WORKSPACE.md documents which local clone is canonical for this maintainer.
-# It carries absolute paths under a home directory and names unrelated internal
-# repositories, none of which mean anything to someone who downloaded a tarball
-# from PyPI. Useful in the git checkout, wrong in a published artifact.
+# .hermes/WORKSPACE.md documents which local clone is canonical for this
+# maintainer. It carries absolute paths under a home directory and names
+# unrelated internal repositories, none of which mean anything to someone who
+# downloaded a tarball from PyPI. Useful in the git checkout, wrong in a
+# published artifact. The ".hermes/**" exclusion below already covers it.
 exclude = [
-    "WORKSPACE.md",
     "GAP.md",
     ".hermes/**",
     ".github/workflows/hermes-quality.yml",
