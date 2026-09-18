@@ -1,782 +1,172 @@
 # LintLang
 
-[![CI](https://github.com/hermes-labs-ai/lintlang/actions/workflows/ci.yml/badge.svg)](https://github.com/hermes-labs-ai/lintlang/actions/workflows/ci.yml)
-[![PyPI](https://img.shields.io/pypi/v/lintlang)](https://pypi.org/project/lintlang/)
-[![PyPI downloads](https://img.shields.io/pypi/dm/lintlang?label=downloads%2Fmonth)](https://pypistats.org/packages/lintlang)
-[![Python](https://img.shields.io/pypi/pyversions/lintlang)](https://pypi.org/project/lintlang/)
-[![License](https://img.shields.io/pypi/l/lintlang)](LICENSE)
+Static analysis for the instructions your AI agents execute.
 
-**Product page:** [lintlang.ai](https://lintlang.ai/)
+LintLang catches ambiguous tool descriptions, missing operational limits, schema/description mismatches, conflicting output contracts, and other bounded instruction defects before a model runs.
 
-**Try in your browser:** [hermes-labs.ai/lintlang#playground](https://hermes-labs.ai/lintlang#playground) runs a real LintLang scan locally in your browser, with no account, API key, model call, or upload.
+**Local · deterministic · zero LLM calls · no telemetry or network access during a scan**
 
-**LintLang statically analyzes the natural-language instructions that control
-AI agents, catching ambiguous tools, missing limits, and conflicting directives
-before runtime.**
-
-It flags patterns such as:
-
-- empty, vague, or overlapping tool descriptions;
-- tool pairs with no term that distinguishes one from the other (`H1.6`);
-- missing stop conditions and unbounded retries;
-- inconsistencies between tool schemas and their descriptions;
-- unscoped context and vague instructions;
-- conflicting output formats and malformed message roles;
-- embedded prompts and uncalibrated thresholds in Python pipelines.
-
-LintLang's default static checks are deterministic and local. They make no LLM,
-API, telemetry, or network calls.
-
-```bash
-python -m pip install lintlang
-lintlang scan AGENTS.md
-```
-
-Or run it once without installing, using [uv](https://docs.astral.sh/uv/):
-`uvx lintlang scan AGENTS.md`.
-
-Example run against this repo's `samples/bad_tool_descriptions.yaml`, a fixture
-with two tools (`get_user_info`, `fetch_user_data`) that carry no distinguishing
-term:
-
-```
-$ lintlang scan samples/bad_tool_descriptions.yaml
-LINTLANG v0.6.0
-  samples/bad_tool_descriptions.yaml
-  ──────────────────────────────────────────────────
-
-  ❌ FAIL — 1 CRITICAL, 2 HIGH, 7 MEDIUM, 3 LOW
-
-  H1: Tool Description Ambiguity
-
-    !! [CRITICAL] H1.1 tool:process_ticket
-      Tool 'process_ticket' has no description.
-      → Add a specific, disambiguating description that explains WHEN to use this tool, not just WHAT it does.
-
-    ! [HIGH] H1.2 tool:get_user_info
-      Tool 'get_user_info' has a very short description (13 chars): "Get user info"
-      Evidence: "Get user info"
-      → Expand description to include: purpose, when to use vs alternatives, expected input shape, output behavior.
-
-    ~ [MEDIUM] H1.6 tool:get_user_info vs tool:fetch_user_data
-      Tools 'get_user_info' and 'fetch_user_data' carry no differentia — every meaning-bearing term in one is present, or has a synonym, in the other. Both descriptions may be accurate and still give a model nothing to choose between them.
-      Evidence: "'Get user info' vs 'Get user data from the system'"
-      → Name a condition that selects one over the other. State what each tool is for that the other is NOT for — e.g. 'use X for orders already placed, use Y for carts not yet submitted'.
-
-  ──────────────────────────────────────────────────
-  lintlang v0.6.0 | H1-H7 structural analysis | Zero LLM calls
-```
-
-(Full output has 13 findings across H1, H2, and H3; the block above is
-truncated for length. See the Quick start section below for `pipx` and other
-install options.)
-
-This is a deliberately failing fixture: its `FAIL` verdict shows that LintLang
-found the seeded instruction problems, not that installation failed. A normal
-scan reports findings and exits `0`; add `--fail-on fail` when CI should block
-on `HIGH` or `CRITICAL` findings. For a known-clean comparison from a source
-checkout, run `lintlang scan samples/clean_config.yaml --fail-on fail`; it
-reports `PASS` and exits `0` on the released 0.6.0 fixture. Without a checkout, use the [checkout-free clean example](#first-run-without-a-checkout) below. A clean static scan is not evidence that an agent is safe or runtime-correct.
-
-LintLang was developed as the engineering offshoot of
-[A Taxonomy of Epistemic Failure Modes in Large Language Models](https://doi.org/10.5281/zenodo.19042468),
-but its bounded detectors do not claim to implement or validate every failure
-mode in the paper.
-
-## Technical note
-
-[Tool Differentia: Relational Static Analysis for AI Agent Tool Descriptions](https://hermes-labs.ai/research/tool-differentia)
-documents LintLang H1.6, the bounded pairwise check for tool descriptions that
-do not supply an analyzed distinction from a neighboring tool. It is a
-technical note, not a semantic-equivalence proof or a runtime-selection
-evaluation. Use its version-independent concept DOI,
-[10.5281/zenodo.21817243](https://doi.org/10.5281/zenodo.21817243), for citation;
-the current archived release is Version 1.0.1.
-
-## Listed in
-
-External projects that have merged a reference to LintLang, so a reader
-following a citation graph back from them lands here. Facts only — a merge is
-not adoption or endorsement:
-
-- [MegaLinter's External Plugins Catalog](https://github.com/oxsecurity/megalinter/pull/8899)
-  lists `mega-linter-plugin-lintlang` (merged 2026-09-11).
-- [Piebald-AI/awesome-gemini-cli](https://github.com/Piebald-AI/awesome-gemini-cli/pull/124)
-  lists LintLang's Gemini CLI extension (merged 2026-09-13).
-- [ml-tooling/best-of-python-dev](https://github.com/ml-tooling/best-of-python-dev/pull/286)
-  lists LintLang in the generated best-of list (merged 2026-08-13).
-- [ZeroPointRepo/awesome-hermes-skills](https://github.com/ZeroPointRepo/awesome-hermes-skills/pull/37)
-  lists LintLang as a Claude skill (merged 2026-08-12).
-
-## Registries
-
-- [Software Heritage](https://archive.softwareheritage.org/browse/origin/?origin_url=https://github.com/hermes-labs-ai/lintlang)
-  preserves this repository's history.
-- [Research Software Directory](https://research-software-directory.org/software/lintlang)
-  carries a published software entry.
+[Product page](https://hermes-labs.ai/lintlang) · [Browser playground](https://hermes-labs.ai/lintlang#playground) · [PyPI](https://pypi.org/project/lintlang/) · [Documentation](llms-full.txt)
 
 ## Quick start
 
 Requires Python 3.10+.
 
-Run the command for an instruction file that is actually present in your
-project. The examples below use `AGENTS.md`; use the matching `CLAUDE.md`,
-`GEMINI.md`, Copilot, or agent-config path from the
-[supported-path matrix](#lint-the-instructions-your-coding-agent-actually-reads)
-when that is what your coding agent reads.
-
-Run once without installing, using [uv](https://docs.astral.sh/uv/):
+Run once without installing:
 
 ```bash
 uvx lintlang scan AGENTS.md
 ```
 
-For a persistent command in an isolated environment, use
-[pipx](https://pipx.pypa.io/stable/):
+Or install it:
 
 ```bash
-pipx install lintlang
+pip install lintlang
 lintlang scan AGENTS.md
 ```
 
-If pipx's app directory is not on `PATH`, run `pipx ensurepath`, open a new
-shell, and retry the scan.
+Use the instruction file your agent actually reads: `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, GitHub Copilot instructions, or another supported prompt/configuration path.
 
-Or install from PyPI into the current Python environment:
+A normal scan reports findings without blocking:
 
-```bash
-python -m pip install lintlang
+```text
+REVIEW — findings detected
 ```
 
-## Lint the instructions your coding agent actually reads
-
-LintLang treats agent instruction files as ordinary local inputs. It does not
-need a vendor API, an always-running agent hook, or a separate integration for
-each host.
-
-| Coding-agent workflow | Native instruction surface | Local gate | Generate CI/SARIF gate |
-| --- | --- | --- | --- |
-| Codex | `AGENTS.md` | `lintlang scan AGENTS.md` | `lintlang init --github --path AGENTS.md` |
-| Claude Code | `CLAUDE.md` | `lintlang scan CLAUDE.md` | `lintlang init --github --path CLAUDE.md` |
-| GitHub Copilot | `.github/copilot-instructions.md` or `.github/instructions/` | `lintlang scan .github/copilot-instructions.md` | `lintlang init --github --path .github/copilot-instructions.md` |
-| Gemini CLI | `GEMINI.md` | `lintlang scan GEMINI.md` | `lintlang init --github --path GEMINI.md` |
-
-For a repository that has exactly one of these common paths, `lintlang init
---github` detects it automatically. Pass `--path` when the repository has
-more than one instruction surface or when you want to scan an instruction
-directory. The generated workflow runs the same local scanner and uploads
-SARIF; it does not change how the coding agent loads its instructions.
-
-[Character.AI's public Larch repository](https://github.com/character-ai/larch/blob/ef7ee4b7f946f29fa51981f5422a1a93e83c79a7/.github/workflows/requirements-agent-linters.txt)
-pins `lintlang==0.3.1` in recurring CI. Larch's
-[linting reference](https://github.com/character-ai/larch/blob/210d08a8f6c1b0dd14c27b709c66471bd31a5636/docs/linting.md)
-links this repository as the upstream and documents the gate: its consolidated
-`agent-lint` job scans `agents/`, `.claude/agents/`, `skills/`, and
-`.claude/skills/` and fails on HIGH or CRITICAL findings
-([merged July 2026](https://github.com/character-ai/larch/pull/7960)).
-LintLang also has independent Gentoo packaging in the unofficial
-[Haven overlay](https://github.com/thehaven/haven-overlay/tree/d052d950b05389fcd7c8f22939033319a5aec348/dev-util/lintlang),
-not the official tree or GURU; its ebuilds have tracked upstream releases since
-0.2.1, and its `metadata.xml` records this repository as the upstream remote.
-
-When you are ready to make `HIGH` or `CRITICAL` findings block CI:
+To make `HIGH` or `CRITICAL` findings fail CI:
 
 ```bash
 lintlang scan AGENTS.md --fail-on fail
 ```
 
-Each finding identifies the affected location, the detected pattern, its
-severity, and a suggested review action.
+## What LintLang catches
 
-### Adopt LintLang in an existing repository
+- **Ambiguous tools** — empty, vague, or overlapping descriptions without a clear selection rule.
+- **Missing bounds** — retries, loops, or tool use without explicit stopping or progress conditions.
+- **Contract mismatches** — descriptions that disagree with schemas, malformed message roles, or conflicting output-format requirements.
+- **Context and prompt defects** — vague or unscoped context, embedded prompt issues, and selected problems in supported Python prompt pipelines.
 
-An existing instruction backlog does not have to delay a CI gate. The
-[baseline workflow](docs/baselines.md) records reviewed findings and lets the
-same scanner report and gate findings that are not acknowledged. It works in
-the CLI and the first-party GitHub Action, without disabling an entire rule.
+Every finding has a stable identifier, severity, evidence, and a suggested review action where the parser can justify one.
 
-Baseline support is included in released LintLang 0.6.0. From the root of the
-project you want to scan:
+LintLang does not decide whether arbitrary prose is true, predict runtime model behavior, or certify an agent as safe.
+
+## What it can scan
+
+| Surface | Examples |
+| --- | --- |
+| Coding-agent instructions | `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, Copilot instructions |
+| Agent configuration | YAML and JSON tool/config structures |
+| Prompts and instructions | Markdown, text, and prompt files |
+| Python | Supported extractable pipeline patterns |
+| Invocation | Individual files, directories |
+
+See the [technical reference](llms-full.txt) for detector coverage and extraction behavior.
+
+## Use it where instructions change
+
+### Local review
 
 ```bash
-# Review the full report before committing the generated baseline.
+lintlang scan AGENTS.md
+```
+
+### Existing repositories
+
+Create a baseline for findings already reviewed, then gate only new findings:
+
+```bash
 lintlang scan AGENTS.md --write-baseline .lintlang-baseline.json
-
-# Keep the known backlog acknowledged while blocking new MEDIUM+ findings.
-lintlang scan AGENTS.md --baseline .lintlang-baseline.json --fail-on review
+lintlang scan AGENTS.md \
+  --baseline .lintlang-baseline.json \
+  --fail-on review
 ```
 
-Baseline matching is exact and count-limited. Changed findings and findings in
-another file remain visible. Invalid inputs still fail; HERM scores are
-unchanged. See the guide for CI configuration, maintenance, and matching limits.
+See [baseline adoption](docs/baselines.md) for matching semantics and maintenance.
 
-## First run without a checkout
+### GitHub CI and Code Scanning
 
-No clone, no credential. You write two small files and run three scans.
-
-Only the install reaches the network — `pip` resolves and downloads from your
-package index. Every `lintlang scan` below is offline and deterministic: it
-reads the file you name and nothing else, no credential, no private file, no
-network.
-
-The recipe immediately below uses POSIX shell syntax. A fully equivalent
-[Windows PowerShell recipe](#windows-powershell) follows the three scan
-outcomes.
-
-```bash
-python -m pip install lintlang==0.6.0
-
-cat > /tmp/agent.yaml <<'YAML'
-system_prompt: |
-  You are a support agent. Use the tools to help the user.
-tools:
-  - name: process_ticket
-    description: ""
-    parameters:
-      type: object
-      properties:
-        ticket_id:
-          type: string
-YAML
-
-lintlang scan /tmp/agent.yaml --fail-on fail
-```
-
-The pin is the release this block was verified against. To take the latest
-release instead, run:
-
-```bash
-python -m pip install --upgrade lintlang
-```
-
-and re-read the counts below as approximate — a newer release may report
-different findings.
-
-`lintlang 0.6.0` reports `FAIL — 1 CRITICAL, 1 HIGH, 1 MEDIUM` and exits `1`.
-The `CRITICAL` is `H1.1 tool:process_ticket` — "Tool 'process_ticket' has no
-description." Under `--fail-on fail` that exit `1` is a successful detection,
-not a broken install. Do not hide it with `|| true`.
-
-Give the tool a disambiguating description and add the bounds `H2` looks for:
-
-```bash
-cat > /tmp/agent-fixed.yaml <<'YAML'
-system_prompt: |
-  You are a support agent. Use the tools to help the user.
-  Stop and report the failure once the retry limit is reached.
-tools:
-  - name: process_ticket
-    description: "Apply a resolution action to one existing support ticket. Use this only after the ticket has been read; do NOT use it to look tickets up."
-    parameters:
-      type: object
-      properties:
-        ticket_id:
-          type: string
-          description: "Identifier of the existing ticket to act on"
-      required: [ticket_id]
-constraints:
-  max_iterations: 3
-  timeout_seconds: 30
-YAML
-
-lintlang scan /tmp/agent-fixed.yaml --fail-on fail
-```
-
-`H1.1` is gone. On `lintlang 0.6.0` the fixed file scans `PASS — 0 findings`
-and exits `0`. Only `/tmp/agent-fixed.yaml` passes: the original
-`/tmp/agent.yaml` still scans `FAIL` and still exits `1`.
-
-An input that cannot be scanned stays a separate outcome, so CI can tell
-"findings" apart from "the linter never ran":
-
-```bash
-lintlang scan /tmp/does-not-exist.yaml --fail-on fail
-```
-
-That prints the verdict `ERROR` with `Input error: File not found` and exits
-nonzero. `--format json` carries the same distinction as `verdict` plus a
-non-null `input_error`.
-
-`PASS` here means the selected checks found nothing above `LOW` in the content
-lintlang extracted from `/tmp/agent-fixed.yaml`. It is not evidence that the
-agent is safe or runtime-correct.
-
-### Keep a successful check in GitHub CI
-
-When the file that passed is a real instruction surface in a Git repository,
-generate a pinned GitHub workflow for that same path:
+Generate a pinned workflow for a known instruction path:
 
 ```bash
 lintlang init --github --path AGENTS.md
 ```
 
-Run this from the repository root and replace `AGENTS.md` with the path you
-actually scanned. It writes `.github/workflows/lintlang.yml`, scans the chosen
-path, and uploads SARIF. A different existing LintLang workflow is left alone;
-inspect it before deliberately replacing it with `--force`.
+The generated workflow runs the same scanner and can upload SARIF for GitHub Code Scanning.
 
-### Windows PowerShell
+## Integrations
 
-The POSIX recipe above uses `/tmp` and shell heredocs. Windows PowerShell 5.1
-and PowerShell 7 can run the same pinned first check with literal here-strings
-in the user temp directory. This uses `python -m lintlang` so it invokes the
-same Python environment that installed the package.
+LintLang fits existing developer workflows rather than requiring a runtime service.
 
-```powershell
-python -m pip install lintlang==0.6.0
+| Integration | Use |
+| --- | --- |
+| GitHub Action | Scan instruction paths in pull requests and CI |
+| GitHub Code Scanning | Upload SARIF findings beside code findings |
+| pre-commit | Review instructions before commit |
+| Claude Code | Optional non-blocking guidance after supported edits |
+| Gemini CLI | Optional non-blocking guidance after supported edits |
+| OpenCode | Optional non-blocking post-edit guidance |
+| Hermes Agent | Bounded pre-verification of supported edits |
+| MegaLinter | Opt-in external plugin for existing MegaLinter users |
 
-$badPath = Join-Path $env:TEMP "agent.yaml"
-$fixedPath = Join-Path $env:TEMP "agent-fixed.yaml"
+See the [integrations and ecosystem guide](docs/integrations.md) for setup instructions and public ecosystem references.
 
-@'
-system_prompt: |
-  You are a support agent. Use the tools to help the user.
-tools:
-  - name: process_ticket
-    description: ""
-    parameters:
-      type: object
-      properties:
-        ticket_id:
-          type: string
-'@ | Set-Content -LiteralPath $badPath -Encoding utf8
+## Results and exit behavior
 
-python -m lintlang scan $badPath --fail-on fail
-
-@'
-system_prompt: |
-  You are a support agent. Use the tools to help the user.
-  Stop and report the failure once the retry limit is reached.
-tools:
-  - name: process_ticket
-    description: "Apply a resolution action to one existing support ticket. Use this only after the ticket has been read; do NOT use it to look tickets up."
-    parameters:
-      type: object
-      properties:
-        ticket_id:
-          type: string
-          description: "Identifier of the existing ticket to act on"
-      required: [ticket_id]
-constraints:
-  max_iterations: 3
-  timeout_seconds: 30
-'@ | Set-Content -LiteralPath $fixedPath -Encoding utf8
-
-python -m lintlang scan $fixedPath --fail-on fail
-python -m lintlang scan (Join-Path $env:TEMP "does-not-exist.yaml") --fail-on fail
-```
-
-The three PowerShell scans have the same outcomes as the POSIX recipe: the
-first exits `1` after detecting the seeded findings, the repaired file reports
-`PASS` and exits `0`, and the missing file reports `ERROR` and exits nonzero.
-
-## Try the bundled example
-
-The source repository includes a deliberately broken example:
-
-```bash
-git clone --depth 1 https://github.com/hermes-labs-ai/lintlang.git
-cd lintlang
-
-lintlang scan samples/bad_tool_descriptions.yaml --fail-on fail
-```
-
-Excerpt from `lintlang 0.6.0`:
-
-```text
-LINTLANG v0.6.0
-
-FAIL — 1 CRITICAL, 2 HIGH, 7 MEDIUM, 3 LOW
-
-H1: Tool Description Ambiguity
-
-  [CRITICAL] H1.1 tool:process_ticket
-  Tool 'process_ticket' has no description.
-
-  [HIGH] H1.2 tool:get_user_info
-  Tool 'get_user_info' has a very short description (13 chars):
-  "Get user info"
-
-…
-
-H2: Missing Constraint Scaffolding
-
-  [HIGH] system_prompt
-  System prompt defines tools but contains no termination conditions,
-  retry budgets, or progress checks.
-```
-
-The command exits with status `1` because it includes `--fail-on fail`.
-
-## Verdicts and CI behavior
-
-| Verdict | Practical meaning |
-|---|---|
-| `PASS` | No `MEDIUM`, `HIGH`, or `CRITICAL` finding remained after the selected checks and filters |
-| `REVIEW` | At least one `MEDIUM` finding remained |
-| `FAIL` | At least one `HIGH` or `CRITICAL` finding remained |
+| Verdict | Meaning |
+| --- | --- |
+| `PASS` | No remaining `MEDIUM` or higher findings |
+| `REVIEW` | At least one `MEDIUM` finding remains |
+| `FAIL` | At least one `HIGH` or `CRITICAL` finding remains |
 | `ERROR` | A requested input could not be inspected |
 
-`PASS` applies only to recognized content extracted from the requested inputs
-and the checks and severity filters selected for that run. It does not mean
-that every structure in an arbitrary JSON or YAML file was extracted.
-A clean LintLang scan is not evidence that an agent is safe or runtime-correct.
+Findings are non-blocking by default. Use `--fail-on` to choose a CI threshold. Input errors remain nonzero regardless of that threshold.
 
-By default, findings are reported without failing the process.
+Machine-readable JSON and SARIF output are available for automation.
 
-The CLI has no verdict-failure threshold by default; the first-party GitHub
-Action defaults to `fail`.
-
-- `--fail-on fail` blocks on `FAIL`.
-- `--fail-on review` blocks on `REVIEW` or `FAIL`.
-- Missing, malformed, unreadable, or otherwise unscannable requested inputs
-  remain nonzero regardless of the chosen finding threshold.
-- A directory invocation that finds no eligible files reports “No matching
-  files found to scan.” and exits `0`; this “nothing scanned” outcome is
-  distinct from `ERROR` for a requested input that could not be inspected.
-
-Filters such as `--min-severity` are applied before the verdict. For initial
-adoption, keep the full output visible and use `--fail-on fail` to block only
-the highest-severity findings.
-
-## Add it to CI
-
-From a Git repository containing `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, a
-Copilot instructions file or directory, or an agent YAML/JSON config, create
-the pinned GitHub Code Scanning workflow in one command:
-
-```bash
-lintlang init --github
-```
-
-Use `--path path/to/instructions` when auto-detection should not choose the
-input. The initializer will not replace a different existing workflow unless
-you pass `--force`; inspect that diff before committing it. Generated workflows
-pin the latest reviewed, already-released LintLang action to its immutable
-commit, with the release tag retained as a human-readable comment. The pin can
-intentionally trail the package being prepared because that package's release
-commit does not exist yet when its artifacts are built.
-
-After choosing one real instruction path in your repository:
-
-```yaml
-jobs:
-  lint-agent-instructions:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
-      - name: Inspect agent instructions
-        uses: hermes-labs-ai/lintlang@58e66871531eb585869336189d07b4334e963a5f # v0.6.0
-        with:
-          path: AGENTS.md
-```
-
-The pinned commit (with the release tag retained as a comment) pins both the
-action and the LintLang source it installs. Upgrade that pin deliberately and
-inspect newly introduced findings before making them blocking.
-
-## Hermes Agent verification hook
-
-When LintLang and [Hermes Agent](https://github.com/NousResearch/hermes-agent)
-are installed in the same Python environment, Hermes discovers LintLang through
-its native `hermes_agent.plugins` entry-point contract. LintLang registers one
-bounded `pre_verify` hook: after a coding turn changes a recognized agent
-instruction, prompt, skill, tool, or agent-config surface, it runs the same
-local deterministic scan before the turn finishes.
-
-`PASS` and `REVIEW` do not interrupt the turn. `FAIL` or an input `ERROR` keeps
-the turn open once with the exact `lintlang scan` command to run. The hook
-self-throttles on Hermes' `attempt` field and ignores ordinary source and
-documentation files, so it cannot create an unbounded retry loop or turn a
-general code edit into a prompt-lint gate.
-
-Verify discovery with:
-
-```bash
-hermes plugins list
-```
-
-Disable the `lintlang` plugin through Hermes' normal plugin controls if the
-workspace should use only LintLang's CI or pre-commit surfaces.
-
-## Add it to pre-commit
-
-Add the hook to `.pre-commit-config.yaml` with the explicit instruction paths
-to scan:
-
-```yaml
-repos:
-  - repo: https://github.com/hermes-labs-ai/lintlang
-    rev: v0.6.0
-    hooks:
-      - id: lintlang
-        args: [AGENTS.md]
-```
-
-Activate it and test the configured paths:
-
-```bash
-pre-commit install
-pre-commit run lintlang
-```
-
-In CI, after installing `pre-commit`, run that same configured hook across the
-repository:
-
-```yaml
-- name: Lint agent instructions
-  run: pre-commit run lintlang --all-files
-```
-
-Replace or extend `args` with the prompt, tool-definition, agent-configuration,
-or supported directory paths your repository owns. The hook scans only those
-configured paths and reports findings without blocking on a verdict by default.
-
-After reviewing the repository's baseline, opt into blocking `FAIL` findings:
-
-```yaml
-hooks:
-  - id: lintlang
-    args: [AGENTS.md, --fail-on, fail]
-```
-
-Missing, unreadable, or malformed configured inputs still return nonzero.
-
-## Use it with MegaLinter
-
-The external MegaLinter plugin exposes LintLang as `AI_LINTLANG`, installing the
-pinned release at run time through MegaLinter's plugin loader. See the
-[MegaLinter plugin guide](mega-linter-plugin-lintlang/README.md) for the exact
-`PLUGINS` and `ENABLE_LINTERS` configuration and the container verification
-steps.
-
-## Use it with Claude Code
-
-The repository root is also a Claude Code marketplace, so the native plugin
-installs without a checkout:
-
-```text
-/plugin marketplace add hermes-labs-ai/lintlang
-/plugin install lintlang@lintlang
-```
-
-LintLang is also indexed in the third-party [Claude Market directory](https://claudemarket.ai/hermes/tools/tools-lintlang); the marketplace commands above remain the supported install route.
-
-The plugin ships two separate surfaces. Its `lintlang-audit` skill audits a
-file you name, when you ask for it. Its non-blocking `PostToolUse` hook returns
-LintLang repair guidance by itself, after Claude Code changes supported files
-with `Write` or `Edit`. Neither rewrites a file or blocks a tool call, and the
-skill is not the hook. Reverse both with `claude plugin disable
-lintlang@lintlang` or `claude plugin uninstall lintlang@lintlang`. See the
-[Claude Code plugin guide](integrations/claude-code/README.md) for the
-prerequisite LintLang release and the local `--plugin-dir` route.
-
-## Use it with Gemini CLI
-
-The repository root is also a Gemini CLI extension. Its non-blocking
-`AfterTool` hook returns LintLang repair guidance after Gemini changes supported
-files with `write_file` or `replace`. See the
-[Gemini CLI extension guide](docs/gemini-cli-extension.md) for the pinned,
-isolated dependency contract and installation steps.
-
-## Machine-readable output and GitHub Code Scanning
-
-For machine-readable output:
-
-```bash
-lintlang scan AGENTS.md --format json --fail-on fail
-```
-
-For deterministic SARIF 2.1.0 output on stdout:
-
-```bash
-lintlang scan AGENTS.md --format sarif --fail-on fail > lintlang.sarif
-```
-
-Relative inputs are resolved from the current directory. Artifact URIs are
-URI-encoded paths relative to the nearest Git worktree root (or the current
-directory when there is no Git worktree). A resolved source outside that root
-is a fatal output error rather than an absolute-path leak. Python AST findings
-carry supported line spans; YAML, JSON, and text findings intentionally remain
-file-level.
-
-The composite Action can write the same report with its optional `sarif-file`
-input. In that mode SARIF stdout is redirected to the requested file, while
-verdict messages remain on stderr and `fail-on` keeps its normal exit status.
-Directory creation or file-write errors are fatal.
-
-To ask GitHub to ingest the report without exposing Code Scanning write
-permission to LintLang or its scan-time dependencies, use separate scan and
-upload jobs. The upload job checks out source without persisting credentials so
-GitHub can calculate missing fingerprints. The artifact handoff runs even after
-a blocking LintLang verdict; the scan job still keeps that failure as its
-conclusion:
-
-```yaml
-name: LintLang Code Scanning
-
-on:
-  push:
-  pull_request:
-
-jobs:
-  scan:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
-      - name: Run LintLang
-        uses: hermes-labs-ai/lintlang@58e66871531eb585869336189d07b4334e963a5f # v0.6.0
-        with:
-          path: AGENTS.md
-          fail-on: fail
-          sarif-file: lintlang.sarif
-
-      - name: Preserve LintLang SARIF
-        if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: lintlang-sarif
-          path: lintlang.sarif
-          if-no-files-found: error
-
-  upload-sarif:
-    needs: scan
-    if: always() && (github.event_name == 'push' || (github.actor != 'dependabot[bot]' && github.event.pull_request.head.repo.full_name == github.repository))
-    runs-on: ubuntu-latest
-    permissions:
-      actions: read
-      contents: read
-      security-events: write
-    steps:
-      - name: Check out repository for SARIF fingerprinting
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
-      - name: Download LintLang SARIF
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          name: lintlang-sarif
-
-      - name: Upload LintLang SARIF
-        uses: github/codeql-action/upload-sarif@5595ccaf912efad79be6eef63a5619ff05969be3 # v4
-        with:
-          sarif_file: lintlang.sarif
-```
-
-The complete copy-paste workflow is
-[`examples/github-code-scanning.yml`](examples/github-code-scanning.yml).
-LintLang emits code-quality/static-language results without security tags,
-security severity, source snippets, or custom fingerprints. GitHub's upload
-Action may calculate fingerprints during ingestion.
-
-## What it inspects
-
-LintLang currently accepts:
-
-- JSON and YAML objects using recognized top-level agent fields such as
-  `system_prompt`, `instructions`, `tools`, `functions`, `messages`, and
-  selected response-schema fields;
-- `.txt`, `.md`, and `.prompt` instruction files;
-- Python files, using AST extraction for prompt-like strings and
-  threshold assignments.
-
-Nested vendor-specific layouts and raw top-level YAML arrays are not
-automatically normalized. A syntactically valid input must still match a
-recognized shape for its structured tools or messages to be inspected.
-
-The checks cover reader-facing categories including tool clarity, execution
-bounds, schema-description alignment, context boundaries, instruction
-specificity, output contracts, message-role structure, and Python pipeline
-hygiene.
-
-### H1.6: tool descriptions without a differentia
-
-Per-tool schema validation assesses one definition at a time. Within one parsed
-input, H1.6 instead compares tool definitions with each other and reports a pair
-when, under LintLang's term-and-synonym model, one or both descriptions provide
-no distinguishing term. Both tools can be individually valid, so per-tool
-validation has nothing to report. A *mutual* finding means neither description
-distinguishes itself; *domination* means one tool's terms are all covered by the
-other, and the finding names which description to repair. Directory scans do
-not aggregate tool definitions across files or infer a shared namespace.
-
-Findings print the sub-code:
-`~ [MEDIUM] H1.6 tool:find_tickets vs tool:search_tickets`. `pattern_id` stays
-`H1`; JSON output adds a `code` field holding the most specific identifier.
-
-H1.6 is MEDIUM, so `--fail-on fail` does not block on it. Matching uses a
-finite English synonym lexicon, so pairs that say the same thing in different
-words or a different sentence shape are missed. The absence of an H1.6 finding
-is not evidence that no such pair exists.
-
-Use narrow, intentional paths. Directory scans can discover Markdown and Python
-files that were not written as agent configuration; use `.lintlangignore` or
-`--exclude` where needed.
-
-For the exact H-series identifiers:
-
-```bash
-lintlang patterns
-```
-
-`lintlang patterns` lists the H1-H7 structural detectors only. Python pipeline
-findings report as `P1` and `P2` in scan, JSON, and SARIF output.
-
-See the [full technical reference](llms-full.txt) for detector details.
-
-## Where it fits
+## Where LintLang fits
 
 ```text
 syntax and schema validation
         ↓
-LintLang static language checks
+LintLang static instruction checks
         ↓
 runtime agent evaluation
         ↓
 domain and security review
 ```
 
-LintLang is useful during authoring and pull-request review, before runtime
-testing. It does not:
+LintLang is an authoring and review control. It does not run models, observe tool selection at runtime, prove semantic correctness, replace evaluation, or establish that an agent is production-safe.
 
-- determine whether an instruction is factually or semantically correct;
-- observe an agent selecting or executing tools;
-- prove that a finding causes a runtime failure;
-- certify an agent as safe or production-ready;
-- replace runtime evaluation or human review.
+A clean scan means only that the selected static checks found no covered defects in the recognized content.
 
-Suggestions are review aids, not guaranteed meaning-preserving fixes.
+## Evidence
 
-## Optional instruction preflight
+[Character.AI’s public Larch repository](https://github.com/character-ai/larch) pins a LintLang release in recurring CI. [MegaLinter](https://github.com/oxsecurity/megalinter) catalogs LintLang as the `AI_LINTLANG` external plugin.
 
-Secondary capability: [provider-neutral instruction preflight](docs/preflight.md)
-inspects one present instruction plus explicit context.
+See the [integrations and ecosystem guide](docs/integrations.md) for additional public references.
 
-## More
+LintLang is an engineering evolution of Hermes Labs’ research into structural epistemic failure modes in language models. See [Research and design lineage](docs/research.md).
 
-- [Technical reference](llms-full.txt)
-- [Product scope and invariants](INTENT.md)
-- [Changelog](CHANGELOG.md)
-- [Contributing](CONTRIBUTING.md)
-- [Report an issue or disputed finding](https://github.com/hermes-labs-ai/lintlang/issues)
-- [Security policy](SECURITY.md)
+## Documentation
 
-## Also from Hermes Labs
+| Need | Document |
+| --- | --- |
+| Detector behavior and rule IDs | [Technical reference](llms-full.txt) |
+| Existing-repository adoption | [Baselines](docs/baselines.md) |
+| Integrations and ecosystem | [Integration guide](docs/integrations.md) |
+| CI and Code Scanning | [GitHub initializer](docs/github.md) |
+| Research and design lineage | [Research](docs/research.md) |
+| Claude Code | [Plugin guide](integrations/claude-code/README.md) |
+| Gemini CLI | [Extension guide](docs/gemini-cli-extension.md) |
+| MegaLinter | [Plugin guide](mega-linter-plugin-lintlang/README.md) |
+| Product scope and intent | [INTENT.md](INTENT.md) |
+| Releases | [CHANGELOG.md](CHANGELOG.md) |
+| Contribution | [CONTRIBUTING.md](CONTRIBUTING.md) |
+| Security | [SECURITY.md](SECURITY.md) |
 
-- [zer0dex](https://github.com/hermes-labs-ai/zer0dex) — a local dual-layer memory pattern for AI agents: a compact, human-readable markdown index paired with semantic retrieval from a local vector store, queried before each message.
-- [little-canary](https://github.com/hermes-labs-ai/little-canary) — detects prompt injection by its effect on a sacrificial canary model: untrusted input hits a powerless model first, a behavioral check reads the residue, and it returns block, flag, or pass.
-- [fidelis](https://github.com/hermes-labs-ai/fidelis) — zero-LLM agent memory using local-first BM25, dense-vector, and reciprocal-rank-fusion retrieval, returning original passages verbatim by default. Available on PyPI as `fidelis-memory`.
-- [quick-gate-js](https://github.com/hermes-labs-ai/quick-gate-js) — a deterministic JS/TS CI quality gate unifying ESLint, TypeScript, build, and Lighthouse checks into one fail-fast result, with bounded auto-repair and structured escalation evidence. npm: `quick-gate`. Python counterpart: [quick-gate-python](https://github.com/hermes-labs-ai/quick-gate-python) (PyPI: `pygate-ci`), the same pattern for Ruff, Pyright, and pytest.
+## Contributing
+
+Bug reports, disputed findings, reproducible false positives, documentation corrections, and focused contributions are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request.
 
 ## License
 
