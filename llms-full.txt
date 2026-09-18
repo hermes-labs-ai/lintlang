@@ -158,7 +158,7 @@ automatically normalized.
 GitHub Actions:
 ```yaml
 - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-- uses: hermes-labs-ai/lintlang@v0.6.0
+- uses: hermes-labs-ai/lintlang@58e66871531eb585869336189d07b4334e963a5f # v0.6.0
   with:
     path: configs/
 ```
