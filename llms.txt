@@ -34,8 +34,9 @@ Key success condition:
 
 ## Third-party adoption (public sources)
 
-- Character.AI's Larch repository pins `lintlang==0.3.1` in CI and fails on HIGH or CRITICAL findings; its linting reference links this repository as the upstream: https://github.com/character-ai/larch/blob/210d08a8f6c1b0dd14c27b709c66471bd31a5636/docs/linting.md (merged via https://github.com/character-ai/larch/pull/7960)
-- Independent Gentoo packaging in the unofficial Haven overlay, whose `metadata.xml` records this repository as the upstream remote: https://github.com/thehaven/haven-overlay/tree/d052d950b05389fcd7c8f22939033319a5aec348/dev-util/lintlang
+- Character.AI's Larch repository pins `lintlang==0.3.1` in CI and fails on HIGH or CRITICAL findings; its linting reference links this repository as the upstream: https://github.com/character-ai/larch/blob/210d08a8f6c1b0dd14c27b709c66471bd31a5636/docs/linting.md (pin recorded in https://github.com/character-ai/larch/blob/7963b4c432747f32bcba22960745568a330344f3/.github/workflows/requirements-agent-linters.txt, merged via https://github.com/character-ai/larch/pull/7960)
+- MegaLinter's third-party plugin catalog lists lintlang as the `AI_LINTLANG` linter and resolves the descriptor from this repository; the linked record documents an opt-in plugin entry, not a bundled MegaLinter default: https://github.com/oxsecurity/megalinter/blob/9d4e685d4f31cecdd53743a08704cd23d9c01811/docs/plugins.md
+- Independent Gentoo packaging in the unofficial Haven overlay, which tracks upstream releases across successive ebuild bumps and whose `metadata.xml` records this repository as the upstream remote: https://github.com/thehaven/haven-overlay/tree/fbed4463d4e213a3bce98babbfc72ef78722d255/dev-util/lintlang
 
 ## About Hermes Labs
 
