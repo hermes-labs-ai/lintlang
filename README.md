@@ -1,18 +1,24 @@
-# LintLang
+<p align="center">
+  <img src="assets/lintlang-mark.svg" alt="LintLang" width="96">
+</p>
 
-[![CI](https://github.com/hermes-labs-ai/lintlang/actions/workflows/ci.yml/badge.svg)](https://github.com/hermes-labs-ai/lintlang/actions/workflows/ci.yml)
-[![PyPI](https://img.shields.io/pypi/v/lintlang)](https://pypi.org/project/lintlang/)
-[![PyPI downloads](https://img.shields.io/pypi/dm/lintlang?label=downloads%2Fmonth)](https://pypistats.org/packages/lintlang)
-[![Python](https://img.shields.io/pypi/pyversions/lintlang)](https://pypi.org/project/lintlang/)
-[![License](https://img.shields.io/pypi/l/lintlang)](LICENSE)
+<h1 align="center">LintLang</h1>
+
+<p align="center"><strong>LintLang statically analyzes the natural-language instructions that control
+AI agents, catching ambiguous tools, missing limits, and conflicting directives
+before runtime.</strong></p>
+
+<p align="center">
+  <a href="https://github.com/hermes-labs-ai/lintlang/actions/workflows/ci.yml"><img src="https://github.com/hermes-labs-ai/lintlang/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://pypi.org/project/lintlang/"><img src="https://img.shields.io/pypi/v/lintlang" alt="PyPI"></a>
+  <a href="https://pypistats.org/packages/lintlang"><img src="https://img.shields.io/pypi/dm/lintlang?label=downloads%2Fmonth" alt="PyPI downloads"></a>
+  <a href="https://pypi.org/project/lintlang/"><img src="https://img.shields.io/pypi/pyversions/lintlang" alt="Python"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/pypi/l/lintlang" alt="License"></a>
+</p>
 
 **Product page:** [lintlang.ai](https://lintlang.ai/)
 
 **Try in your browser:** [hermes-labs.ai/lintlang#playground](https://hermes-labs.ai/lintlang#playground) runs a real LintLang scan locally in your browser, with no account, API key, model call, or upload.
-
-**LintLang statically analyzes the natural-language instructions that control
-AI agents, catching ambiguous tools, missing limits, and conflicting directives
-before runtime.**
 
 It flags patterns such as:
 
