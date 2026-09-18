@@ -1,73 +1,374 @@
-# lintlang — Full Technical Reference
+# LintLang: full technical reference
 
-> Static linter for AI agent tool descriptions, system prompts, and configs.
-> Context engineering quality gate. Zero LLM calls. One dependency. Runs in CI.
-> By Hermes Labs (https://hermes-labs.ai).
+LintLang performs local, deterministic static analysis of recognized agent
+instructions, tool/configuration structures, and extractable Python prompt
+patterns. It makes no model, telemetry, or network calls during a scan. Package
+installation, GitHub uploads, and host-provider activity are separate operations.
 
-## What It Does
-
-lintlang treats agent configs as lintable artifacts — the same way eslint lints JavaScript or ruff lints Python. It flags language patterns associated with ambiguous tool selection, missing termination conditions, structured-output problems, and context-boundary risk.
-
-No LLM calls. No API keys. No network access. Static analysis uses regex, structural heuristics, and Python AST extraction.
+Use the [README](README.md) for onboarding, [integration guide](docs/integrations.md)
+for installation routes, and [research lineage](docs/research.md) for provenance.
+This reference describes the software contract, not a runtime-safety guarantee.
 
 ## Install
 
-Run once without installing:
+Requires Python 3.10+. The sole runtime dependency is `pyyaml>=6.0.3`.
 
-```
+```bash
 uvx lintlang scan AGENTS.md
 ```
 
-Install as an isolated persistent command:
+For an isolated persistent command:
 
-```
+```bash
 pipx install lintlang
 lintlang scan AGENTS.md
 ```
 
-If pipx's app directory is not on `PATH`, run `pipx ensurepath`, open a new
-shell, and retry the scan.
+If pipx's app directory is missing from `PATH`, run `pipx ensurepath`, open a new
+shell, and retry. To install into the current Python environment:
 
-Install into the current Python environment:
-
-```
+```bash
 pip install lintlang
 ```
 
-Python 3.10+. Single runtime dependency: pyyaml.
+Installers can download packages. Once dependencies are available, the scanner
+operates offline. Host-specific tested pins belong in their integration guides;
+they are not automatically interchangeable with the newest package release.
 
-## CLI Usage
+## CLI commands
 
+```bash
+lintlang --version
+lintlang --help
+lintlang scan --help
+lintlang scan AGENTS.md
+lintlang scan config.yaml prompts/
+lintlang scan config.yaml --format json
+lintlang scan config.yaml --format sarif > lintlang.sarif
+lintlang scan config.yaml --fail-on fail
+lintlang scan config.yaml --fail-on review
+lintlang scan config.yaml --min-severity high
+lintlang scan config.yaml --patterns H1 H3
+lintlang scan prompts/ --exclude 'archive/**'
+lintlang patterns
+lintlang init --github --path AGENTS.md
 ```
-lintlang scan config.yaml              # Scan a file
-lintlang scan configs/                 # Scan a directory
-lintlang scan config.yaml --format json # JSON output
-lintlang scan config.yaml --fail-on fail    # CI gate: fail on CRITICAL/HIGH
-lintlang scan config.yaml --fail-on review  # CI gate: fail on MEDIUM+
-lintlang scan config.yaml --min-severity high  # Only show HIGH+
-lintlang scan config.yaml --patterns H1 H3     # Only run specific detectors
-lintlang patterns                      # List all detectors
-printf '%s' 'Is it true that X?' | lintlang preflight - --format json
-```
 
-`preflight` is separate from repository scanning. It examines only the present
-instruction and explicit caller-supplied context. It never retrieves history,
-calls a provider/model, silently applies a patch, or sends the result.
+Scan arguments are files or directories, resolved from the invocation directory.
+`--patterns`/`-p` selects H1-H7 families, not individual sub-codes such as H1.6.
+`lintlang patterns` lists those structural families. P1/P2 are Python-specific
+checks; they still run in Python extraction mode when an H-series filter is set.
+
+`--min-severity` accepts `info` (default), `low`, `medium`, `high`, or `critical`.
+It filters structural findings before verdict computation and baseline matching.
+`--format`/`-f` accepts `terminal` (default), `markdown`, `json`, or `sarif`.
+`--no-suggestions` hides suggestions in terminal, Markdown, and SARIF reports;
+it does not remove the JSON `suggestion` field or redact finding evidence.
+`--fail-under` is a separate legacy HERM quality-score gate; prefer `--fail-on`
+for structural findings. None of these flags changes what arbitrary prose means.
+
+The GitHub initializer creates `.github/workflows/lintlang.yml` for one existing
+repository-contained target. It searches for the nearest Git root, interprets
+`--path` from that root, leaves identical content unchanged, and refuses different
+existing content without `--force`. Automatic candidate order, the released
+Action pin, and upload permissions are documented in [GitHub CI](docs/github.md).
+The initializer does not scan, commit, publish, or enable repository features.
+
+## Verdicts and exit behavior
+
+| Verdict | Meaning after selected filters and any baseline |
+| --- | --- |
+| ERROR | A requested input could not be inspected |
+| FAIL | At least one HIGH or CRITICAL structural finding remains |
+| REVIEW | At least one MEDIUM finding remains and none is HIGH/CRITICAL |
+| PASS | No MEDIUM, HIGH, or CRITICAL finding remains; LOW/INFO may remain |
+
+The CLI has no verdict-failure threshold by default; a scannable input can report
+FAIL and still exit 0. `--fail-on fail` exits 1 for HIGH/CRITICAL findings;
+`--fail-on review` exits 1 for MEDIUM or higher. The first-party GitHub Action
+instead defaults its `fail-on` input to `fail` and always passes that threshold.
+
+Input errors remain exit 1 regardless of severity filtering, a baseline, or the
+presence of another valid input. Baseline validation/write errors and SARIF
+location/output errors are also nonzero. Invalid CLI arguments use argparse's
+nonzero usage-error exit (2). A positive `--fail-under` threshold can independently
+produce exit 1 when the HERM score is below it; baselines do not change that score.
+
+An existing directory with no eligible files prints
+`No matching files found to scan.` to stderr and exits 0. JSON output is `[]`;
+SARIF contains an empty run. This is different from an uninspectable requested
+input and does not prove that the intended instructions were scanned.
+`--write-baseline` deliberately rejects this zero-file case and writes nothing.
+
+PASS applies only to recognized content and selected checks. It does not mean
+that arbitrary nested vendor configuration was extracted, that prose is true,
+or that a model will behave correctly. Determinism describes findings and
+verdicts for the same inputs and rules; terminal elapsed-time summaries are not
+a byte-identical-output promise.
+
+## Supported formats and extraction
+
+| Input | Recognized content and limits |
+| --- | --- |
+| `.yaml`, `.yml` | Top-level recognized agent fields; non-object YAML is treated as prompt text, not normalized as a list of tools |
+| `.json` | Top-level object with recognized fields; a non-object JSON root is an input error |
+| `.md`, `.txt`, `.prompt` | Source text as a system prompt, not automatic parsing of every host's frontmatter or configuration grammar |
+| `.py` | AST-extracted prompt-like strings and supported numeric assignments; not general Python linting |
+
+For YAML/JSON objects, the first string among `system_prompt`, `system`,
+`systemPrompt`, `instructions`, and `prompt` supplies the system prompt. Tools
+come from a top-level `tools` list, or `functions` when `tools` is absent. Supported
+tool shapes include a direct `name`/`description` with `parameters` or
+`input_schema`, and OpenAI-style `type: function` with a nested `function` object.
+Messages come from a top-level `messages` list; its first system message can
+supply the prompt when one was not otherwise found.
+
+Recognized schema fields are `response_format`, `output_schema`, `schema`, and
+`schemas`; constraint mappings come from `constraints`, `config`, `settings`,
+and `parameters`. These are extraction rules, not comprehensive provider-schema
+validation. Unrecognized nested vendor layouts can yield no covered findings.
+
+An explicitly named file with an unknown extension is tried as JSON, then YAML,
+then text. Directory discovery uses the listed, case-sensitive extensions only.
+Directories are traversed in sorted order; dependency/cache/build trees and
+conventional non-prompt names such as README, CHANGELOG, LICENSE, CONTRIBUTING,
+and SECURITY are skipped. Symlink files and directories are not followed during
+directory discovery. Explicit file scans do not use these directory exclusions.
+Traversal errors remain input errors rather than disappearing as clean results.
+
+`.lintlangignore` is read at the root of each directory passed to the scanner.
+Its limited glob matching and `--exclude` operate on paths relative to that scan
+directory; blank/comment lines are ignored. They are not a promise of every
+Git-ignore feature, nested ignore inheritance, or negation semantics. Use a
+known explicit input and inspect the report when scan coverage matters.
+
+### Python extraction and P1/P2
+
+Python source is parsed, not imported or executed. The extractor recognizes
+string literals of at least 50 characters with a supported prompt signal.
+F-string literal portions are retained with `{...}` placeholders for expressions;
+runtime interpolation and data flow are not evaluated. Prompt candidates are
+deduplicated by their first 200 characters, so distinct strings with the same
+prefix can collapse to one candidate. Python syntax errors produce ERROR.
+
+Only H2, H4, H5, and H6 run on extracted prompts. H1, H3, and H7 require a declared
+tool/schema/message surface that this extraction does not produce. Selecting
+only those excluded families emits a warning for Python inputs, not proof that
+those checks passed. P1/P2 still run independently of that selection.
+
+- **P1: Uncalibrated Threshold.** Inspects supported nonzero numeric assignments
+  to threshold/confidence-like names, excluding recognized counters. No recognized
+  nearby calibration comment produces MEDIUM; a recognized comment containing
+  uncertainty markers can produce LOW. This tests a documented justification
+  signal, not whether the threshold was actually calibrated or is correct.
+- **P2: Embedded Scaffold.** An extracted prompt longer than 500 characters
+  produces MEDIUM; one longer than 200 and at most 500 produces LOW. It suggests
+  reviewing whether the prompt should be externalized, not that embedded prompts
+  necessarily cause runtime failures.
+
+A Python file with no recognized prompt may still have P1 findings. A clean scan
+cannot establish that dynamically assembled prompts or every pipeline were
+inspected. Python decoding currently ignores invalid UTF-8 bytes; ordinary
+text/configuration loading uses strict UTF-8. Neither path executes source code.
+
+## Structural detectors (H1-H7)
+
+### H1: Tool Description Ambiguity
+
+Checks empty and very short descriptions, selected vague opening verbs, duplicate
+tool names, high word overlap, and relational nondistinction. Findings keep
+`pattern_id: H1`; `code` provides the more specific stable identifier.
+
+| Code | Reports | Severity |
+| --- | --- | --- |
+| H1.1 | Tool has no description | CRITICAL |
+| H1.2 | Description shorter than 20 characters | HIGH |
+| H1.3 | Description opens with a selected vague verb | MEDIUM |
+| H1.4 | Two tools share a name | CRITICAL |
+| H1.5 | Near-duplicate descriptions under the word-overlap model | HIGH |
+| H1.6 | One or both tools lack a distinguishing analyzed term | MEDIUM |
+
+H1.5 uses Jaccard word similarity with stopword removal. H1.6 compares analyzed
+terms from tool names and descriptions under a finite synonym lexicon. It can
+reach some pairs missed by word overlap: "Look up an order" and "Search for
+orders in the system" have Jaccard 0.00 under H1.5 but no differentia under H1.6's
+term model. Mutual nondistinction means neither member distinguishes itself;
+directional domination identifies the less-specific member when one contributes
+no terms beyond the other. Explicit named boundaries and distinguishing tool
+names can exempt a pair; declared aliases are not automatically exempted.
+
+The comparison scope is one parsed input. Directory scans do not aggregate tools
+across files or infer a shared selection namespace. H1.6 is MEDIUM and cannot
+alone trip `--fail-on fail`; use `--fail-on review` to gate MEDIUM findings.
+Its lexicon is finite: pairs outside it, such as kill/terminate or approve/authorize,
+are not detected. External labeled-corpus precision and recall have not been
+measured. The absence of a finding is not semantic or runtime validation.
+
+Alias recognition is also phrase-bound. `Compatibility alias for X`,
+`Deprecated. Use X`, and `Superseded by X` are recognized. Paraphrases such as
+"does the same thing as X, kept for backward compatibility" or "older entry
+point, prefer X in new code" are not equivalent coverage promises. See
+[Tool Differentia and research lineage](docs/research.md) for provenance.
+
+### H2: Missing Constraint Scaffolding
+
+Checks for selected missing termination conditions, unbounded retry language
+such as "keep trying until", negative termination such as "don't stop until",
+"continue until" without limits, and missing retry budgets. These are static
+indicators, not a proof that a loop will or will not terminate.
+
+### H3: Schema-Intent Mismatch
+
+Checks phantom required fields absent from `properties`, undescribed parameters,
+generic parameter names such as `data`, `input`, `value`, and `payload`,
+undescribed `anyOf`/`oneOf` variants, and nested objects without descriptions.
+It is not full JSON Schema validation or an oracle for a tool's implementation.
+
+### H4: Context Boundary Erosion
+
+Checks selected unscoped requests to remember everything or use all conversation,
+history, or context; unbounded always-remember language; and long prompts without
+recognized boundary markers. It does not inspect a host's actual context window.
+
+### H5: Implicit Instruction Failure
+
+Checks selected vague qualifiers ("be concise", "be helpful", "use common sense"),
+ambiguous conditionals ("as needed", "when appropriate"), figurative verbs
+("lean into", "err on the side of", "keep it simple"), and high instruction count
+without priority ordering. Negative-instruction exemptions have three layers:
+
+1. Structural: HTML comments, fenced/inline code, and generated-file markers.
+2. Phrase-level: selected privacy disclaimers, UI labels, descriptive wording,
+   idiomatic phrases, and "to avoid" constructions.
+3. Safety context: nearby security/authentication/policy terms within a
+   100-character window.
+
+These exemptions and matches are implemented patterns, not unrestricted intent
+understanding; a useful false-positive report includes a minimal reproduction.
+
+### H6: Template Format Contract Violation
+
+Strips fenced code, inline code, filenames, and CLI flags before counting format
+keywords. Checks selected conflicting output formats without disambiguation,
+missing format specifications, template variables, and missing version markers.
+It does not prove arbitrary output contracts satisfiable.
+
+### H7: Role Confusion
+
+Checks multiple system messages, a system message not at position zero,
+consecutive same-role messages, orphan tool results without preceding tool use,
+and messages missing a role. Coverage is limited to recognized message arrays,
+not every provider's protocol.
 
 ## Programmatic API
 
 ```python
-from lintlang import scan_file, scan_directory, compute_verdict
+from lintlang import compute_verdict, scan_directory, scan_file
 
 result = scan_file("config.yaml")
-verdict = compute_verdict(result)  # ERROR, PASS, REVIEW, or FAIL
+print(compute_verdict(result))  # ERROR, PASS, REVIEW, or FAIL
+if result.input_error is not None:
+    print(result.input_error)
+else:
+    for finding in result.structural_findings:
+        print(f"[{finding.severity.value}] {finding.code}: {finding.description}")
+        print(f"  -> {finding.suggestion}")
 
-for finding in result.structural_findings:
-    print(f"[{finding.severity.value}] {finding.pattern}: {finding.description}")
-    print(f"  -> {finding.suggestion}")
+results = scan_directory("prompts/", patterns=["H2", "H4"])
+for path, scanned in results.items():
+    print(path, compute_verdict(scanned))
 ```
 
-Provider-neutral preflight:
+`scan_file(path, patterns=None)` returns a `ScanResult` with `file`, `score`,
+`herm`, `structural_findings`, and `input_error`. Load/parse failures use the
+`input_error` channel. `scan_directory(directory, patterns=None,
+extensions=(".yaml", ".yml", ".json", ".txt", ".md", ".prompt", ".py"),
+exclude=None)` returns a path-keyed result dictionary. Directory failures remain
+represented in that dictionary. Severity gates are CLI policy, not exceptions
+raised by `compute_verdict`.
+
+Findings expose `pattern_id`, `code`, `pattern_name`, `severity`, `location`,
+`description`, `suggestion`, and `evidence`; where available, `source_region`
+provides source spans. Use `finding.code`, not a nonexistent `finding.pattern`
+attribute. HERM dimensional scores are separate from structural findings and
+verdicts. They are not a validated probability of correctness or safety.
+
+## JSON and SARIF
+
+`--format json` writes an array, including for a single input. Each entry has
+`file`, `verdict`, `input_error`, `structural_findings`, and `herm`. Each finding
+contains `pattern_id`, the specific `code`, `pattern_name`, lowercase `severity`,
+`location`, `description`, `suggestion`, and `evidence`. HERM contains `score`,
+`dimensions`, `signal_counts`, `coverage`, `confidence`, `findings`, and
+`context_flags`; it is null for input errors. Applying a baseline adds
+`baseline: {"suppressed": N}` to each scanned result. Operational baseline errors
+are ERROR entries, not a successful empty scan.
+
+`--format sarif` writes SARIF 2.1.0. Rule identifiers preserve diagnostic codes;
+HIGH/CRITICAL map to error, MEDIUM to warning, and LOW/INFO to note. Reporting uses
+the nearest Git root, or the invocation directory outside Git. Paths are
+repository-relative and URI-encoded; outside-root locations are rejected. Source
+regions are included only where the parser/extractor can justify them. LintLang
+does not invent line numbers for every logical YAML/JSON location.
+
+Input errors are invocation notifications rather than ordinary lint results.
+Reports do not include absolute source paths, source snippets, or custom
+fingerprints. Descriptions and suggestions can still contain source-derived
+text; SARIF is not a guarantee that diagnostics contain no sensitive information.
+Treat JSON and ordinary scan output as potentially sensitive too.
+
+Use a report path different from every input and baseline. Shell redirection can
+truncate an input before the CLI starts; the CLI cannot undo that. The Action's
+`sarif-file` route guards input/baseline aliases and writes via a temporary file.
+Report generation does not perform an upload. See
+[GitHub Code Scanning](docs/github.md#code-scanning) for the sole maintained full
+workflow, artifact handoff, least-privilege permissions, and fork restrictions.
+
+## Baselines
+
+`--write-baseline PATH` and `--baseline PATH` are mutually exclusive. The former
+records a reviewed starting inventory to a new file; the latter applies an
+existing inventory after rule/severity selection. Follow
+[baseline adoption](docs/baselines.md) for review, CI setup, and safe refresh.
+
+The `lintlang/baseline-v1` document contains exactly `schema`, `generator`, and
+`entries`. Each entry has exactly a canonical relative POSIX `path`, lowercase
+64-character SHA-256 `fingerprint`, and positive integer `count`. Boolean counts,
+unknown fields/versions, duplicate JSON keys or entries, noncanonical paths, and
+invalid hashes are errors. `generator` records a nonempty version string; it is
+not a demand that every reader use that exact package version.
+
+The fingerprint hashes canonical JSON of `code`, `severity`, `location`,
+`description`, and `evidence` (sorted keys, compact separators, ASCII escaping).
+Python source prefixes in diagnostic locations are normalized to repository-
+relative paths; encoded line spans remain identity. Suggestions, display names,
+and separate source-region metadata are not identity. Matching is exact and
+count-limited, not a wildcard or rule-wide suppression. Extra occurrences and
+changed identities remain visible. Aliases cannot multiply allowances.
+
+All source paths must resolve inside the baseline root. Creation rejects any
+input error or an empty scan; one inspected file with zero findings is allowed.
+Publishing is atomic and never replaces an existing destination, including a
+dangling symlink. The parent directory must exist. Applying a baseline preserves
+input errors, HERM scores, and the legacy quality gate. JSON records suppressed
+counts; SARIF's run properties include `lintlangBaseline` with `suppressed` and
+`verdictScope: "remaining findings"`.
+
+Paths and hashes are stored, not raw prompt/evidence text. Hashing is not
+encryption. Unused entries are allowed; an identical reintroduced finding can
+match an old entry until the baseline is deliberately pruned. Baselines record
+acknowledged identities, not the history of when defects were fixed.
+
+## Preflight
+
+Preflight is separate from repository scanning. It inspects one present UTF-8
+instruction and explicit caller-supplied context; it does not retrieve history,
+call a provider, silently edit a file, or send an instruction.
+
+```bash
+printf '%s' 'Is it true that X?' | lintlang preflight - --format json
+lintlang preflight --help
+```
 
 ```python
 from lintlang import PreflightRequest, preflight_text
@@ -77,130 +378,192 @@ print(result.status.value)  # NOTICE
 print(result.to_json())     # raw prompt/context/patch text redacted by default
 ```
 
-Preflight states are `ALLOW`, `NOTICE`, `HOLD`, `UNAVAILABLE`, and `ERROR`.
-Heuristic input-framing findings are notice-only. Only exact typed missing-context
-or mechanical-conflict findings may hold. `ALLOW` is not proof of truth, safety,
+| State | Meaning | CLI exit |
+| --- | --- | --- |
+| ALLOW | Required coverage completed with no listed risk | 0 |
+| NOTICE | Reviewable input risk or reversible suggestion | 0 |
+| HOLD | Exact missing requirement or mechanical conflict | 1 |
+| ERROR | Invalid input/context; analysis did not run | 2 |
+| UNAVAILABLE | Required coverage could not safely complete | 3 |
+
+PF001 validation-seeking framing, PF002 presupposed causality, and PF003 unresolved
+context-reference heuristics are notice-only. PF004 can hold for an exact missing
+required binding; a known IN_PROMPT binding can instead produce an insertion
+suggestion. PF005 can hold for exact typed-format or mechanical conflicts.
+These are input-risk labels, not evidence that a model exhibited one of the
+research taxonomy's output behaviors. ALLOW proves neither truth nor safety,
 quality, or provider compatibility.
 
-## Verdict System
+Context uses explicit requirements, bindings, and typed constraints. IN_PROMPT
+means a supplied value must appear in the outgoing instruction; SIDE_CHANNEL
+means the host promises to deliver it separately. LintLang performs neither
+provider-specific delivery. Rule bundle v1 recognizes JSON and Markdown typed
+output formats. See [the preflight guide](docs/preflight.md) for the context
+schema and runnable examples.
 
-| Verdict | Meaning | Trigger |
-|---------|---------|---------|
-| ERROR | A requested input could not be inspected | Missing, unreadable, or malformed input |
-| PASS | No MEDIUM/HIGH/CRITICAL finding remained | Recognized content passed the selected checks and filters |
-| REVIEW | Review structural warnings | MEDIUM findings present |
-| FAIL | Blocking structural finding detected | CRITICAL or HIGH findings |
+Default serialization omits raw prompt, context, snippets, replacement text, and
+diffs. `--include-snippets` explicitly discloses local evidence/patch previews.
+`--apply CORRECTION_ID` separately checks the source hash, applies one correction
+in memory, reruns preflight once with the same context and policy, and writes
+corrected text to stdout. It does not establish semantic preservation or modify
+the original file.
 
-`PASS` applies only to recognized content extracted from the requested inputs
-and the checks and severity filters selected for that run. It does not mean
-that every structure in an arbitrary JSON or YAML file was extracted.
+Required unsupported-language or unsafe/unbalanced-scope analysis yields
+UNAVAILABLE, not ALLOW. With no enabled rules, components are NOT_REQUIRED;
+enabled-but-optional unavailable analysis reports NONE coverage plus a warning.
+Empty, oversized, malformed, or ambiguous inputs yield ERROR. Scan verdicts and
+scan exit semantics remain independent of these states.
 
-## Structural Detectors (H1-H7)
+## Reading a repository sample
 
-### H1: Tool Description Ambiguity
-Catches: empty descriptions, very short descriptions (<20 chars), vague verbs (get, handle, process, manage, do), duplicate tool names, high word overlap between tools (Jaccard similarity with stopword removal), and tool pairs carrying no differentia (H1.6).
+From a source checkout:
 
-H1 findings carry a sub-code. `Finding.pattern_id` remains `H1`; `Finding.code` and the JSON `code` field hold the specific identifier, which is also printed in terminal and markdown output.
-
-| Code | Reports | Severity |
-|---|---|---|
-| H1.1 | Tool has no description | CRITICAL |
-| H1.2 | Description too short to diagnose | HIGH |
-| H1.3 | Description opens with a vague verb | MEDIUM |
-| H1.4 | Two tools share a name | CRITICAL |
-| H1.5 | Two descriptions are near-duplicate text | HIGH |
-| H1.6 | Two tools carry no distinguishing term | MEDIUM |
-
-H1.6 compares tools against each other rather than in isolation. Under its curated synonym lexicon, it reports a pair when one or both descriptions contain no distinguishing analysed term. This reaches some pairs that word overlap misses: "Look up an order" against "Search for orders in the system" scores Jaccard 0.00 under H1.5 while carrying no differentia under H1.6's model. Two shapes: mutual, where neither tool distinguishes itself; and domination, where one tool's every analysed term is covered by the other, in which case the finding identifies the less-specific description to repair. Pairs whose descriptions reference each other by name are skipped, as are pairs distinguished by their tool names.
-
-H1.6 is MEDIUM so it does not trigger FAIL, and therefore cannot break a `--fail-on fail` build. Gate on it with `--fail-on review`. Its synonym lexicon is finite: pairs outside it, such as kill/terminate or approve/authorize, are not detected. Coverage has not been measured against a labelled corpus.
-
-Comparison scope is one parsed input. Directory scans do not aggregate tool definitions across files or infer that separate files share a selection namespace.
-
-Alias detection has the same shape and the same limit. A description reading `Compatibility alias for X`, `Deprecated. Use X` or `Superseded by X` is reported. The same relationship written as "does the same thing as X, kept for backward compatibility" or "older entry point, prefer X in new code" is not — it is a list of phrasings, not an understanding of what an alias is.
-
-### H2: Missing Constraint Scaffolding
-Catches: no termination conditions, unbounded retry loops ("keep trying until"), negative termination ("don't stop until"), "continue until" without limits, missing retry budgets.
-
-### H3: Schema-Intent Mismatch
-Catches: phantom required fields (listed in required but not in properties), parameters with no description, generic parameter names (data, input, value, payload), undescribed anyOf/oneOf variants, nested objects without descriptions.
-
-### H4: Context Boundary Erosion
-Catches: "remember everything" without scope, "use all/entire conversation/history/context" without bounds, "always keep/maintain/remember" without specifying what/how long, long prompts with no boundary markers.
-
-### H5: Implicit Instruction Failure
-Three-layer exemption system for negative instructions:
-- Layer 1 (structural): Exempts negatives inside HTML comments, code blocks, inline code, generated-file markers.
-- Layer 2 (phrase-level): Exempts privacy disclaimers ("never sent/shared/stored"), UI labels ("Never ask again"), descriptive text ("it doesn't"), idiomatic phrases ("don't reinvent"), "to avoid" constructions.
-- Layer 3 (safety context): Exempts negatives near security/auth/policy keywords within 100-char window.
-
-Also catches: vague qualifiers ("be concise", "be helpful", "use common sense"), ambiguous conditionals ("as needed", "when appropriate"), figurative verbs ("lean into", "err on the side of", "keep it simple"), high instruction count without priority ordering.
-
-### H6: Template Format Contract Violation
-Code-aware detection: strips fenced code blocks, inline code, filenames, and CLI flags before counting format keywords. Catches: multiple output formats without disambiguation, missing format specification, template variables, missing version markers.
-
-### H7: Role Confusion
-Catches: multiple system messages, system messages not at position 0, consecutive same-role messages, orphan tool results (no preceding tool_use), messages missing role field.
-
-## Supported Formats
-
-- YAML (.yaml, .yml) — recognized top-level agent fields and tool definitions
-- JSON (.json) — recognized top-level agent fields, tool schemas, and message arrays
-- Plain text (.txt, .md, .prompt) — System prompts, instruction docs
-- Python source (.py) — AST extraction of embedded prompts and P1/P2 pipeline checks
-
-Auto-detects format. Unknown extensions tried as JSON -> YAML -> plain text.
-Nested vendor-specific layouts and raw top-level YAML arrays are not
-automatically normalized.
-
-## CI Integration
-
-GitHub Actions:
-```yaml
-- uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-- uses: hermes-labs-ai/lintlang@58e66871531eb585869336189d07b4334e963a5f # v0.6.0
-  with:
-    path: configs/
+```bash
+lintlang scan samples/bad_tool_descriptions.yaml
 ```
 
-Add to `.pre-commit-config.yaml`:
-```yaml
-repos:
-  - repo: https://github.com/hermes-labs-ai/lintlang
-    rev: v0.6.0
-    hooks:
-      - id: lintlang
-        args: [AGENTS.md]
+Excerpt from `lintlang 0.6.0`:
+
+```text
+FAIL — 1 CRITICAL, 2 HIGH, 7 MEDIUM, 3 LOW
+H1.1: Tool 'process_ticket' has no description
 ```
 
-Activate and test it with `pre-commit install` and `pre-commit run lintlang`.
+This is a deliberately failing fixture, not a broken installation. Compare it
+with `lintlang scan samples/clean_config.yaml --fail-on fail` from a source
+checkout, or use the [checkout-free clean example](#first-run-without-a-checkout).
+A clean static scan is not evidence of runtime correctness or safety.
 
-The pre-commit hook reports verdicts without blocking by default. After
-reviewing the repository baseline, use
-`args: [AGENTS.md, --fail-on, fail]` to block `FAIL` findings. Configured input
-errors remain blocking.
+## First run without a checkout
 
-Exit codes: 0 = pass, 1 = findings matched --fail-on threshold or error.
+No clone or credentials are required. Write two small files and run three scans.
+Only the install reaches the network to obtain the package and dependencies.
+Every `lintlang scan` below is offline.
 
-## Third-party adoption (public sources)
+```bash
+python -m pip install lintlang==0.6.0
 
-- Character.AI's Larch repository pins `lintlang==0.3.1` in CI and fails on HIGH or CRITICAL findings; its linting reference links this repository as the upstream: https://github.com/character-ai/larch/blob/210d08a8f6c1b0dd14c27b709c66471bd31a5636/docs/linting.md (merged via https://github.com/character-ai/larch/pull/7960)
-- Independent Gentoo packaging in the unofficial Haven overlay, whose `metadata.xml` records this repository as the upstream remote: https://github.com/thehaven/haven-overlay/tree/d052d950b05389fcd7c8f22939033319a5aec348/dev-util/lintlang
+cat > /tmp/agent.yaml <<'YAML'
+system_prompt: |
+  You are a support agent. Use the tools to help the user.
+tools:
+  - name: process_ticket
+    description: ""
+    parameters:
+      type: object
+      properties:
+        ticket_id:
+          type: string
+YAML
 
-## Part of Hermes Labs Ecosystem
+lintlang scan /tmp/agent.yaml --fail-on fail
+```
 
-- little-canary: Prompt injection detection
-- cogito-ergo: Three-layer memory retrieval for AI agents
-- quickthink: Planning scaffolding for local LLMs
-- zer0dex: Dual-layer memory for AI agents
-- forgetted: Selective memory governance
-- zer0lint: Memory extraction diagnostics
-- suy-sideguy: Autonomous agent watchdog
+`lintlang 0.6.0` reports `FAIL — 1 CRITICAL, 1 HIGH, 1 MEDIUM` and exits `1`.
+H1.1 identifies the empty tool description. This is a successful detection; do
+not hide the exit status with `|| true`. To use the newest package instead, run
+`python -m pip install --upgrade lintlang` and re-read the counts below as approximate.
 
-## License
+```bash
+cat > /tmp/agent-fixed.yaml <<'YAML'
+system_prompt: |
+  You are a support agent. Use the tools to help the user.
+  Stop and report the failure once the retry limit is reached.
+tools:
+  - name: process_ticket
+    description: "Apply a resolution action to one existing support ticket. Use this only after the ticket has been read; do NOT use it to look tickets up."
+    parameters:
+      type: object
+      properties:
+        ticket_id:
+          type: string
+          description: "Identifier of the existing ticket to act on"
+      required: [ticket_id]
+constraints:
+  max_iterations: 3
+  timeout_seconds: 30
+YAML
 
-Apache 2.0
+lintlang scan /tmp/agent-fixed.yaml --fail-on fail
+```
 
-## About Hermes Labs
+With the pinned release, the fixed file scans `PASS — 0 findings` and exits `0`;
+the original
+`/tmp/agent.yaml` still scans `FAIL`. An absent input remains a distinct error:
 
-Hermes Labs is an independent AI-reliability lab building open-source tools that catch silent failure modes in production AI. More at [hermes-labs.ai](https://hermes-labs.ai).
+```bash
+lintlang scan /tmp/does-not-exist.yaml --fail-on fail
+```
+
+This produces `ERROR`, an `input_error`, and a nonzero exit, not a clean scan.
+`PASS` here means that selected checks found no covered defects in recognized
+content extracted from `/tmp/agent-fixed.yaml`. It does not establish correctness
+of tool behavior, semantic truth, runtime outcomes, or safety.
+
+### Keep a successful check in GitHub CI
+
+Run this from the repository root, choosing its real instruction file:
+
+```bash
+lintlang init --github --path AGENTS.md
+```
+
+An identical generated workflow is unchanged. A different existing workflow is
+left alone; review it before replacing it with `--force`. See
+[GitHub CI](docs/github.md) for the generated file and verification steps.
+
+### Windows PowerShell
+
+Use the same inputs and outcomes with PowerShell-native temporary paths:
+
+```powershell
+python -m pip install lintlang==0.6.0
+$badPath = Join-Path $env:TEMP "agent.yaml"
+$fixedPath = Join-Path $env:TEMP "agent-fixed.yaml"
+
+@'
+system_prompt: |
+  You are a support agent. Use the tools to help the user.
+tools:
+  - name: process_ticket
+    description: ""
+    parameters:
+      type: object
+      properties:
+        ticket_id:
+          type: string
+'@ | Set-Content -LiteralPath $badPath -Encoding utf8
+
+python -m lintlang scan $badPath --fail-on fail
+
+@'
+system_prompt: |
+  You are a support agent. Use the tools to help the user.
+  Stop and report the failure once the retry limit is reached.
+tools:
+  - name: process_ticket
+    description: "Apply a resolution action to one existing support ticket. Use this only after the ticket has been read; do NOT use it to look tickets up."
+    parameters:
+      type: object
+      properties:
+        ticket_id:
+          type: string
+          description: "Identifier of the existing ticket to act on"
+      required: [ticket_id]
+constraints:
+  max_iterations: 3
+  timeout_seconds: 30
+'@ | Set-Content -LiteralPath $fixedPath -Encoding utf8
+
+python -m lintlang scan $fixedPath --fail-on fail
+python -m lintlang scan (Join-Path $env:TEMP "does-not-exist.yaml") --fail-on fail
+```
+
+## Related documentation
+
+[GitHub CI](docs/github.md), [baselines](docs/baselines.md),
+[integrations and public ecosystem evidence](docs/integrations.md),
+[research lineage](docs/research.md), [product intent](INTENT.md),
+[contributing](CONTRIBUTING.md), [security policy](SECURITY.md), and
+[Apache License 2.0](LICENSE). LintLang is maintained by
+[Hermes Labs](https://hermes-labs.ai).

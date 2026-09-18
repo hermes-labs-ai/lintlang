@@ -1,50 +1,88 @@
-# INTENT — lintlang
+# LintLang: product intent
 
-> One-page invariants doc, in the Hermes Labs convention. Read before changing scope.
+## Why LintLang exists
 
-## What lintlang is
+Agent instructions increasingly function as executable infrastructure: they
+shape tool selection, operational limits, output contracts, and how work is
+handed between components. Yet they often receive less static scrutiny than
+ordinary source code. A file can parse successfully while leaving those
+instructions ambiguous, unbounded, or internally inconsistent.
 
-A static linter for AI agent tool descriptions, system prompts, and config files. Zero-LLM, deterministic, runs in CI. Combines HERM v1.1 dimensional scoring (6 dimensions, 8 signal categories) with 7 structural detectors (H1–H7) that flag bounded language patterns before runtime review.
+LintLang exists to make a bounded class of these defects inspectable before
+runtime. It gives an author or reviewer evidence to examine while instructions
+are being written and changed, rather than requiring a model execution to
+surface every reviewable problem.
 
-## Accepts
+## The intervention
 
-- File or directory of AI agent configs in JSON, YAML, plain text, or `.prompt`.
-- Python source files (`.py`) via AST-based prompt extractor — runs H1-H7 + P1-P2 on embedded prompts and thresholds.
-- One present UTF-8 instruction plus an explicit typed context contract through the separate `preflight` API/CLI.
-- Pattern filtering: `--patterns H1 H3` runs only listed detectors.
-- Output formats: terminal (ANSI), Markdown, JSON for CI.
-- Severity gating: `--fail-on fail|review` controls non-zero exit.
-- Preflight states: `ALLOW | NOTICE | HOLD | UNAVAILABLE | ERROR`; unavailable coverage is never clean.
+The primary product is deterministic static analysis of repository artifacts:
+recognized tool/configuration structures, prompts and instruction files, and
+supported extractable Python prompt-pipeline patterns. Findings identify the
+rule, severity, location, evidence, and suggested review action where supported.
 
-## Refuses
+Static analysis is useful here because it is local, repeatable, inspectable, and
+compatible with ordinary review and CI workflows. It has a narrower evidence
+boundary than a model-based evaluator. LintLang makes no LLM calls, retrieves no
+remote rules, and sends no telemetry or network requests during a scan. Package
+installation and a host integration's own provider activity are separate from
+that scanner contract.
 
-- Any operation that requires an LLM call. lintlang is static; if you want model-grading, use a different tool.
-- Silent rewriting, provider sending, or history mining. A preflight correction is previewed, explicitly selected, source-hash-bound, and applied in memory only.
-- Network access. lintlang makes no model calls, telemetry calls, or remote rule fetches.
-- Languages outside its parsed format set. Currently JSON / YAML / plain text / `.prompt` / `.py`. Adding a format is a code change with regression coverage.
+This direction grew from Hermes Labs' work on epistemic failure modes. The
+[research lineage](docs/research.md) explains the adaptation from behavioral
+research into engineering checks without treating provenance as validation.
 
-## Non-goals
+## Design principles
 
-- Runtime agent behavior evaluation (use a runtime harness).
-- Behavioral safety certification (a clean scan does not establish safety or correctness).
-- Semantic correctness of *what* the tool does (lintlang catches *vague*, not *wrong*).
-- Replacing human review for high-stakes prompt design.
-- Truth verification, provider compatibility, or claims that a detected input risk caused a published model-output mode.
-- Personalized history retrieval; another system may supply an explicit binding, but preflight does not infer it.
+- **Evidence before authority.** A finding is a reason to inspect a particular
+  artifact, not an assertion that arbitrary prose is wrong or that a model will
+  fail. Stable diagnostic identifiers and explicit limitations make findings
+  discussable and reproducible.
+- **Deterministic, local analysis.** For the same recognized inputs, configuration,
+  and rule version, findings and verdicts must be repeatable without an LLM
+  dependency. A scan should fit local development as well as CI.
+- **Bounded and composable claims.** Static checks complement syntax/schema
+  validation, runtime evaluation, and domain/security review. A clean scan does
+  not establish safety or correctness; it only reports what selected checks
+  found in recognized content.
 
-## Invariants
+## Scope and non-goals
 
-- **Zero LLM calls.** Any change that introduces a model dependency violates the contract.
-- **Deterministic.** Same input → same output, every run. No sampling, no timestamp-based behavior, no seed dependence.
-- **Single runtime dependency.** `pyyaml` only. Adding a runtime dep requires a deliberate v0.x minor bump and CHANGELOG entry naming the reason.
-- **Evidence-bound parity claims.** HERM scoring remains isolated from structural findings. Do not claim parity with another implementation unless the comparison corpus and an executable gate are checked into this repository.
-- **Structural detectors don't modify HERM scores.** H1–H7 produce separate `Finding` records; HERM dimensional scores are independent.
-- **Regression-bound rule changes.** Regex or heuristic changes require positive fixtures and hard negatives for their intended boundary.
-- **Privacy-safe defaults.** Preflight serialization omits raw prompt, context, replacement, and diff text unless snippets are explicitly authorized.
-- **Exact enforcement boundary.** Heuristic preflight findings are notice-only; only typed missing requirements and mechanical conflicts may hold.
+LintLang is intended to inspect language-bearing artifacts that authors can
+review before execution. Supported formats and extraction limits belong in the
+[technical reference](llms-full.txt), not in an implied promise to understand
+every configuration accepted by every agent host.
 
-## Verification contract
+It does not evaluate runtime model behavior, verify truth, prove semantic
+correctness of arbitrary prose, certify safety, guarantee provider compatibility,
+or replace domain judgment. It does not infer that a research failure mode
+occurred simply because a related input pattern was found. The absence of a
+finding is not evidence that an unsupported structure was analyzed.
 
-- `pytest -q` and `ruff check src/ tests/` must pass from a clean checkout.
-- `bash evals/sample-detection-rate.sh` must match the expected outcomes for the bundled fixtures: four deliberately broken samples flagged and one designated clean sample passed.
-- The bundled sample check is a regression fixture only. It is not an accuracy estimate, an external validation corpus, or evidence of HERM reference parity.
+## Product boundary
+
+Repository scanning is the primary static-analysis product. Preflight is a
+separate bounded capability for one present instruction and explicit
+caller-supplied context. It does not retrieve personal history, silently rewrite
+files, or send instructions to a provider. Its states, context contracts,
+correction protocol, and enforcement limits are documented in
+[the preflight guide](docs/preflight.md) and [technical reference](llms-full.txt#preflight).
+Those mechanics must not redefine repository scan verdicts.
+
+## Durable engineering invariants
+
+- Keep the scanner deterministic and free of model or network dependencies.
+  `pyyaml` is the sole runtime dependency; adding another requires a deliberate
+  minor-version change and a changelog entry explaining why.
+- Keep HERM dimensional scoring separate from structural findings. Detectors do
+  not modify HERM scores. Parity claims require a checked-in comparison corpus
+  and executable gate, not a shared name or a clean sample.
+- Preserve explicit error and enforcement boundaries. Input errors cannot be
+  hidden by severity gates or baselines. Preflight heuristics remain notice-only;
+  only typed missing requirements or mechanical conflicts may hold. Default
+  preflight serialization omits raw prompt, context, replacement, and diff text.
+- Bind detector changes to positive fixtures and hard negatives for the intended
+  boundary. Bundled sample checks are regression evidence, not detector-accuracy
+  estimates or proof of production readiness.
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and required checks,
+and [README.md](README.md) for onboarding and navigation.

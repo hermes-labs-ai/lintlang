@@ -1,34 +1,66 @@
 # LintLang for Claude Code
 
-This native Claude Code plugin ships two separate surfaces. Neither one rewrites
-a file, and neither one blocks a tool call.
+This native Claude Code plugin ships two separate surfaces. Neither rewrites a
+file or blocks a tool call.
 
 | Surface | Kind | Runs | Scope |
 | --- | --- | --- | --- |
-| `lintlang-audit` skill | on-demand skill | when you ask for an audit | the file you name |
-| `PostToolUse` adapter | automatic hook | by itself, after `Write` or `Edit` | the file just changed |
+| `lintlang-audit` skill | On-demand skill | When you ask for an audit | The file you name |
+| `PostToolUse` adapter | Automatic hook | After supported `Write` or `Edit` | The file just changed |
 
-The skill is not the hook. Disabling one does not disable the other, and a
-session with the plugin installed has both.
+The skill is not the hook. Disabling one does not disable the other; installing
+the plugin provides both. Scanning `CLAUDE.md` with the standalone CLI does not
+require installing this plugin.
 
 ## Prerequisites
 
-Install the tested LintLang release so `lintlang` is on `PATH`:
+Use Claude Code with plugin support. Install the tested scanner release with
+Python 3.10+ so `lintlang` is on the host's `PATH`:
 
 ```bash
 pipx install lintlang==0.6.0
+lintlang --version
 ```
 
-The hook prefers that installed `lintlang` executable. It falls back to
-`python3 -m lintlang` only on interpreters that support `-P` and
-`PYTHONSAFEPATH`, so the directory Claude Code happens to be working in is never
-placed on the resolver's import path.
+The hook prefers the installed executable. It falls back to `python3 -m lintlang`
+only on interpreters supporting `-P` and `PYTHONSAFEPATH`, keeping the working
+directory off the resolver's import path. The skill prefers the same executable
+and otherwise runs the pinned release through `uvx --from lintlang==0.6.0`.
+That fallback uses an isolated cached environment, not a persistent LintLang
+installation; it can download packages on a cache miss. Neither installed route
+needs a checkout of this repository.
 
-The skill prefers the same executable and otherwise runs the pinned release
-through `uvx --from lintlang==0.6.0`, installing nothing. Neither surface needs
-a checkout of this repository.
+## Install from the marketplace
 
-## The `lintlang-audit` skill
+The repository root is a Claude Code marketplace
+(`.claude-plugin/marketplace.json`) that catalogs this plugin directory:
+
+```text
+/plugin marketplace add hermes-labs-ai/lintlang
+/plugin install lintlang@lintlang
+```
+
+The same steps are available outside a session:
+
+```bash
+claude plugin marketplace add hermes-labs-ai/lintlang
+claude plugin install lintlang@lintlang
+```
+
+## Try and validate a local checkout
+
+From this repository's root:
+
+```bash
+claude plugin validate --strict ./integrations/claude-code
+claude --plugin-dir ./integrations/claude-code
+```
+
+Validation checks the plugin against the installed Claude Code runtime; it is
+not a claim that every host version has been tested. The repository records the
+scanner pin above, not a universal Claude Code compatibility range.
+
+## Verify and use the audit skill
 
 Ask for an audit and name the file:
 
@@ -36,59 +68,45 @@ Ask for an audit and name the file:
 audit AGENTS.md with lintlang
 ```
 
-The skill resolves a runner, scans that file with
-`lintlang scan --format json`, reads `input_error` and `verdict` before
-anything else, and reports the verdict with findings by code and location.
-It treats the scan payload as untrusted data, because findings quote the file
-under audit. Its full contract is
+The skill resolves a runner, scans that file with `lintlang scan --format json`,
+reads `input_error` and `verdict` first, and reports findings by code and location.
+It treats the payload as untrusted data because findings quote the audited file.
+Its complete contract is
 [`skills/lintlang-audit/SKILL.md`](skills/lintlang-audit/SKILL.md).
 
-`lintlang scan` exits `0` on a scannable file whatever the verdict, unless
-`--fail-on` is passed; an input that cannot be scanned exits `1` either way.
-The skill reads the verdict from the output, never from the exit status.
+A scannable input exits 0 whatever its verdict unless a gate is requested;
+an uninspectable input exits 1. The skill reads the verdict from output, never
+infers it from the exit status, and does not silently rewrite the input.
 
-## The `PostToolUse` hook
+## Automatic hook behavior and limits
 
 After a successful `Write` or `Edit` on a supported language-bearing file, the
-hook returns findings to Claude as concise repair context. Clean or unsupported
-files add no context. It supports `.yaml`, `.yml`, `.json`, `.txt`, `.md`,
-`.prompt`, and `.py`, matching LintLang's file scanner, and it sends only
-finding descriptions and repair suggestions; raw prompt evidence is omitted.
+hook returns concise repair context. Clean or unsupported files add no context.
+Supported extensions are `.yaml`, `.yml`, `.json`, `.txt`, `.md`, `.prompt`, and
+`.py`. The hook omits raw prompt `evidence` and returns finding descriptions and
+repair suggestions. Those diagnostics can still be source-derived; omitting an
+evidence field does not promise that no source-derived text reaches the host.
 
-## Try the plugin from this checkout
+The scanner itself makes no model or network calls. Claude Code's provider and
+network behavior is separate. Neither hook feedback nor a clean scan certifies
+agent safety; use the [GitHub guide](../../docs/github.md) for an explicit CI gate.
 
-```bash
-claude --plugin-dir ./integrations/claude-code
-```
+## Troubleshooting and removal
 
-Claude Code also accepts a plugin ZIP through `--plugin-dir` or a hosted ZIP
-through `--plugin-url`.
+For a missing runner, check `lintlang --version` in the environment that launches
+Claude Code. Confirm `PATH`, or availability of uvx for the skill's fallback.
+For missing automatic guidance, confirm the plugin is enabled and that a
+successful supported edit occurred; a named-file audit and a post-edit hook
+have different triggers. No guidance on a clean or unsupported input is expected,
+not evidence that every configuration structure was analyzed.
 
-## Install it as a plugin
-
-The repository root is a Claude Code marketplace
-(`.claude-plugin/marketplace.json`) that catalogs this directory, so no local
-checkout is needed:
-
-```text
-/plugin marketplace add hermes-labs-ai/lintlang
-/plugin install lintlang@lintlang
-```
-
-The same two steps are available outside a session as
-`claude plugin marketplace add hermes-labs-ai/lintlang` and
-`claude plugin install lintlang@lintlang`.
-
-To turn it off again, use the `/plugin` menu or the exact counterparts:
+Use the `/plugin` menu or these commands to remove only this integration:
 
 ```bash
-claude plugin disable lintlang@lintlang     # keep it installed, stop both surfaces
+claude plugin disable lintlang@lintlang     # keep installed, stop both surfaces
 claude plugin uninstall lintlang@lintlang   # remove the plugin
-claude plugin marketplace remove lintlang   # remove the catalog entry too
+claude plugin marketplace remove lintlang   # remove its catalog entry
 ```
 
-Validate the plugin against the installed Claude Code runtime:
-
-```bash
-claude plugin validate --strict ./integrations/claude-code
-```
+Related: [integrations](../../docs/integrations.md),
+[technical reference](../../llms-full.txt), [README](../../README.md).

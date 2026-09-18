@@ -71,12 +71,19 @@ def test_code_scanning_example_is_least_privilege_and_uploads_even_after_failure
     )
 
 
-def test_readme_code_scanning_example_is_complete_and_matches_the_public_example():
+def test_github_guide_routes_to_the_single_complete_workflow():
     readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
-    section = readme.split("To ask GitHub to ingest the report", 1)[1]
-    match = re.search(r"```yaml\n(.*?)\n```", section, flags=re.DOTALL)
-
-    assert match, "README Code Scanning section has no copy-paste YAML workflow"
-    assert yaml.safe_load(match.group(1)) == yaml.safe_load(EXAMPLE_PATH.read_text(encoding="utf-8"))
-    assert f"lintlang@{LINTLANG_V060_SHA} # v0.6.0" in match.group(1)
+    guide = (REPO_ROOT / "docs/github.md").read_text(encoding="utf-8")
+    reference = (REPO_ROOT / "llms-full.txt").read_text(encoding="utf-8")
+    assert "(docs/github.md)" in readme
+    assert "## Code scanning\n" in guide
+    assert "(../examples/github-code-scanning.yml)" in guide
+    assert "(../action.yml)" in guide
+    assert "(docs/github.md#code-scanning)" in reference
+    # The full example above still enforces every pin, permission, and artifact
+    # contract. Navigation replaces only the obsolete duplicated README YAML.
+    for document in (readme, guide, reference):
+        for block in re.findall(r"```yaml\n(.*?)\n```", document, flags=re.DOTALL):
+            parsed = yaml.safe_load(block)
+            assert not (isinstance(parsed, dict) and "jobs" in parsed), "Duplicate full workflow"
     assert "pull_request_target" not in readme

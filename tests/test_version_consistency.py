@@ -34,6 +34,7 @@ PYPROJECT = REPO_ROOT / "pyproject.toml"
 CHANGELOG = REPO_ROOT / "CHANGELOG.md"
 CITATION = REPO_ROOT / "CITATION.cff"
 README = REPO_ROOT / "README.md"
+REFERENCE = REPO_ROOT / "llms-full.txt"
 ZENODO = REPO_ROOT / ".zenodo.json"
 CODEMETA = REPO_ROOT / "codemeta.json"
 
@@ -50,13 +51,7 @@ def _pyproject_version() -> str:
 
 
 def test_dunder_version_matches_pyproject():
-    """`lintlang.__version__` must equal the packaged `[project].version`.
-
-    If this fails, update `src/lintlang/__init__.py:__version__` (or
-    `pyproject.toml`) so the runtime version-of-record matches the published
-    artifact. They must never disagree — `lintlang --version` reports the
-    dunder, PyPI/pip report the pyproject value.
-    """
+    """Runtime and published version-of-record must never disagree."""
     dunder = lintlang.__version__
     packaged = _pyproject_version()
     assert dunder == packaged, (
@@ -73,6 +68,7 @@ def test_version_surfaces_match_pyproject_and_release_state():
     changelog = CHANGELOG.read_text(encoding="utf-8")
     citation = CITATION.read_text(encoding="utf-8")
     readme = README.read_text(encoding="utf-8")
+    reference = REFERENCE.read_text(encoding="utf-8")
     zenodo = json.loads(ZENODO.read_text(encoding="utf-8"))
 
     changelog_match = re.search(r"(?m)^## \[([^]]+)\] - (Unreleased|\d{4}-\d{2}-\d{2})$", changelog)
@@ -101,9 +97,12 @@ def test_version_surfaces_match_pyproject_and_release_state():
             f"CITATION.cff date {citation_date_match.group(1)!r} does not match "
             f"CHANGELOG release date {release_state!r}"
         )
-    assert f"LINTLANG v{packaged}" in readme or f"@v{packaged}" in readme
-    assert "LINTLANG v0.2.0" not in readme
-    assert "LINTLANG v0.2.1" not in readme
+    # Versioned output examples now belong to the reference, not the README.
+    assert f"`lintlang {packaged}`" in reference
+    assert "(llms-full.txt)" in readme
+    for text in (readme, reference):
+        assert "LINTLANG v0.2.0" not in text
+        assert "LINTLANG v0.2.1" not in text
 
 
 def test_codemeta_matches_release_metadata():
