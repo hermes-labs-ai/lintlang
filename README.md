@@ -469,14 +469,14 @@ jobs:
           persist-credentials: false
 
       - name: Inspect agent instructions
-        uses: hermes-labs-ai/lintlang@v0.6.0
+        uses: hermes-labs-ai/lintlang@58e66871531eb585869336189d07b4334e963a5f # v0.6.0
         with:
           path: AGENTS.md
 ```
 
-The release tag pins both the action and the LintLang source it installs.
-Upgrade that pin deliberately and inspect newly introduced findings before
-making them blocking.
+The pinned commit (with the release tag retained as a comment) pins both the
+action and the LintLang source it installs. Upgrade that pin deliberately and
+inspect newly introduced findings before making them blocking.
 
 ## Hermes Agent verification hook
 
