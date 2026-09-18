@@ -125,3 +125,12 @@ def test_sdist_excludes_local_hermes_gate_onboarding_files(tmp_path: Path, monke
     ]
 
     assert offenders == []
+
+
+def test_sdist_excludes_maintainer_workspace_file(tmp_path: Path, monkeypatch) -> None:
+    # The maintainer workspace file (currently .hermes/WORKSPACE.md) must never
+    # ship, regardless of which directory it lives under.
+    names = _sdist_members(tmp_path, monkeypatch)
+    offenders = [name for name in names if Path(name).name == "WORKSPACE.md"]
+
+    assert offenders == []
