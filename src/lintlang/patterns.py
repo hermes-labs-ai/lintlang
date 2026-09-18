@@ -1,9 +1,14 @@
-"""H1-H7 pattern definitions and detection heuristics.
+"""H2-H7 detection heuristics, the H1-H7 rule registry, and the compatible
+import surface for `lintlang.patterns`.
 
-Each pattern has:
+Shared models live in `lintlang.models`; H1 lives in `lintlang.detectors.h1`.
+Both are re-exported below: every name that has ever been importable from this
+module still is, including the private helpers the test suite imports directly.
+Do not remove a re-export without checking `tests/test_patterns_compat.py`.
+
+Each registry entry has:
 - id: H1-H7
 - name: Human-readable name
-- user_reports_as: What users typically say
 - detect(config): Returns list of Finding objects
 """
 
