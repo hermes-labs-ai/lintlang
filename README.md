@@ -565,10 +565,12 @@ installs without a checkout:
 
 LintLang is also indexed in the third-party [Claude Market directory](https://claudemarket.ai/hermes/tools/tools-lintlang); the marketplace commands above remain the supported install route.
 
-Its non-blocking `PostToolUse` hook returns LintLang repair guidance after
-Claude Code changes supported files with `Write` or `Edit`. Reverse it with
-`claude plugin disable lintlang@lintlang` or `claude plugin uninstall
-lintlang@lintlang`. See the
+The plugin ships two separate surfaces. Its `lintlang-audit` skill audits a
+file you name, when you ask for it. Its non-blocking `PostToolUse` hook returns
+LintLang repair guidance by itself, after Claude Code changes supported files
+with `Write` or `Edit`. Neither rewrites a file or blocks a tool call, and the
+skill is not the hook. Reverse both with `claude plugin disable
+lintlang@lintlang` or `claude plugin uninstall lintlang@lintlang`. See the
 [Claude Code plugin guide](integrations/claude-code/README.md) for the
 prerequisite LintLang release and the local `--plugin-dir` route.
 

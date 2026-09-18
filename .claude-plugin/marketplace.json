@@ -11,7 +11,7 @@
     {
       "name": "lintlang",
       "source": "./integrations/claude-code",
-      "description": "Returns concise LintLang repair guidance after Claude Code changes a supported language-bearing file.",
+      "description": "Audits agent configs, system prompts, and tool definitions with LintLang on request, and returns concise repair guidance after Claude Code changes a supported language-bearing file.",
       "category": "development"
     }
   ]

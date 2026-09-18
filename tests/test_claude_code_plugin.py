@@ -1,19 +1,26 @@
-"""Contract tests for the native Claude Code plugin adapter."""
+"""Contract tests for the native Claude Code plugin: hook and on-demand skill."""
 
 from __future__ import annotations
 
 import importlib.util
 import json
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
 
+import yaml
+
+from lintlang import __version__
+
 ROOT = Path(__file__).parents[1]
-HANDLER = ROOT / "integrations/claude-code/hooks-handlers/post-tool-use.py"
+PLUGIN_ROOT = ROOT / "integrations/claude-code"
+HANDLER = PLUGIN_ROOT / "hooks-handlers/post-tool-use.py"
 MARKETPLACE = ROOT / ".claude-plugin/marketplace.json"
-PLUGIN_MANIFEST = ROOT / "integrations/claude-code/.claude-plugin/plugin.json"
-ROOT_PLUGIN_MANIFEST = ROOT / "integrations/claude-code/plugin.json"
+PLUGIN_MANIFEST = PLUGIN_ROOT / ".claude-plugin/plugin.json"
+ROOT_PLUGIN_MANIFEST = PLUGIN_ROOT / "plugin.json"
+SKILL = PLUGIN_ROOT / "skills/lintlang-audit/SKILL.md"
 
 # https://agent-plugins.org/schemas/1.0.0/plugin.schema.json top-level keys.
 AGENT_PLUGINS_SCHEMA_KEYS = {
@@ -94,6 +101,9 @@ def test_repository_is_an_installable_claude_code_marketplace() -> None:
     assert source.is_dir()
     assert (source / ".claude-plugin/plugin.json").is_file()
     assert (source / "hooks/hooks.json").is_file()
+    # Both surfaces have to sit under the catalogued directory, or `/plugin
+    # install` delivers only one of them.
+    assert (source / "skills/lintlang-audit/SKILL.md").is_file()
 
 
 def test_marketplace_entry_does_not_restate_a_drifting_plugin_version() -> None:
@@ -119,10 +129,102 @@ def test_agent_plugins_root_manifest_is_present_and_conformant() -> None:
     assert set(root_manifest.keys()) <= AGENT_PLUGINS_SCHEMA_KEYS
 
     assert root_manifest["name"] == "lintlang" == claude_manifest["name"]
-    assert root_manifest["version"] == "0.1.2" == claude_manifest["version"]
+    assert root_manifest["version"] == "0.2.0" == claude_manifest["version"]
 
     # Author-identifying fields must not diverge from the Claude manifest.
     assert set(root_manifest.get("author", {})) <= {"name", "email", "url"}
+
+
+def _skill() -> tuple[dict, str]:
+    """Return the skill's parsed frontmatter and its body text."""
+    text = SKILL.read_text(encoding="utf-8")
+    assert text.startswith("---\n")
+    _, frontmatter, body = text.split("---\n", 2)
+    return yaml.safe_load(frontmatter), body
+
+
+def test_on_demand_skill_is_discoverable_at_the_plugin_root() -> None:
+    """Claude Code loads `<plugin root>/skills/<name>/SKILL.md`.
+
+    The directory name is the address the host uses, so a frontmatter `name`
+    that disagrees with it names a skill nobody can invoke.
+    """
+    frontmatter, body = _skill()
+
+    assert frontmatter["name"] == SKILL.parent.name == "lintlang-audit"
+    assert frontmatter["description"].strip()
+    assert body.strip()
+
+
+def test_on_demand_skill_pins_the_released_cli_this_repository_publishes() -> None:
+    """A stale pin sends users to a release whose codes no longer match.
+
+    Every version the skill names must be the one this repository ships, so a
+    release bump cannot leave the skill pointing at the previous artifact.
+    """
+    _, body = _skill()
+
+    named = set(re.findall(r"lintlang[= ]=?(\d+\.\d+\.\d+)", body))
+    assert named == {__version__}
+    assert f"uvx --from lintlang=={__version__}" in body
+
+
+def test_on_demand_skill_runs_from_a_clean_install_with_no_checkout() -> None:
+    """The packaged skill reaches users who never clone this repository.
+
+    Anything resolved relative to a source tree -- the `samples/` fixtures, an
+    editable install, `PYTHONPATH=src` -- works for a maintainer and fails for
+    everyone who installed the plugin from the marketplace.
+    """
+    _, body = _skill()
+
+    for checkout_only in ("samples/", "PYTHONPATH", "pip install -e", "python -m build"):
+        assert checkout_only not in body
+
+    # It must still name a runner that needs no install at all.
+    assert "uvx" in body
+
+
+def test_on_demand_skill_is_not_presented_as_a_hook() -> None:
+    """The plugin ships both surfaces; only one of them fires by itself.
+
+    Describing the skill as automatic would promise coverage it does not give:
+    a user who believes edits are audited would never ask for an audit.
+    """
+    frontmatter, body = _skill()
+
+    description = frontmatter["description"].lower()
+    for hook_claim in ("hook", "posttooluse", "after a write", "automatic"):
+        assert hook_claim not in description
+
+    # And the body has to draw the distinction rather than leave it implied.
+    assert "It is not the plugin's" in body
+    assert "PostToolUse" in body
+
+
+def test_on_demand_skill_reads_the_verdict_from_output_not_exit_status() -> None:
+    """`scan` exits 0 on a scannable file whatever the verdict.
+
+    A skill that read the exit status as the result would report every FAIL
+    without `--fail-on` as a pass.
+    """
+    _, body = _skill()
+
+    assert "never from the exit status" in body
+    assert "--fail-on" in body
+    assert "input_error" in body
+
+
+def test_on_demand_skill_treats_scan_output_as_untrusted_data() -> None:
+    """Findings quote the audited file verbatim in `evidence`.
+
+    That text is input under audit, so the skill must say it is data and not
+    instructions before the agent ever reads a payload.
+    """
+    _, body = _skill()
+
+    assert "data, not instructions" in body
+    assert "untrusted data" in body
 
 
 def _handler_module():

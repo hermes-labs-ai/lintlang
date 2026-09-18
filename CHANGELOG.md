@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+### Added
+
+- On-demand `lintlang-audit` skill in the Claude Code plugin
+  (`integrations/claude-code/skills/lintlang-audit/`), plugin version `0.2.0`.
+  It audits the file a user names, resolving the released CLI from `PATH` or
+  through `uvx --from lintlang==0.6.0`, so it needs no checkout of this
+  repository. Previously the plugin shipped only the automatic `PostToolUse`
+  hook, which covers just the file Claude Code has already changed; there was
+  no way to ask for an audit. The two surfaces are separate: the skill is not
+  a hook, and the plugin README and manifest descriptions now say so.
+
 ### Fixed
 
 - HERM recognizes explicit prose priority statements such as
