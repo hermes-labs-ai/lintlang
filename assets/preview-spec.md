@@ -1,7 +1,7 @@
 # Preview Spec
 
-> Archived public-release preview for `0.2.1`. It is retained as historical
-> source material and is not referenced by the unreleased candidate README.
+> Regenerated 2026-09-18 from live `lintlang 0.6.0` output and referenced by the
+> README header. Regenerate it whenever the shown command's output changes.
 
 - Dimensions: `1600x900`
 - Format: static terminal-style PNG

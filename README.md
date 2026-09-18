@@ -1,12 +1,28 @@
+<div align="center">
+
+<img src="assets/lintlang-mark.svg" alt="LintLang" width="88" height="88">
+
 # LintLang
 
-Static analysis for the instructions your AI agents execute.
+**Static analysis for the instructions your AI agents execute.**
+
+[![CI](https://github.com/hermes-labs-ai/lintlang/actions/workflows/ci.yml/badge.svg)](https://github.com/hermes-labs-ai/lintlang/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/lintlang)](https://pypi.org/project/lintlang/)
+[![Downloads](https://img.shields.io/pypi/dm/lintlang?label=downloads%2Fmonth)](https://pypistats.org/packages/lintlang)
+[![Python](https://img.shields.io/pypi/pyversions/lintlang)](https://pypi.org/project/lintlang/)
+[![License](https://img.shields.io/pypi/l/lintlang)](LICENSE)
+[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/hermes-labs-ai/lintlang/badge)](https://scorecard.dev/viewer/?uri=github.com/hermes-labs-ai/lintlang)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.20471007.svg)](https://doi.org/10.5281/zenodo.20471007)
+
+[Product page](https://hermes-labs.ai/lintlang) · [Browser playground](https://hermes-labs.ai/lintlang#playground) · [PyPI](https://pypi.org/project/lintlang/) · [Documentation](llms-full.txt)
+
+<img src="assets/preview.png" alt="lintlang scan reporting a CRITICAL tool-description finding" width="760">
+
+</div>
 
 LintLang catches ambiguous tool descriptions, missing operational limits, schema/description mismatches, conflicting output contracts, and other bounded instruction defects before a model runs.
 
 **Local · deterministic · zero LLM calls · no telemetry or network access during a scan**
-
-[Product page](https://hermes-labs.ai/lintlang) · [Browser playground](https://hermes-labs.ai/lintlang#playground) · [PyPI](https://pypi.org/project/lintlang/) · [Documentation](llms-full.txt)
 
 ## Quick start
 
