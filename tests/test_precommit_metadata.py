@@ -41,12 +41,13 @@ def test_public_docs_show_exercised_install_and_hook_paths():
         assert "rev: v0.6.0" in text
         assert "id: lintlang" in text
         assert "args: [AGENTS.md, --fail-on, fail]" in text
-        assert f"hermes-labs-ai/lintlang@{LINTLANG_ACTION_VERSION}" in text
+        assert f"hermes-labs-ai/lintlang@{LINTLANG_V060_SHA} # {LINTLANG_ACTION_VERSION}" in text
 
     for text in (readme, code_scanning_example, reference):
         assert f"actions/checkout@{CHECKOUT_V7_SHA} # v7.0.1" in text
         assert "actions/checkout@v7" not in text
         assert "hermes-labs-ai/lintlang@v0.4.0" not in text
+        assert f"uses: hermes-labs-ai/lintlang@{LINTLANG_ACTION_VERSION}" not in text
 
     assert f"hermes-labs-ai/lintlang@{LINTLANG_V060_SHA} # v0.6.0" in code_scanning_example
     assert f"hermes-labs-ai/lintlang@{LINTLANG_ACTION_VERSION}" not in code_scanning_example
