@@ -13,6 +13,21 @@ ROOT = Path(__file__).parents[1]
 HANDLER = ROOT / "integrations/claude-code/hooks-handlers/post-tool-use.py"
 MARKETPLACE = ROOT / ".claude-plugin/marketplace.json"
 PLUGIN_MANIFEST = ROOT / "integrations/claude-code/.claude-plugin/plugin.json"
+ROOT_PLUGIN_MANIFEST = ROOT / "integrations/claude-code/plugin.json"
+
+# https://agent-plugins.org/schemas/1.0.0/plugin.schema.json top-level keys.
+AGENT_PLUGINS_SCHEMA_KEYS = {
+    "$schema",
+    "name",
+    "version",
+    "description",
+    "author",
+    "homepage",
+    "repository",
+    "license",
+    "keywords",
+    "extensions",
+}
 
 
 def _run_hook(path: Path) -> dict:
@@ -86,6 +101,28 @@ def test_marketplace_entry_does_not_restate_a_drifting_plugin_version() -> None:
     entry = json.loads(MARKETPLACE.read_text(encoding="utf-8"))["plugins"][0]
 
     assert "version" not in entry
+
+
+def test_agent_plugins_root_manifest_is_present_and_conformant() -> None:
+    """awesome-copilot intake (#3302) requires a plugin.json at the plugin root.
+
+    It must mirror the Claude-specific manifest under `.claude-plugin/` for
+    name and version, but declare the Agent Plugins 1.0 schema and carry only
+    that schema's allowed top-level keys.
+    """
+    assert ROOT_PLUGIN_MANIFEST.is_file()
+
+    root_manifest = json.loads(ROOT_PLUGIN_MANIFEST.read_text(encoding="utf-8"))
+    claude_manifest = json.loads(PLUGIN_MANIFEST.read_text(encoding="utf-8"))
+
+    assert root_manifest["$schema"] == "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json"
+    assert set(root_manifest.keys()) <= AGENT_PLUGINS_SCHEMA_KEYS
+
+    assert root_manifest["name"] == "lintlang" == claude_manifest["name"]
+    assert root_manifest["version"] == "0.1.2" == claude_manifest["version"]
+
+    # Author-identifying fields must not diverge from the Claude manifest.
+    assert set(root_manifest.get("author", {})) <= {"name", "email", "url"}
 
 
 def _handler_module():
