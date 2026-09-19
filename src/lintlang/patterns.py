@@ -773,17 +773,67 @@ _VERIFICATION_GUIDANCE = re.compile(
     r"\bverify\s*:\s*\S|\b(?:write|run|ensure)\s+(?:[\w-]+\s+){0,6}(?:tests?|checks?)\b",
     re.IGNORECASE,
 )
-_NEGATED_RETRY_PROHIBITION = re.compile(r"\b(?:never|do\s+not|don'?t)\s+$", re.IGNORECASE)
 _UNBOUNDED_CONTINUATION_SIGNALS = re.compile(
     r"\b(?:indefinitely|forever|endlessly|continuously|perpetually|non-?stop|without\s+(?:end|stopping|limit))\b",
     re.IGNORECASE,
 )
-# Allow up to two adverbial modifiers between the negator and ``loop``
-# ("don't continuously loop", "never ever loop"), but not arbitrary words, so
-# "never give up and loop ... forever" is still an instruction, not a prohibition.
-_NEGATED_UNBOUNDED_LOOP = re.compile(
-    r"\b(?:never|do\s+not|don'?t|should\s+not)(?:\s+(?!only\b)(?:\w+ly|ever)\b){0,2}\s*$",
+# ── H2 negation: one mechanism ─────────────────────────────────────
+# "Do not continue indefinitely" states a bound; reporting it as unbounded
+# inverts the author's meaning. ``_is_negated_prohibition`` is the only place
+# H2 decides that, for every ``DANGEROUS_PATTERNS`` entry and for the
+# continuation signal of a ``loop over/through`` traversal alike.
+#
+# H2 findings are CRITICAL, so a missed unbounded instruction costs more than a
+# prohibition that stays reported. Every rule below is therefore written to
+# fail towards reporting: anything not positively recognized is not a
+# prohibition.
+
+# Whitespace allowed between the negator, its adverbs, and the behavior: spaces,
+# or one line break with optional indentation, because hard-wrapped prose ends
+# lines anywhere ("you should never\nretry until ..."). A tab within a line, a
+# blank line, a list marker, and any punctuation all break adjacency.
+_NEG_GAP = r"(?:[ ]+|[ \t]*\r?\n[ \t]*)"
+_NEG_APOSTROPHE = "['\u2019]"
+_NEGATOR = (
+    rf"(?:never|do{_NEG_GAP}not|don{_NEG_APOSTROPHE}?t"
+    rf"|should{_NEG_GAP}not|shouldn{_NEG_APOSTROPHE}t"
+    rf"|must{_NEG_GAP}not|mustn{_NEG_APOSTROPHE}t"
+    rf"|(?P<ability>cannot|can{_NEG_APOSTROPHE}t))"
+)
+# A closed list, not ``\w+ly``: "reply", "apply", "rely", "comply", and "supply"
+# end in the same letters and are verbs. Restrictive adverbs ("only", "merely",
+# "simply", "solely", "just") are deliberately absent: "do not merely retry
+# until ..." asks for more than the retry, not for none.
+_NEGATION_ADVERBS = (
+    r"(?:ever|blindly|continuously|continually|constantly|endlessly|perpetually|repeatedly|indefinitely)"
+)
+# The negator sits immediately before the behavior, with at most two listed
+# adverbs between them. The anchor is ``\Z``: ``$`` also matches before a
+# trailing newline.
+_ADJACENT_NEGATOR = re.compile(
+    rf"\b(?P<negator>{_NEGATOR})(?:{_NEG_GAP}{_NEGATION_ADVERBS}){{0,2}}{_NEG_GAP}\Z",
     re.IGNORECASE,
+)
+# Another negative word earlier in the negator's own clause is a double
+# negation ("it is not true that you must not ...", "do not never ...").
+_EARLIER_NEGATIVE = re.compile(
+    rf"\b(?:not|never|no|nor|neither|cannot|dont)\b|n{_NEG_APOSTROPHE}t\b",
+    re.IGNORECASE,
+)
+_LEADING_NEGATOR = re.compile(rf"{_NEGATOR}\b", re.IGNORECASE)
+_SUBJECT_BEFORE_NEGATOR = re.compile(rf"\w{_NEG_GAP}\Z")
+# An exception licenses the unbounded run wherever it sits in the sentence:
+# "unless the operator sets RUN_FOREVER, do not continue indefinitely" and
+# "do not continue indefinitely unless ..." both permit it.
+_LICENSING_EXCEPTION = re.compile(r"\b(?:unless|except)\b", re.IGNORECASE)
+# A prohibition that is conditional, interrogative, or itself negated by "no
+# reason" does not state a bound either.
+_PROHIBITION_DEFEATER = re.compile(
+    r"\b(?:if|when|whenever|why)\b|\bno\s+reason\b",
+    re.IGNORECASE,
+)
+_SENTENCE_BREAK = re.compile(
+    r"[.!?;](?=\s|\Z)|\n[ \t]*\n|\n[ \t]*(?:[-*+\u2022]|\d+[.)]|#{1,6})[ \t]",
 )
 
 
@@ -805,10 +855,64 @@ def _immediate_clause(text: str, start: int, limit: int = 80) -> str:
     return window[: boundary.start()] if boundary else window
 
 
-def _is_negated_retry_prohibition(text: str, retry_start: int) -> bool:
-    """Return whether an adjacent negation forbids, rather than requires, retrying."""
-    prefix = text[max(0, retry_start - 20) : retry_start]
-    return bool(_NEGATED_RETRY_PROHIBITION.search(prefix))
+def _is_negated_prohibition(text: str, position: int) -> bool:
+    """Return whether the behavior starting at ``position`` is forbidden, not instructed.
+
+    True only when all of these hold:
+
+    - a negator sits immediately before ``position``, separated by nothing but
+      whitespace and at most two adverbs from the closed list;
+    - ``cannot`` / ``can't`` has a subject ("You cannot ..."), because a bare
+      "Cannot continue indefinitely: ..." reads as a status message;
+    - no other negative word precedes the negator in its own clause ("do not
+      never ...", "it is not true that you must not ..."), and the behavior does
+      not itself open with one ("never don't stop until ...");
+    - the sentence carries no licensing exception ("unless", "except"), before
+      or after the prohibition, and the next sentence does not open with one;
+    - the sentence is not a question;
+    - the negator's clause is not conditional or interrogative. To the left the
+      clause ends at the nearest comma or sentence break, so a fronted
+      condition ("When the push fails, do not retry until ...") still leaves a
+      prohibition. To the right it runs to the end of the sentence.
+
+    Known limitations, reported rather than guessed at: an interrupted negator
+    ("Do not, under any circumstances, ...", "Never, ever ..."), a delegated
+    one ("Do not let the agent ...", "Do not allow it to ..."), and a
+    subjectless "Cannot ..." all stay reported.
+    """
+    prefix = text[:position]
+    adjacent = _ADJACENT_NEGATOR.search(prefix)
+    if adjacent is None:
+        return False
+
+    before_negator = prefix[: adjacent.start("negator")]
+    if adjacent.group("ability") and not _SUBJECT_BEFORE_NEGATOR.search(before_negator):
+        return False
+    # The behavior itself opens with a negator: "never don't stop until ...".
+    if _LEADING_NEGATOR.match(text, position):
+        return False
+
+    sentence_start = 0
+    for boundary in _SENTENCE_BREAK.finditer(before_negator):
+        sentence_start = boundary.end()
+    next_break = _SENTENCE_BREAK.search(text, position)
+    sentence_end = next_break.start() if next_break else len(text)
+    # A question asks about the behavior; it does not forbid it.
+    if next_break is not None and next_break.group().startswith("?"):
+        return False
+    if _LICENSING_EXCEPTION.search(text, sentence_start, sentence_end):
+        return False
+    # "...; except when directed otherwise" and "... . Unless RUN_FOREVER is set."
+    # attach to the prohibition even though a break precedes them.
+    if next_break is not None:
+        after_break = len(text) - len(text[next_break.end() :].lstrip())
+        if _LICENSING_EXCEPTION.match(text, after_break):
+            return False
+
+    clause_start = max(sentence_start, before_negator.rfind(",") + 1)
+    if _EARLIER_NEGATIVE.search(text, clause_start, adjacent.start("negator")):
+        return False
+    return _PROHIBITION_DEFEATER.search(text, clause_start, sentence_end) is None
 
 
 def _is_unbounded_loop_traversal(text: str, match: re.Match[str]) -> bool:
@@ -819,27 +923,17 @@ def _is_unbounded_loop_traversal(text: str, match: re.Match[str]) -> bool:
     control flow, not a missing-constraint risk. Only treat it as a potential
     infinite loop when the same clause also carries an explicit indefinite-
     continuation signal (e.g. "loop over tasks indefinitely").
+
+    A negator before the traversal itself is handled by ``detect_h2``, which
+    applies ``_is_negated_prohibition`` to every pattern. The same guard is
+    applied here to the continuation signal ("loop over the items but never
+    indefinitely").
     """
     window = _immediate_clause(text, match.end())
     signal = _UNBOUNDED_CONTINUATION_SIGNALS.search(window)
     if signal is None:
         return False
-
-    # A prohibition such as "do not loop over the queue indefinitely" must
-    # not be treated as an instruction to run indefinitely. Check both a
-    # negation immediately before the traversal and one attached to the
-    # continuation signal later in the same clause.
-    before_match = text[max(0, match.start() - 40) : match.start()]
-    # Only a negation in the traversal's own clause counts.
-    before_match = re.split(r"[.!?;,\n]", before_match)[-1]
-    if _NEGATED_UNBOUNDED_LOOP.search(before_match):
-        return False
-    before_signal = window[: signal.start()]
-    return not re.search(
-        r"\b(?:never|do\s+not|don'?t|should\s+not)\b(?:\s+\w+){0,6}\s*$",
-        before_signal,
-        re.IGNORECASE,
-    )
+    return not _is_negated_prohibition(text, match.end() + signal.start())
 
 
 def _is_bounded_verification_loop(text: str, match: re.Match[str]) -> bool:
@@ -900,7 +994,7 @@ def detect_h2(config: AgentConfig) -> list[Finding]:
                 continue
             if _is_bounded_verification_loop(text, match):
                 continue
-            if pattern == _RETRY_UNTIL_PATTERN and _is_negated_retry_prohibition(text, match.start()):
+            if _is_negated_prohibition(text, match.start()):
                 continue
             if pattern == _LOOP_OVER_THROUGH_PATTERN and not _is_unbounded_loop_traversal(text, match):
                 continue

@@ -15,6 +15,26 @@
 
 ### Fixed
 
+- **Verdict change, in both directions.** H2 no longer reports an
+  unbounded-behavior phrase that the prompt forbids. `Do not continue
+  indefinitely; stop at the first terminal result.` was reported as
+  `Unbounded continuation` (CRITICAL) and scanned FAIL; it now carries no H2
+  finding. One guard covers every H2 unbounded-behavior phrase (`keep trying
+  until`, `retry until`, `loop until`, `loop over` / `loop through`,
+  `continue until` / `continue indefinitely`). The negator (`never`, `do not`,
+  `don't`, `should not`, `must not`, their contractions, and `cannot` /
+  `can't` after a subject) must sit directly on the phrase, with at most two
+  adverbs from a closed list between them. A file whose only CRITICAL findings
+  were such prohibitions now scans REVIEW or PASS. The guard replaces the
+  narrower negation check that `retry until` has had since 0.6.0 and is
+  stricter than it: a `never retry until …` that carries a trailing condition
+  (`unless`, `if`, `when`, `except`), is asked as a question, is doubly
+  negated, or is split from the phrase by a tab or a blank line is now
+  reported where 0.6.0 was silent, so a file relying on one of those forms
+  can move to FAIL. An interrupted or delegated prohibition (`Do not, under
+  any circumstances, …`, `Do not let the agent …`) is still reported; put the
+  negator directly on the phrase. Finding descriptions and evidence text are
+  unchanged, so existing baseline entries still match.
 - HERM recognizes explicit prose priority statements such as
   `Priority order is: … then …` without treating absence or uncertainty
   language as an ordering. A public-safe machine-readable case and scanner
