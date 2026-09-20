@@ -57,7 +57,7 @@ def test_readme_keeps_regression_methodology_out_of_adoption_path():
     readme = _text("README.md").lower()
     assert "repository regression check" not in readme
     assert "external-project detector accuracy" not in readme
-    assert "excerpt from `lintlang 0.6.0`" in _text("llms-full.txt").lower()
+    assert "excerpt from `lintlang 0.7.0`" in _text("llms-full.txt").lower()
     assert "(llms-full.txt)" in readme
 
 
