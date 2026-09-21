@@ -1596,22 +1596,12 @@ def detect_h5(config: AgentConfig) -> list[Finding]:
             )
         )
 
-    # Optionally flag each problematic negative individually (helps with targeted fixes)
-    for neg_start, neg_text in problematic_negatives[:2]:  # Show first 2 examples
-        start = max(0, neg_start - 30)
-        end = min(len(prompt), neg_start + 60)
-        evidence = prompt[start:end].strip()
-        findings.append(
-            Finding(
-                pattern_id="H5",
-                pattern_name="Implicit Instruction Failure",
-                severity=Severity.LOW,
-                location="system_prompt",
-                description=f"Negative instruction '{neg_text}' could be reframed positively.",
-                suggestion=f"Instead of '{neg_text}...', specify what TO do. Example context: '{evidence}'",
-                evidence=evidence,
-            )
-        )
+    # Per-negative LOW notices were removed: a single unexempted negative directive
+    # is ordinary, correct instruction prose, and the exemption layers above are a
+    # 100-character keyword window rather than a scope decision, so each notice
+    # asserted a defect the detector had not demonstrated (RESEARCH.md section 5).
+    # The tested density signal — more than three unexempted negatives in one
+    # prompt — is kept above, unchanged, as the aggregated MEDIUM finding.
 
     # Vague qualifiers (deduplicate identical matched text)
     seen_vague: set[str] = set()

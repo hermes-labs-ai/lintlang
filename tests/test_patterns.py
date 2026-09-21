@@ -1213,6 +1213,37 @@ class TestH5:
         findings = detect_h5(bad_prompt_config)
         assert any("priority" in f.description.lower() for f in findings)
 
+    def test_per_negative_low_notices_are_not_emitted(self):
+        """The per-negative LOW notices were removed; only the density MEDIUM remains."""
+        prompt = (
+            "Do not install anything persistently on the user's machine.\n"
+            "Don't rewrite the user's file.\n"
+            "Never invent a finding that the tool did not report.\n"
+            "Avoid offering this skill for general linting.\n"
+            "Do not guess a runner that is not installed.\n"
+        )
+        findings = detect_h5(AgentConfig(system_prompt=prompt))
+        assert not any("could be reframed positively" in f.description for f in findings)
+
+    def test_negative_density_medium_survives(self):
+        """POSITIVE CONTROL: the aggregated >3-negatives density MEDIUM is unchanged."""
+        prompt = "Don't do this. Never do that. Avoid this. Do not do the other thing."
+        findings = detect_h5(AgentConfig(system_prompt=prompt))
+        density = [f for f in findings if "negative instructions" in f.description]
+        assert len(density) == 1
+        assert density[0].severity == Severity.MEDIUM
+        assert density[0].location == "system_prompt"
+        assert density[0].description == (
+            "System prompt has 4 negative instructions ('don't', 'never', 'avoid'). "
+            "Models follow positive instructions more reliably."
+        )
+
+    @pytest.mark.parametrize("relative_path", _LINTLANG_INSTRUCTION_SURFACES)
+    def test_lintlang_own_instruction_prose_has_no_per_negative_notice(self, relative_path):
+        """HARD NEGATIVE: legitimate negative directives no longer produce LOW notices."""
+        findings = detect_h5(AgentConfig(system_prompt=_repo_text(relative_path)))
+        assert not any("could be reframed positively" in f.description for f in findings), relative_path
+
 
 # ── H6: Template Format Contract Violation ─────────────────────────
 
