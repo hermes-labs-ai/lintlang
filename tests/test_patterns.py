@@ -1035,6 +1035,37 @@ class TestH2:
         missing = [f for f in findings if "no termination" in f.description.lower()]
         assert len(missing) == 0
 
+    def test_affirmative_numeric_tool_budget_is_a_constraint(self):
+        config = AgentConfig(
+            system_prompt=(
+                "You have a maximum of 5 tool calls per task. "
+                "If no progress after 2 attempts, stop and report the issue."
+            ),
+            tools=[ToolDef(name="search", description="Search the database for records matching a query")],
+        )
+
+        findings = detect_h2(config)
+
+        assert not any("no termination" in finding.description.lower() for finding in findings)
+
+    @pytest.mark.parametrize(
+        "prompt",
+        [
+            "There is no maximum of 5 tool calls; continue until resolved.",
+            "Do not use a maximum of 5 tool calls; continue until resolved.",
+            "Proceed without a fixed maximum of 5 tool calls; continue until resolved.",
+        ],
+    )
+    def test_negated_numeric_tool_budget_is_not_a_constraint(self, prompt):
+        config = AgentConfig(
+            system_prompt=prompt,
+            tools=[ToolDef(name="search", description="Search the database for records matching a query")],
+        )
+
+        findings = detect_h2(config)
+
+        assert any("no termination" in finding.description.lower() for finding in findings)
+
     def test_suggested_constraint_clears_its_own_finding(self):
         tool = ToolDef(name="search", description="Search the database for records matching a query")
         original = detect_h2(AgentConfig(system_prompt="Use the search tool.", tools=[tool]))
