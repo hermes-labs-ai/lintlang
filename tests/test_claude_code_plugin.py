@@ -236,6 +236,18 @@ def _handler_module():
     return module
 
 
+def test_hook_reports_input_error_even_with_skipped_metadata(tmp_path: Path) -> None:
+    handler = _handler_module()
+    target = tmp_path / "agent.yaml"
+
+    message = handler._format_result(
+        target,
+        {"input_error": "Tool-like content could not be inspected", "skipped": "coverage gap"},
+    )
+
+    assert message == f"LintLang could not scan {target}: Tool-like content could not be inspected"
+
+
 def test_module_route_keeps_the_project_directory_off_sys_path() -> None:
     """`-m` would otherwise import from whatever project the hook fired in."""
     handler = _handler_module()

@@ -50,7 +50,6 @@ repos:
     rev: v0.6.0
     hooks:
       - id: lintlang
-        args: [AGENTS.md]
 ```
 
 Then install and exercise the hook:
@@ -61,13 +60,49 @@ pre-commit run lintlang
 pre-commit run lintlang --all-files
 ```
 
-The hook scans the explicit configured path, not an inferred list of staged
-files. Its metadata sets `pass_filenames: false`, `always_run: true`, and
-`verbose: true`, so the final command still scans the configured path. Replace
-`AGENTS.md` with the instructions your repository actually uses.
+The hook natively selects pre-commit's own changed-file list, filtered to a
+conservative `files:` regex that matches only recognized agent-instruction
+paths: `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, or `SKILL.md` at any depth;
+`agent.yaml`/`.yml`/`.json`; `.github/copilot-instructions.md`; and
+`*.instructions.md` under `.github/instructions/`. It runs — and scans every changed file that
+matches — only when a commit or `--all-files` touches one of those paths; it
+does not run unconditionally on unrelated commits, and it does not need a
+configured path for that default behavior.
 
-Findings are advisory by default. To block HIGH or CRITICAL findings, replace
-the hook's arguments with:
+An explicit `args:` entry is optional, and it is not a way to override the
+hook's selection. pre-commit appends the changed
+filenames *after* `args`, so adding a path there does not replace the hook's
+selection — it scans that path **in addition to** each changed file, and a
+flag placed after a path still applies to the whole invocation. To pin
+the hook to one fixed path regardless of what changed, set all three
+settings, which is useful when your repository's canonical instructions live
+somewhere the `files:` regex does not match:
+
+```yaml
+hooks:
+  - id: lintlang
+    args: [AGENTS.md]
+    pass_filenames: false
+    always_run: true
+```
+
+Findings are advisory by default: **a FAIL verdict does not block the
+commit.** Without `--fail-on`, the scan prints the verdict and its findings
+and exits 0 whatever it found, so pre-commit records the hook as passed and
+the commit proceeds. Only an input error — a missing, unreadable, or
+unparseable file — is nonzero without that flag. A hook that prints `FAIL`
+and lets the commit through is configured, not broken.
+
+To block HIGH or CRITICAL findings, add a
+`--fail-on` argument. On the default changed-file hook, pass only the flag,
+since the filenames arrive on their own:
+
+```yaml
+args: [--fail-on, fail]
+```
+
+On a pinned single-path hook like the one above, keep the explicit path
+first:
 
 ```yaml
 args: [AGENTS.md, --fail-on, fail]

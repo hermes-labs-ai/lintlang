@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import os
 import re
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
 from .herm import HermResult, score_text
-from .parsers import parse_file
-from .patterns import PATTERNS, AgentConfig, Finding
+from .parsers import parse_source
+from .patterns import PATTERNS, AgentConfig, Finding, SourceRegion, is_localization_reference
 
 # Pipeline detectors (P-series) — registered lazily to avoid circular imports
 _PIPELINE_DETECTORS_LOADED = False
@@ -64,6 +65,7 @@ NON_PROMPT_PATTERNS = [
     re.compile(r"^contributing", re.I),
     re.compile(r"^code.of.conduct", re.I),
     re.compile(r"^security", re.I),
+    re.compile(r"licen[sc]e|(?:^|[-_.])ofl(?:[-_.]|$)|^notice|third[-_ ]?party|^copying|^patents|^pull_request_template", re.I),
 ]
 
 # Directory paths that indicate non-prompt content
@@ -83,6 +85,8 @@ NON_PROMPT_DIRS = {
     "dist",
     "build",
     "htmlcov",
+    "issue_template",
+    "pull_request_template",
 }
 
 
@@ -103,6 +107,48 @@ def _is_non_prompt_file(filepath: Path) -> bool:
     return any(part.lower() in NON_PROMPT_DIRS or part.lower().endswith(".egg-info") for part in filepath.parts)
 
 
+def _glob_to_regex(pattern: str) -> re.Pattern | None:
+    """Compile one gitignore-style glob into an anchored regex.
+
+    Translated in a single pass over the pattern rather than by sequential
+    string replacement. Substituting ``**/`` with a regex fragment first and
+    then rewriting every remaining ``*`` and ``?`` also rewrote that fragment's
+    own metacharacters, which silently turned the optional ``(.*/)?`` into a
+    mandatory group — so ``**/*.md`` matched ``docs/a.md`` but not a
+    root-level ``a.md``.
+
+    The result is anchored, because an unanchored search made ``docs/**``
+    match ``notdocs/a.md`` and ``*.md`` match ``myfoo.md.bak``. Following
+    gitignore, a pattern containing no ``/`` matches at any depth, so
+    ``CHANGELOG.md`` and ``*.md`` keep excluding nested files as before.
+    """
+    parts: list[str] = []
+    index = 0
+    while index < len(pattern):
+        if pattern.startswith("**/", index):
+            parts.append("(?:[^/]+/)*")
+            index += 3
+        elif pattern.startswith("**", index):
+            parts.append(".*")
+            index += 2
+        elif pattern[index] == "*":
+            parts.append("[^/]*")
+            index += 1
+        elif pattern[index] == "?":
+            parts.append("[^/]")
+            index += 1
+        else:
+            parts.append(re.escape(pattern[index]))
+            index += 1
+
+    body = "".join(parts)
+    prefix = "" if "/" in pattern else "(?:.*/)?"
+    try:
+        return re.compile(rf"\A{prefix}{body}\Z")
+    except re.error:
+        return None
+
+
 def _load_ignore_patterns(directory: Path) -> list[re.Pattern]:
     """Load .lintlangignore from directory (gitignore-style globs)."""
     ignore_file = directory / ".lintlangignore"
@@ -114,21 +160,44 @@ def _load_ignore_patterns(directory: Path) -> list[re.Pattern]:
         line = line.strip()
         if not line or line.startswith("#"):
             continue
-        # Convert glob to regex
-        regex = line.replace(".", r"\.").replace("**/", "(.*/)?").replace("*", "[^/]*").replace("?", "[^/]")
-        try:
-            patterns.append(re.compile(regex))
-        except re.error:
-            continue
+        compiled = _glob_to_regex(line)
+        if compiled is not None:
+            patterns.append(compiled)
     return patterns
+
+
+def _matches(filepath: Path, base_dir: Path, patterns: list[re.Pattern]) -> bool:
+    """Check if filepath, relative to base_dir, matches any compiled pattern."""
+    if not patterns:
+        return False
+    try:
+        relative = filepath.relative_to(base_dir).as_posix()
+    except ValueError:
+        relative = filepath.as_posix()
+    return any(p.search(relative) for p in patterns)
 
 
 def _is_ignored(filepath: Path, base_dir: Path, patterns: list[re.Pattern]) -> bool:
     """Check if filepath matches any .lintlangignore pattern."""
-    if not patterns:
-        return False
-    relative = str(filepath.relative_to(base_dir))
-    return any(p.search(relative) for p in patterns)
+    return _matches(filepath, base_dir, patterns)
+
+
+def build_input_filter(base_dir: Path, exclude: list[str] | None = None) -> Callable[[Path], bool]:
+    """Return a predicate answering "should this input be filtered out?".
+
+    ``--exclude`` globs and a repository's ``.lintlangignore`` describe which
+    files a user does not want inspected. That is a property of the input, not
+    of how the input was found, so generic directory scanning and opt-in
+    repository discovery (``--discover``) share this one filter instead of each
+    converting globs for themselves.
+    """
+    ignore_patterns = _load_ignore_patterns(base_dir)
+    exclude_patterns = [compiled for pattern in (exclude or []) if (compiled := _glob_to_regex(pattern)) is not None]
+
+    def filtered(filepath: Path) -> bool:
+        return _matches(filepath, base_dir, ignore_patterns) or _matches(filepath, base_dir, exclude_patterns)
+
+    return filtered
 
 
 @dataclass
@@ -140,6 +209,100 @@ class ScanResult:
     herm: HermResult  # Full HERM result
     structural_findings: list[Finding] = field(default_factory=list)
     input_error: str | None = None  # Fatal load/parse failure, separate from lint severity
+    inspected: dict[str, int] = field(default_factory=dict)
+    """What the scan actually read: counts of tools, prompts, messages, schemas.
+
+    A verdict only covers this content. It is reported beside every verdict so a
+    clean result on an unread file cannot look like a clean result on a read one."""
+    notes: list[str] = field(default_factory=list)
+    """Coverage notices: tool-like content the parser saw and did not inspect."""
+    skipped: str | None = None
+    """Why nothing was inspected, when nothing was (never a PASS)."""
+
+
+def _plural(count: int, noun: str) -> str:
+    return f"{count} {noun}" + ("" if count == 1 else "s")
+
+
+def describe_inspected(inspected: dict[str, int]) -> str:
+    """One line naming what a verdict covers, e.g. '12 tools (11 described, 12 with a schema)'."""
+    parts: list[str] = []
+    tools = inspected.get("tools", 0)
+    if tools:
+        parts.append(
+            f"{_plural(tools, 'tool')} ({inspected.get('tools_described', 0)} described, "
+            f"{inspected.get('tools_with_schema', 0)} with a schema)"
+        )
+    if inspected.get("skill_description"):
+        parts.append("skill front matter")
+    if inspected.get("system_prompt"):
+        parts.append("system prompt")
+    if inspected.get("nested_prompts"):
+        parts.append(_plural(inspected["nested_prompts"], "prompt") + " under nested keys")
+    if inspected.get("instructions"):
+        parts.append(f"instruction text ({_plural(inspected.get('lines', 0), 'line')})")
+    if inspected.get("messages"):
+        parts.append(_plural(inspected["messages"], "message"))
+    if inspected.get("schemas"):
+        parts.append(_plural(inspected["schemas"], "output schema"))
+    if inspected.get("python_prompts"):
+        parts.append(_plural(inspected["python_prompts"], "embedded prompt"))
+    if inspected.get("python_thresholds"):
+        parts.append(_plural(inspected["python_thresholds"], "threshold"))
+    return ", ".join(parts) if parts else "nothing"
+
+
+def _coverage(config: AgentConfig) -> tuple[dict[str, int], list[str], str | None]:
+    """Return (inspected counts, notices, skip reason) for a parsed config."""
+    inspected: dict[str, int] = {}
+    if config.tools:
+        inspected["tools"] = len(config.tools)
+        inspected["tools_described"] = sum(1 for t in config.tools if t.description.strip() and not is_localization_reference(t.description))
+        inspected["tools_with_schema"] = sum(1 for t in config.tools if t.has_schema or t.parameters)
+    if config.skill is not None:
+        inspected["skill_description"] = 1
+    if config.system_prompt.strip():
+        key = "instructions" if config.kind == "instructions" else "system_prompt"
+        inspected[key] = 1
+        if config.prompt_paths:
+            inspected["nested_prompts"] = len(config.prompt_paths)
+        if key == "instructions":
+            inspected["lines"] = config.system_prompt.count("\n") + 1
+    messages = sum(1 for m in config.messages if isinstance(m, dict))
+    if messages:
+        inspected["messages"] = messages
+    if config.schemas:
+        inspected["schemas"] = len(config.schemas)
+
+    notes = [f"Localized description not inspected (unresolved message key): {path}" for path in config.uninspected_text]
+    # Only when no tool was read: beside real tools, a stray {name, description}
+    # object (an MCP resource, a chat participant) is not an unread tool.
+    if config.unclaimed and not config.tools:
+        shown = ", ".join(config.unclaimed[:3]) + (", ..." if len(config.unclaimed) > 3 else "")
+        notes.append(
+            f"{_plural(len(config.unclaimed), 'named, described object')} not inspected as tools "
+            f"(no parameter schema, and not under a 'tools' key): {shown}"
+        )
+    if config.dropped:
+        shown = ", ".join(config.dropped[:3]) + (", ..." if len(config.dropped) > 3 else "")
+        notes.append(f"{_plural(len(config.dropped), 'entry')} in a tool container could not be read as a tool: {shown}")
+
+    skipped = None
+    if not inspected:
+        if config.not_agent_content:
+            skipped = f"this is {config.not_agent_content}, not agent-facing content"
+        elif config.kind in ("instructions", "prompt"):
+            skipped = "the file is empty"
+        else:
+            skipped = "no tool definitions, system prompt, messages or output schema were recognised"
+    return inspected, notes, skipped
+
+
+NOTHING_INSPECTED_HINT = (
+    "LintLang reads a tool when it has a string 'name' plus a parameter schema (inputSchema, "
+    "input_schema, parameters), or sits under a 'tools' / 'functions' key. Pass "
+    "--allow-uninspected to report this file as SKIPPED instead of failing."
+)
 
 
 def input_error_result(path: str | Path, message: str) -> ScanResult:
@@ -155,7 +318,7 @@ def _build_scoring_text(config: AgentConfig) -> str:
     if config.system_prompt:
         parts.append(config.system_prompt)
     for tool in config.tools:
-        if tool.description:
+        if tool.description and not is_localization_reference(tool.description):
             parts.append(tool.description)
     for msg in config.messages:
         content = msg.get("content", "")
@@ -193,15 +356,73 @@ def scan_config(
     severity_order = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
     structural.sort(key=lambda f: severity_order.get(f.severity.value, 5))
 
+    # Give every finding that knows where its evidence sits a file line. Only
+    # text inputs: a prompt embedded in YAML/JSON has no recoverable line here.
+    if config.kind in ("instructions", "prompt"):
+        for finding in structural:
+            if finding.offset is not None and finding.source_region is None:
+                line = config.prompt_line_offset + config.system_prompt.count("\n", 0, finding.offset) + 1
+                finding.source_region = SourceRegion(line, line)
+                # Quote the offending line, whole: a fixed character window cuts
+                # words in half and drags in the neighbouring lines.
+                prompt = config.system_prompt
+                start = prompt.rfind("\n", 0, finding.offset) + 1
+                end = prompt.find("\n", finding.offset)
+                text_line = prompt[start : end if end != -1 else len(prompt)].strip()
+                if text_line:
+                    finding.evidence = text_line if len(text_line) <= 200 else text_line[:197] + "..."
+
+    inspected, notes, skipped = _coverage(config)
     return ScanResult(
         file=config.source_file,
         score=herm.score,
         herm=herm,
         structural_findings=structural,
+        inspected=inspected,
+        notes=notes,
+        skipped=skipped,
     )
 
 
-def scan_file(path: str | Path, patterns: list[str] | None = None) -> ScanResult:
+def _locate_tool_findings(result: ScanResult, text: str) -> None:
+    """Give a tool finding the line on which the tool's name is declared.
+
+    Only when that name is declared exactly once in the file, so the line is a
+    fact and not a guess."""
+    if re.search(r"(?:^|[\s:\[,-])[&*][A-Za-z_][\w-]*\s*(?:$|[\s,\]}])", text, re.MULTILINE) and not text.lstrip().startswith(("{", "[")):
+        return  # YAML anchors/aliases: the defective text may live on another line
+    cache: dict[str, int | None] = {}
+    for finding in result.structural_findings:
+        if finding.source_region is not None or not finding.location.startswith("tool:"):
+            continue
+        name = finding.location.removeprefix("tool:").split(" vs ")[0].split(".parameters")[0]
+        if name not in cache:
+            declared = [
+                m.start()
+                for m in re.finditer(rf"""["']?name["']?\s*[:=]\s*["']?{re.escape(name)}["']?\s*(?:,|$)""", text, re.MULTILINE)
+            ]
+            cache[name] = text.count("\n", 0, declared[0]) + 1 if len(declared) == 1 else None
+        if cache[name] is not None:
+            finding.source_region = SourceRegion(cache[name], cache[name])
+
+
+def _enforce_explicit(result: ScanResult, explicit: bool) -> ScanResult:
+    """Fail loudly when a NAMED file holds tool-like content none of which was read.
+
+    A named file with nothing agent-facing in it (a package.json handed over by a
+    batch wrapper) is SKIPPED, which is visible and is never a PASS. A named file
+    that does hold tool-like objects, none of which could be inspected, is the
+    dangerous case — the author believes it is covered — so it is an input error.
+    """
+    if explicit and result.skipped and result.notes and result.input_error is None:
+        result.input_error = (
+            f"Tool-like content was found but none of it could be inspected: {'; '.join(result.notes)}. "
+            f"{NOTHING_INSPECTED_HINT}"
+        )
+    return result
+
+
+def scan_file(path: str | Path, patterns: list[str] | None = None, explicit: bool = False) -> ScanResult:
     """Parse a file and produce a full scan result.
 
     Uses HERM v1.1 as the primary scorer with structural detectors
@@ -216,11 +437,49 @@ def scan_file(path: str | Path, patterns: list[str] | None = None) -> ScanResult
 
     try:
         if path.suffix == ".py":
-            return scan_python_file(path, patterns=patterns)
-        config = parse_file(path)
-        return scan_config(config, patterns=patterns)
+            return _enforce_explicit(scan_python_file(path, patterns=patterns), explicit)
+        text = path.read_text(encoding="utf-8")
+        config = parse_source(text, path)
+        result = scan_config(config, patterns=patterns)
+        _locate_tool_findings(result, text)
+        return _enforce_explicit(result, explicit)
     except Exception as error:
         return input_error_result(path, f"Failed to parse: {error}")
+
+
+def scan_source(
+    text: str, path: str | Path, patterns: list[str] | None = None, explicit: bool = False
+) -> ScanResult:
+    """Scan in-memory source text as if it had been read from ``path``.
+
+    ``path`` is never opened: it selects the parser (or Python extraction) and
+    supplies the source identity used by locations, JSON/SARIF output, and
+    baseline matching. A document handed to LintLang over standard input under
+    a virtual path therefore produces the same result as the identical file on
+    disk.
+    """
+    path = Path(path)
+    try:
+        if path.suffix == ".py":
+            return _enforce_explicit(scan_python_source(text, path, patterns=patterns), explicit)
+        config = parse_source(text, path)
+        result = scan_config(config, patterns=patterns)
+        _locate_tool_findings(result, text)
+        return _enforce_explicit(result, explicit)
+    except Exception as error:
+        return input_error_result(path, f"Failed to parse: {error}")
+
+
+def _is_test_code(filepath: Path, base_dir: Path) -> bool:
+    try:
+        parts = filepath.relative_to(base_dir).parts
+    except ValueError:
+        parts = filepath.parts
+    name = filepath.name
+    return (
+        any(part in ("tests", "test", "testing", "integration_tests", "__tests__") for part in parts[:-1])
+        or name.startswith("test_") or name.endswith("_test.py") or name == "conftest.py"
+    )
 
 
 def scan_directory(
@@ -239,6 +498,7 @@ def scan_directory(
 
     Automatically skips:
         - Non-prompt files (README, CHANGELOG, LICENSE, etc.)
+        - Python test code, returned as an explicit SKIPPED result
         - .lintlangignore patterns (gitignore-style, from directory root)
         - Files matching --exclude patterns
 
@@ -255,18 +515,8 @@ def scan_directory(
 
     results: dict[str, ScanResult] = {}
 
-    # Load .lintlangignore
-    ignore_patterns = _load_ignore_patterns(directory)
-
-    # Compile --exclude patterns
-    exclude_patterns: list[re.Pattern] = []
-    if exclude:
-        for pattern in exclude:
-            regex = pattern.replace(".", r"\.").replace("**/", "(.*/)?").replace("*", "[^/]*").replace("?", "[^/]")
-            try:
-                exclude_patterns.append(re.compile(regex))
-            except re.error:
-                continue
+    # .lintlangignore plus --exclude, compiled once and shared with --discover
+    is_filtered = build_input_filter(directory, exclude)
 
     extension_set = set(extensions)
     candidates: list[Path] = []
@@ -294,30 +544,55 @@ def scan_directory(
         # Skip non-prompt files (CHANGELOG, README, etc.)
         if _is_non_prompt_file(filepath):
             continue
-
-        # Skip .lintlangignore matches
-        if _is_ignored(filepath, directory, ignore_patterns):
+        # Test code holds fixtures ("tool1", no description), not what an agent
+        # is given. Keep the exclusion visible: a directory result that silently
+        # omits the file would overstate coverage. Name it explicitly to scan it.
+        if filepath.suffix == ".py" and _is_test_code(filepath, directory):
+            herm = score_text("", source_path=str(filepath))
+            results[str(filepath)] = ScanResult(
+                file=str(filepath),
+                score=herm.score,
+                herm=herm,
+                skipped="Python test code is excluded from directory scans; name this file explicitly to inspect it",
+            )
             continue
 
-        # Skip --exclude matches
-        if exclude_patterns:
-            relative = str(filepath.relative_to(directory))
-            if any(p.search(relative) for p in exclude_patterns):
-                continue
+        # Skip .lintlangignore and --exclude matches
+        if is_filtered(filepath):
+            continue
 
         try:
             if filepath.suffix == ".py":
-                results[str(filepath)] = scan_python_file(filepath, patterns=patterns)
+                result = scan_python_file(filepath, patterns=patterns)
             else:
-                results[str(filepath)] = scan_file(filepath, patterns=patterns)
+                result = _scan_walked_file(filepath, patterns)
         except Exception as e:
-            results[str(filepath)] = input_error_result(filepath, f"Failed to parse: {e}")
+            result = input_error_result(filepath, f"Failed to parse: {e}")
+        results[str(filepath)] = result
 
     for error in sorted(traversal_errors, key=lambda item: str(item.filename or directory)):
         failed_path = Path(error.filename) if error.filename else directory
         results[str(failed_path)] = input_error_result(failed_path, f"Failed to traverse: {error}")
 
     return {path: results[path] for path in sorted(results)}
+
+
+def _scan_walked_file(filepath: Path, patterns: list[str] | None) -> ScanResult:
+    """Scan a file the walk met. A loose .txt is a prompt only if it reads like one."""
+    if filepath.suffix == ".txt":
+        from .extractors import PROMPT_SIGNALS
+
+        try:
+            text = filepath.read_text(encoding="utf-8")
+        except (OSError, UnicodeError):
+            return scan_file(filepath, patterns=patterns)
+        if not any(pattern.search(text) for pattern, _ in PROMPT_SIGNALS):
+            herm = score_text("", source_path=str(filepath))
+            return ScanResult(
+                file=str(filepath), score=herm.score, herm=herm,
+                skipped="no prompt language was recognised in this text file (name it explicitly to scan it anyway)",
+            )
+    return scan_file(filepath, patterns=patterns)
 
 
 def compute_health_score(findings: list[Finding]) -> float:
@@ -354,15 +629,35 @@ def scan_python_file(
 
     Returns a single ScanResult aggregating all findings.
     """
+    from .extractors import extract_from_python_file
+
+    path = Path(path)
+    return _scan_python_extraction(extract_from_python_file(path), path, patterns=patterns)
+
+
+def scan_python_source(
+    text: str,
+    path: str | Path,
+    patterns: list[str] | None = None,
+) -> ScanResult:
+    """Run Python extraction over in-memory source attributed to ``path``."""
+    from .extractors import extract_from_python
+
+    path = Path(path)
+    return _scan_python_extraction(extract_from_python(text, source_file=str(path)), path, patterns=patterns)
+
+
+def _scan_python_extraction(
+    extraction,
+    path: Path,
+    patterns: list[str] | None = None,
+) -> ScanResult:
+    """Shared Python-extraction scoring for file and in-memory sources."""
     from .extractors import (
         detect_scaffold_in_code,
         detect_uncalibrated_thresholds,
-        extract_from_python_file,
         extracted_prompts_to_configs,
     )
-
-    path = Path(path)
-    extraction = extract_from_python_file(path)
 
     # Pipeline-specific detectors (P1, P2)
     all_findings: list[Finding] = []
@@ -391,6 +686,28 @@ def scan_python_file(
                 f.source_region = config.source_region
             all_findings.extend(findings)
 
+    # Tool definitions written as literals: H1/H3 apply to them as to any tool.
+    if extraction.tools:
+        from .patterns import ToolDef
+
+        tool_config = AgentConfig(
+            tools=[
+                ToolDef(name=t.name, description=t.description, parameters=t.parameters,
+                        group=t.group, has_schema=t.has_schema)
+                for t in extraction.tools
+            ],
+            source_file=str(path),
+            kind="python",
+        )
+        lines = {t.name: t.line for t in extraction.tools}
+        for pid in ("H1", "H3"):
+            if pid in pattern_ids:
+                for f in PATTERNS[pid]["detect"](tool_config):
+                    first = f.location.removeprefix("tool:").split(" vs ")[0].split(".")[0]
+                    if first in lines:
+                        f.source_region = SourceRegion(lines[first], lines[first])
+                    all_findings.append(f)
+
     # HERM scoring on concatenated extracted prompts
     combined_text = "\n\n".join(prompt_texts) if prompt_texts else ""
     herm = score_text(combined_text, source_path=str(path))
@@ -399,11 +716,34 @@ def scan_python_file(
     severity_order = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
     all_findings.sort(key=lambda f: severity_order.get(f.severity.value, 5))
 
+    inspected: dict[str, int] = {}
+    if extraction.prompts:
+        inspected["python_prompts"] = len(extraction.prompts)
+    if extraction.thresholds:
+        inspected["python_thresholds"] = len(extraction.thresholds)
+    if extraction.tools:
+        inspected["tools"] = len(extraction.tools)
+        inspected["tools_described"] = sum(1 for t in extraction.tools if t.description.strip())
+        inspected["tools_with_schema"] = sum(1 for t in extraction.tools if t.has_schema)
+
+    notes = [
+        f"Tool schema not inspected (non-literal or non-object Python expression): {t.name} at line {t.line}"
+        for t in extraction.tools
+        if not t.has_schema
+    ]
+
     return ScanResult(
         file=str(path),
         score=herm.score,
         herm=herm,
         structural_findings=all_findings,
+        inspected=inspected,
+        notes=notes,
+        skipped=(
+            None
+            if inspected or extraction.parse_errors
+            else "no embedded prompt literals or threshold assignments were found in this Python file"
+        ),
         input_error=(
             "; ".join(f"Python parse error: {err}" for err in extraction.parse_errors)
             if extraction.parse_errors

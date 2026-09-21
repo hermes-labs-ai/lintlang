@@ -199,3 +199,86 @@ def test_init_github_requires_git_repository(tmp_path, monkeypatch, capsys):
     assert main(["init", "--github"]) == 1
 
     assert "must run inside a Git repository" in capsys.readouterr().err
+
+
+def test_init_github_candidate_order_covers_the_recognized_primitive():
+    """`init` reuses the one recognized-instruction definition, and its
+    first-match order stays explicit and deterministic."""
+    from lintlang.github_init import DEFAULT_INPUT_ORDER
+    from lintlang.instructions import (
+        RECOGNIZED_INSTRUCTION_BASENAMES,
+        RECOGNIZED_INSTRUCTION_DIRECTORIES,
+        RECOGNIZED_INSTRUCTION_DIRECTORY_SUFFIXES,
+        RECOGNIZED_INSTRUCTION_RELATIVE_PATHS,
+        is_recognized_instruction_path,
+    )
+
+    assert [candidate.as_posix() for candidate in DEFAULT_INPUT_ORDER] == [
+        "AGENTS.md",
+        "CLAUDE.md",
+        ".github/copilot-instructions.md",
+        ".github/instructions",
+        "GEMINI.md",
+        "agent.yaml",
+        "agent.yml",
+        "agent.json",
+        "SKILL.md",
+    ]
+    assert {candidate.as_posix() for candidate in DEFAULT_INPUT_ORDER} == (
+        set(RECOGNIZED_INSTRUCTION_BASENAMES)
+        | set(RECOGNIZED_INSTRUCTION_RELATIVE_PATHS)
+        | set(RECOGNIZED_INSTRUCTION_DIRECTORIES)
+    )
+    # A recognized directory is itself a candidate; the primitive answers for
+    # the files inside it, in that directory's documented spelling.
+    assert all(
+        any(
+            is_recognized_instruction_path(candidate / f"x{suffix}")
+            for suffix in RECOGNIZED_INSTRUCTION_DIRECTORY_SUFFIXES
+        )
+        if candidate.as_posix() in RECOGNIZED_INSTRUCTION_DIRECTORIES
+        else is_recognized_instruction_path(candidate)
+        for candidate in DEFAULT_INPUT_ORDER
+    )
+
+
+def test_init_github_detects_a_root_skill_definition(tmp_path, monkeypatch):
+    root = tmp_path / "repository"
+    root.mkdir()
+    (root / ".git").mkdir()
+    (root / "SKILL.md").write_text("# Skill\n", encoding="utf-8")
+    monkeypatch.chdir(root)
+
+    assert main(["init", "--github"]) == 0
+
+    text = (root / ".github/workflows/lintlang.yml").read_text(encoding="utf-8")
+    assert 'path: "SKILL.md"' in text
+
+
+def test_init_github_first_match_wins_over_later_candidates(tmp_path, monkeypatch):
+    root = tmp_path / "repository"
+    root.mkdir()
+    (root / ".git").mkdir()
+    for name in ("CLAUDE.md", "GEMINI.md", "SKILL.md", "agent.yaml"):
+        (root / name).write_text("# Instructions\n", encoding="utf-8")
+    monkeypatch.chdir(root)
+
+    assert main(["init", "--github"]) == 0
+
+    text = (root / ".github/workflows/lintlang.yml").read_text(encoding="utf-8")
+    assert 'path: "CLAUDE.md"' in text
+
+
+def test_init_github_explicit_path_still_overrides_recognized_defaults(tmp_path, monkeypatch):
+    """An explicit --path is never replaced by a recognized default."""
+    root = _repository(tmp_path)
+    (root / "SKILL.md").write_text("# Skill\n", encoding="utf-8")
+    config = root / "config" / "agent.yaml"
+    config.parent.mkdir()
+    config.write_text("system_prompt: Be concise.\n", encoding="utf-8")
+    monkeypatch.chdir(root)
+
+    assert main(["init", "--github", "--path", "config/agent.yaml"]) == 0
+
+    text = (root / ".github/workflows/lintlang.yml").read_text(encoding="utf-8")
+    assert 'path: "config/agent.yaml"' in text

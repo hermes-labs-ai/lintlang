@@ -1,12 +1,14 @@
 """Tests for the scanner module."""
 
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 
 from lintlang.patterns import Finding, Severity
 from lintlang.report import compute_verdict
 from lintlang.scanner import (
     ScanResult,
+    _glob_to_regex,
     _is_non_prompt_file,
+    _matches,
     compute_health_score,
     scan_config,
     scan_directory,
@@ -86,6 +88,73 @@ class TestScanFile:
     def test_scan_yaml_file(self):
         result = scan_file(SAMPLES_DIR / "bad_tool_descriptions.yaml")
         assert len(result.structural_findings) > 0
+
+    def test_root_prompt_keeps_chat_shape_checks_when_nested_templates_exist(self, tmp_path):
+        path = tmp_path / "agent.yaml"
+        path.write_text(
+            "system_prompt: |-\n"
+            "  You are a support agent. Remember the user's preference across conversations.\n"
+            + "".join(f"  - Check requirement {index} and record the outcome.\n" for index in range(12))
+            + "  Preserve remembered preferences across future conversations whenever they are relevant.\n"
+            + "  Continue applying those preferences to every later task unless the user changes them.\n"
+            + "agent:\n"
+            + "  templates:\n"
+            + "    user_template: Summarize the supplied request before completing the assigned task.\n"
+        )
+
+        result = scan_file(path)
+
+        assert {finding.pattern_id for finding in result.structural_findings} >= {"H4", "H5", "H6"}
+        assert result.inspected["system_prompt"] == 1
+        assert result.inspected["nested_prompts"] == 1
+
+    def test_plain_prompt_coverage_is_not_labeled_instructions(self, tmp_path):
+        path = tmp_path / "system.prompt"
+        path.write_text("You are a release reviewer. Return JSON only.\n")
+
+        result = scan_file(path)
+
+        assert result.inspected["system_prompt"] == 1
+        assert "instructions" not in result.inspected
+
+    def test_yaml_root_message_sequence_is_inspected(self, tmp_path):
+        path = tmp_path / "messages.yaml"
+        path.write_text(
+            "- role: system\n"
+            "  content: You are a release reviewer. Return JSON only.\n"
+            "- role: system\n"
+            "  content: Check the package metadata before reporting.\n"
+        )
+
+        result = scan_file(path)
+
+        assert result.skipped is None
+        assert result.inspected["messages"] == 2
+        assert result.inspected["system_prompt"] == 1
+        assert any(finding.pattern_id == "H7" for finding in result.structural_findings)
+
+    def test_yaml_root_prompt_sequence_is_inspected(self, tmp_path):
+        path = tmp_path / "agents.yaml"
+        path.write_text(
+            "- name: reviewer\n"
+            "  system_prompt: Review the package evidence and report only claims supported by the supplied files.\n"
+            "- name: repairer\n"
+            "  instructions: If the tests fail, keep trying until they pass, whatever it takes to get there.\n"
+        )
+
+        result = scan_file(path)
+
+        assert result.skipped is None
+        assert result.inspected["nested_prompts"] == 2
+        assert any(finding.pattern_id == "H2" for finding in result.structural_findings)
+
+    def test_arbitrary_yaml_root_sequence_remains_uninspected(self, tmp_path):
+        path = tmp_path / "values.yaml"
+        path.write_text("- alpha\n- beta\n")
+
+        result = scan_file(path)
+
+        assert result.skipped == "no tool definitions, system prompt, messages or output schema were recognised"
 
     def test_scan_json_file(self):
         result = scan_file(SAMPLES_DIR / "bad_agent_config.json")
@@ -235,6 +304,22 @@ class TestScanDirectory:
         assert str(py_file) in results
         assert results[str(py_file)].input_error is None
 
+    def test_directory_scan_reports_excluded_python_test_code(self, tmp_path):
+        py_file = tmp_path / "tests" / "test_agent.py"
+        py_file.parent.mkdir()
+        py_file.write_text(
+            'SYSTEM_PROMPT = """You are an assistant. Keep trying until the operation succeeds, '
+            'and report every attempt to the user."""\n'
+        )
+
+        results = scan_directory(tmp_path)
+
+        assert results[str(py_file)].inspected == {}
+        assert results[str(py_file)].skipped == (
+            "Python test code is excluded from directory scans; name this file explicitly to inspect it"
+        )
+        assert any(f.pattern_id == "H2" for f in scan_file(py_file).structural_findings)
+
     def test_direct_python_scans_inside_dependency_directories(self, tmp_path):
         for directory_name in (".venv", "venv", "site-packages", "__pypackages__"):
             py_file = tmp_path / directory_name / "pipeline.py"
@@ -327,6 +412,70 @@ class TestFileTypeFiltering:
         scanned_names = {Path(p).name for p in results}
         assert "config.yaml" in scanned_names
         assert "draft.md" not in scanned_names
+
+
+class TestGlobTranslation:
+    """One shared glob translator backs `--exclude`, `.lintlangignore`, and
+    `--discover` filtering, so its semantics are pinned directly."""
+
+    @staticmethod
+    def _matches(pattern: str, path: str) -> bool:
+        compiled = _glob_to_regex(pattern)
+        assert compiled is not None, pattern
+        return bool(compiled.search(path))
+
+    def test_double_star_prefix_matches_zero_directories(self):
+        """`**/` means "zero or more directories". Sequential string
+        replacement used to rewrite the fragment's own `?`, making the group
+        mandatory, so a root-level file escaped the pattern."""
+        assert self._matches("**/*.md", "a.md")
+        assert self._matches("**/*.md", "docs/a.md")
+        assert self._matches("**/*.md", "docs/deep/a.md")
+        assert not self._matches("**/*.md", "a.txt")
+
+    def test_patterns_are_anchored(self):
+        """An unanchored search matched any path containing the pattern."""
+        assert self._matches("docs/**", "docs/a.md")
+        assert self._matches("docs/**", "docs/deep/a.md")
+        assert not self._matches("docs/**", "notdocs/a.md")
+        assert not self._matches("archive/**", "archive2/old.txt")
+        assert not self._matches("*.md", "myfoo.md.bak")
+        assert not self._matches("CHANGELOG.md", "CHANGELOG.md.bak")
+
+    def test_slashless_patterns_still_match_at_any_depth(self):
+        """gitignore semantics, and what existing `--exclude` callers rely on."""
+        assert self._matches("CHANGELOG.md", "CHANGELOG.md")
+        assert self._matches("CHANGELOG.md", "docs/CHANGELOG.md")
+        assert self._matches("*.md", "docs/deep/a.md")
+        assert self._matches("test_*", "test_config.yaml")
+
+    def test_single_star_does_not_cross_a_separator(self):
+        assert self._matches("*/drop/*", "skills/drop/SKILL.md")
+        assert not self._matches("*/drop/*", "skills/keep/SKILL.md")
+
+    def test_filter_normalizes_windows_path_separators(self):
+        compiled = _glob_to_regex("docs/**")
+        assert compiled is not None
+
+        assert _matches(
+            PureWindowsPath("C:/repo/docs/agent.md"),
+            PureWindowsPath("C:/repo"),
+            [compiled],
+        )
+
+    def test_a_regex_metacharacter_is_translated_as_a_literal(self):
+        """The name said the opposite of the assertion.
+
+        The translator escapes every character it does not handle itself, so
+        `[` — which alone is not a valid regex — becomes a literal rather than
+        an unterminated character class, and compilation succeeds. The
+        ``None`` return remains the contract if a compilation ever does fail.
+        """
+        compiled = _glob_to_regex("[")
+
+        assert compiled is not None
+        assert compiled.search("[") is not None
+        assert compiled.search("a") is None
 
 
 class TestHealthScore:

@@ -4,6 +4,63 @@
 
 ### Added
 
+- Tool definitions are found by shape, wherever they sit. Previously only a
+  root `tools`/`functions` list of `name` + `parameters`/`input_schema` objects
+  was read: a root JSON array was an input error, and MCP `inputSchema` tools,
+  `mcpServers.<server>.tools`, vendor keys such as VS Code
+  `contributes.languageModelTools`, name-keyed tool maps and Gemini
+  `functionDeclarations` scanned `PASS` with nothing inspected. See "Supported
+  formats and extraction" in `llms-full.txt` for the exact signatures and the
+  hard negatives (SBOMs, JSON Schema, OpenAPI, lockfiles, pipeline templates).
+- Every result reports what it inspected (`Inspected:` line; `inspected` in
+  JSON). A file with nothing to inspect is `SKIPPED` with its reason, never
+  `PASS`. A scan in which every file was skipped, and a named file whose
+  tool-like objects could not be read, exit 1; `--allow-uninspected` opts out.
+  JSON also gains `not_inspected`, `skipped`, and a per-finding `line`.
+- Markdown files are instruction documents, not chat system prompts. YAML front
+  matter with `name`/`description` is read as skill metadata: H1.1/H1.2 on the
+  description, H1.7 (over 1024 characters), H1.8 (no "when to use"), H1.9 (name
+  invalid or different from the `SKILL.md` directory). Front matter is no longer
+  linted as body prose.
+- H4.5: an instruction document references a project file that does not exist.
+- Findings in text files carry their line number (terminal `file:line`, JSON
+  `line`, SARIF region) and quote the whole offending line.
+- `--show-all`; the terminal otherwise shows five findings per code and counts
+  the rest. Clean and skipped files in a multi-file scan are summary rows.
+
+### Changed
+
+- Concrete short tool descriptions no longer fail solely on length. One-sided
+  tool-description containment respects distinct input property schemas.
+- Parameter descriptions are not required to repeat explicit scalar schema or
+  tool-description context. Unexplained parameters still produce H3 findings.
+- Server manifest instructions no longer inherit host-agent shape requirements.
+  Unresolved localization keys are disclosed as uninspected text, and skill
+  source catalogs are skipped with an explicit reason.
+
+- The chat-prompt shape heuristics no longer run on Markdown instruction
+  documents: H5 instruction count without priority ordering, H5 negative
+  density, H6 missing output format, H6 missing version marker, H4 missing
+  boundary vocabulary. Those generic prompt-shape notices did not identify a
+  specific sentence to repair in an instruction document. They still run on
+  `.txt`/`.prompt` files and config system prompts.
+- H1.3 no longer treats get/set/run/execute/use/make as vague verbs. One-sided
+  H1.6 needs a shared domain term and the same leading verb. H1.4/H1.5/H1.6
+  compare within one tool container. H3 ignores unions of scalar types.
+- Python: a string is extracted as a prompt when the code uses it as one;
+  docstrings, help text, log and exception messages are not prompts. P2 is LOW
+  (over 500 characters) / INFO instead of MEDIUM / LOW, and the version-marker
+  note does not apply to extracted literals. A Python tool's schema is counted
+  as inspected only when it is a literal object; dynamic schema expressions are
+  retained as coverage notices rather than silently treated as empty schemas.
+  Python test files excluded during directory walks now appear as explicit
+  SKIPPED results instead of disappearing from the reported coverage.
+- Baselines: evidence is part of a finding's fingerprint and H2/H4/H5 evidence in
+  text files is now the whole line, so such entries recorded by 0.6.0 resurface
+  once and need re-recording.
+
+### Added (earlier in this cycle)
+
 - On-demand `lintlang-audit` skill in the Claude Code plugin
   (`integrations/claude-code/skills/lintlang-audit/`), plugin version `0.2.0`.
   It audits the file a user names, resolving the released CLI from `PATH` or
@@ -12,9 +69,174 @@
   hook, which covers just the file Claude Code has already changed; there was
   no way to ask for an audit. The two surfaces are separate: the skill is not
   a hook, and the plugin README and manifest descriptions now say so.
+- `lintlang scan --discover [ROOT]` opts in to repository discovery of
+  recognized agent-instruction files anywhere under `ROOT` (default `.`):
+  `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `SKILL.md`, `agent.yaml`/`.yml`/
+  `.json`, `.github/copilot-instructions.md`, and `*.instructions.md` under
+  `.github/instructions/`, matched case-sensitively at any depth — that
+  directory's documented spelling, so a README or a scratch note kept beside
+  the real instruction files is not scanned as one. Editor and host layouts
+  (`.cursor/rules`, `.claude/agents`, `.windsurfrules`) are known omissions,
+  not discovery targets; pass such a file as an explicit argument. Symlinks
+  are not followed, as in a directory scan, but a recognized instruction file
+  skipped for that reason is now named on stderr instead of silently dropping
+  out of the scanned set; an excluded one is not reported. Explicit
+  file arguments remain canonical; `--discover` unions its discovered set
+  with them, deduplicated. `--exclude` globs and a repository's
+  `.lintlangignore` filter discovered files exactly as they filter a directory
+  scan, so a repository that keeps deliberately broken instruction fixtures can
+  keep them out of its own repository-mode gate. Generic directory scanning
+  (`lintlang scan <dir>`) is unchanged and keeps its own broader,
+  extension-based sweep.
+- `lintlang scan - --stdin-filename <virtual-path>` scans exactly one document
+  from standard input. The virtual path drives parsing (including `.py` AST
+  extraction), reported locations, JSON/SARIF identity, and baseline matching;
+  the path itself is never opened. `-` without `--stdin-filename`, more than
+  one `-`, `--stdin-filename` without a `-` input, and `-` combined with
+  `--discover` are all rejected with a usage error (exit 2). One invocation
+  takes one unambiguous source of files: a generator scans what it generated, a
+  repository gate scans the repository. Released 0.6.0 rejected a bare `-` as a
+  missing file (exit 1), so a wrapper that branches on that exit code sees 2
+  instead.
+- `lintlang init --github` also recognizes a root `SKILL.md` as an automatic
+  candidate, checked last in the existing detection order so no previously
+  auto-selected repository changes which file it picks. An explicit `--path`
+  still wins over every candidate.
+
+### Changed
+
+- **A scan that inspects zero files is an input/coverage error on every
+  channel.** Released 0.6.0 already exited 1 for it and said so on stderr
+  (`Error: No files were successfully scanned.`) and in SARIF, which reported
+  `executionSuccessful: false` with an `LL_INPUT_ERROR` notification but no
+  `ERROR` result; JSON alone still printed `[]`, so the JSON report
+  contradicted the process status. The scan now exits 1 with a matching
+  `ERROR` result on every output channel (terminal, JSON, SARIF). New
+  `--allow-empty` is the opt-out for a caller that intentionally scans an
+  input that may sometimes be empty: it exits 0 with a stderr note, `[]` for
+  JSON, and an empty SARIF run reporting `executionSuccessful: true`. Report
+  and exit status now agree in both directions. An interim change on `main`
+  after the 0.6.0 tag made a zero-file scan exit 0; it was never released, so
+  no published version behaved that way and an upgrade from 0.6.0 sees only
+  the added channels and the new flag. The first-party GitHub Action runs the
+  same CLI over its `path` input, so a path that inspects zero files now fails
+  the step with exit 1; the Action exposes no input that forwards
+  `--allow-empty`, so a workflow that needs the opt-out has to call the CLI
+  directly. `--write-baseline`'s pre-existing empty-scan error, which already
+  refused to write a baseline, is unchanged.
+- **Breaking: the pre-commit hook now consumes pre-commit's own changed-file
+  selection instead of a hard-coded path.** `args: [AGENTS.md]`,
+  `pass_filenames: false`, and `always_run: true` are gone from
+  `.pre-commit-hooks.yaml`; the hook now declares a conservative `files:`
+  regex matching exactly the recognized instruction set above, so it fires
+  only on changed files that are themselves agent instructions, across
+  however many such files changed in one commit. A repository that relied on
+  the hook always running regardless of which files changed should instead
+  run `pre-commit run lintlang --all-files`. Reproducing the exact old
+  single-path behavior takes all three settings in its own
+  `.pre-commit-config.yaml` — `args: [AGENTS.md]`, `pass_filenames: false`,
+  and `always_run: true` — because pre-commit appends the changed filenames
+  after `args`, so `args:` alone adds a fixed path rather than replacing the
+  selection. The pre-commit guide now states that consequence and the
+  advisory default it sits next to: without `--fail-on`, a FAIL verdict does
+  not block the commit, because the scan exits 0 whatever it found and only
+  an input error is nonzero.
+- **Behavior change: `--exclude` and `.lintlangignore` globs are now anchored
+  and translated correctly.** The previous translator rewrote the pattern by
+  sequential string replacement and matched it unanchored, with two
+  consequences: `**/` became a mandatory rather than an optional path segment,
+  so `**/*.md` matched `docs/a.md` but not a root-level `a.md`; and any
+  pattern matched anywhere in a path, so `docs/**` also excluded
+  `notdocs/a.md` and `*.md` also excluded `myfoo.md.bak`. Both are fixed.
+  Following gitignore, a pattern containing no `/` still matches at any depth,
+  so `CHANGELOG.md` and `*.md` keep excluding nested files. A repository whose
+  exclusion happened to depend on the over-broad matching will now scan those
+  previously skipped files. The same translator backs `--discover` filtering.
+- H5's per-negative-instruction LOW notices
+  (`Negative instruction '…' could be reframed positively.`) are removed. The
+  aggregated MEDIUM density finding for a prompt with many instructions and no
+  explicit priority ordering is unchanged.
 
 ### Fixed
 
+- **Verdict change, in both directions.** H2 no longer reports an
+  unbounded-behavior phrase that the prompt forbids. `Do not continue
+  indefinitely; stop at the first terminal result.` was reported as
+  `Unbounded continuation` (CRITICAL) and scanned FAIL; it now carries no H2
+  finding. One guard covers every H2 unbounded-behavior phrase (`keep trying
+  until`, `retry until`, `loop until`, `loop over` / `loop through`,
+  `continue until` / `continue indefinitely`). The negator (`never`, `do not`,
+  `don't`, `should not`, `must not`, their contractions, and `cannot` /
+  `can't` after a subject) must sit directly on the phrase, with at most two
+  adverbs from a closed list between them. A file whose only CRITICAL findings
+  were such prohibitions now scans REVIEW or PASS. The guard replaces the
+  narrower negation check that `retry until` has had since 0.6.0 and is
+  stricter than it: a `never retry until …` that carries a trailing condition
+  (`unless`, `if`, `when`, `except`), is asked as a question, is doubly
+  negated, or is split from the phrase by a tab or a blank line is now
+  reported where 0.6.0 was silent, so a file relying on one of those forms
+  can move to FAIL. An interrupted or delegated prohibition (`Do not, under
+  any circumstances, …`, `Do not let the agent …`) is still reported; put the
+  negator directly on the phrase. A stop condition in a clause coordinated
+  after the prohibition — `Do not continue indefinitely and stop when the queue
+  drains.` — does not make the prohibition conditional, so the corrected
+  wording a user writes after being flagged is not flagged again; a condition
+  attached to the forbidden behaviour itself (`Do not keep trying until it
+  works when the credentials are wrong.`) still is. The guard reads the
+  negator's own clause: to its left a comma opens that clause only when it
+  starts a coordinated one (`…, and do not retry until success`), so a
+  parenthetical or a complement cannot hide an earlier negative
+  (`It is not true, however, that you must never retry until it works.` is
+  reported); an earlier negative counts with or without its apostrophe (`wont`
+  as well as `won't`); and a condition introduced after the phrase
+  (`…, if the queue is non-empty`) defeats the prohibition exactly as an
+  unpunctuated one does, whether the condition is introduced by a comma, a
+  dash, or a parenthesis (`Do not retry until it works (if the queue is
+  non-empty).` is reported, as its comma form is). A parenthesis that opens
+  anything other than an `if` / `when` / `whenever` condition is an aside or
+  the author's own bound and leaves the prohibition whole
+  (`Do not retry indefinitely (see the runbook).`,
+  `Do not continue indefinitely (stop after ten items).`). Fronted and trailing
+  conditions are treated consistently: both `If the queue is non-empty, do not
+  retry until it works.` and `Do not retry until it works, if the queue is
+  non-empty.` remain reportable because neither states an unconditional bound.
+  Trailing conditions remain visible through ordinary modifiers (`Do not retry
+  until it works, only if the queue is non-empty.`), so the prohibition is not
+  mistaken for a bound.
+  Finding descriptions and evidence text are unchanged, so existing baseline
+  entries still match.
+- H4's `Long system prompt with no context boundary markers` (MEDIUM) now also
+  requires the prompt to demonstrate cross-context statefulness — carrying
+  state, memory, or history across turns, tasks, or sessions — before it
+  reports. A long, single-shot reference prompt that never asks the agent to
+  carry anything between turns no longer reports this finding on length
+  alone; the other H4 erosion patterns are unchanged. The statefulness signal
+  is a recognizer, so a prompt that asks for carry-over in wording it does not
+  list (`Keep the running tally from earlier questions in mind.`) is a known
+  miss.
+- H6's `System prompt references multiple output formats (…)` (MEDIUM) now
+  requires each named format to carry its own output-format instruction, not
+  a bare mention. A prompt that names two formats only while describing which
+  file types a tool reads no longer reports this finding. An imperative taking
+  the format as a direct object (`Always output JSON.`, `Return JSON only.`,
+  `Emit XML.`) counts as an output instruction; a descriptive third-person
+  clause (`The upstream service returns JSON.`) does not. That negative is
+  correct only when the clause describes what some other system emits. A
+  two-format *delivery of the agent's own reply* stated in the third person
+  (`The agent's reply is delivered as JSON to the API and as Markdown to the
+  UI.`) is recognized as the competing contract this rule exists to surface.
+- H6's `System prompt has no explicit output format specification or example.`
+  (LOW) no longer reports on a prompt that does specify one in an ordinary
+  spelling. `Return Markdown only.` and `Return a plan as Markdown.` were both
+  missed because the verb had to be immediately followed by `in`/`as`/`with`/
+  `using`. The recognizer is deliberately not widened to arbitrary words before
+  the format name, so `Output exactly one Markdown document.` is a known
+  remaining miss — as is any wording that puts an unlisted word between the
+  connector and the format name (`Reply using the YAML shape below.`) or uses
+  an unlisted verb (`Produce a single JSON object.`). Each documented miss for
+  the narrowed H4 and H6 rules now has a test that asserts the behaviour the
+  rule should have and is expected to fail until the miss is fixed, so closing
+  one of these gaps is a visible decision rather than a silent change.
 - HERM recognizes explicit prose priority statements such as
   `Priority order is: … then …` without treating absence or uncertainty
   language as an ordering. A public-safe machine-readable case and scanner

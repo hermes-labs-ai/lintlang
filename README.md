@@ -43,6 +43,8 @@ lintlang scan AGENTS.md
 
 Use the instruction file your agent actually reads: `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, GitHub Copilot instructions, or another supported prompt/configuration path.
 
+[No instruction file yet? Try the checkout-free first run.](llms-full.txt#first-run-without-a-checkout)
+
 A normal scan reports findings without blocking:
 
 ```text
@@ -60,9 +62,19 @@ lintlang scan AGENTS.md --fail-on fail
 - **Ambiguous tools** — empty, vague, or overlapping descriptions without a clear selection rule.
 - **Missing bounds** — retries, loops, or tool use without explicit stopping or progress conditions.
 - **Contract mismatches** — descriptions that disagree with schemas, malformed message roles, or conflicting output-format requirements.
-- **Context and prompt defects** — vague or unscoped context, embedded prompt issues, and selected problems in supported Python prompt pipelines.
+- **Context and prompt defects** — vague or unscoped context, instruction files that point at project files that no longer exist, embedded prompt issues, and selected problems in supported Python prompt pipelines.
+- **Skill metadata** — a `SKILL.md` whose front-matter description is missing, over the 1024-character limit, or never says when to use the skill; a `name` that is invalid or differs from its directory.
 
-Every finding has a stable identifier, severity, evidence, and a suggested review action where the parser can justify one.
+Every finding has a stable identifier, severity, evidence, and a suggested review action where the parser can justify one. Findings in text files carry the line number.
+
+Every result also says what it inspected:
+
+```text
+FAIL — 2 HIGH
+Inspected: 18 tools (18 described, 18 with a schema)
+```
+
+A file LintLang could read nothing from is reported `SKIPPED`, never `PASS`.
 
 LintLang does not decide whether arbitrary prose is true, predict runtime model behavior, or certify an agent as safe.
 
@@ -70,13 +82,14 @@ LintLang does not decide whether arbitrary prose is true, predict runtime model 
 
 | Surface | Examples |
 | --- | --- |
-| Coding-agent instructions | `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, Copilot instructions |
-| Agent configuration | YAML and JSON tool/config structures |
+| Coding-agent instructions | `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, Copilot instructions, `SKILL.md` with front matter |
+| Tool definitions | MCP `tools/list` dumps and manifests, OpenAI/Anthropic/Gemini function lists, `mcpServers.*.tools`, VS Code `languageModelTools` — found by shape in any JSON or YAML, object or array root |
+| Agent configuration | YAML and JSON with a system prompt, messages, tools, or output schema |
 | Prompts and instructions | Markdown, text, and prompt files |
 | Python | Supported extractable pipeline patterns |
-| Invocation | Individual files, directories |
+| Invocation | Individual files, directories, repository discovery, standard input |
 
-See the [technical reference](llms-full.txt) for detector coverage and extraction behavior.
+See the [technical reference](llms-full.txt) for detector coverage, extraction behavior, and the CLI flags for repository discovery (`--discover`) and standard-input scanning (`--stdin-filename`).
 
 ## Use it where instructions change
 
@@ -133,9 +146,10 @@ See the [integrations and ecosystem guide](docs/integrations.md) for setup instr
 | `PASS` | No remaining `MEDIUM` or higher findings |
 | `REVIEW` | At least one `MEDIUM` finding remains |
 | `FAIL` | At least one `HIGH` or `CRITICAL` finding remains |
-| `ERROR` | A requested input could not be inspected |
+| `ERROR` | A requested input could not be inspected, including a scan that inspected zero files or nothing in any file |
+| `SKIPPED` | The file holds nothing LintLang inspects (a `package.json`, a JSON Schema, Python with no prompt). Shown with its reason; never counted as `PASS` |
 
-Findings are non-blocking by default. Use `--fail-on` to choose a CI threshold. Input errors remain nonzero regardless of that threshold.
+Findings are non-blocking by default. Use `--fail-on` to choose a CI threshold. Input errors remain nonzero regardless of that threshold; a scan that inspects zero files is one of them, and `--allow-empty` is the opt-out for an input that may legitimately be empty. See the [GitHub CI guide](docs/github.md#findings-thresholds-and-input-errors) for the exact per-channel behavior.
 
 Machine-readable JSON and SARIF output are available for automation.
 

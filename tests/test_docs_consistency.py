@@ -80,6 +80,27 @@ def test_reference_labels_the_failing_demo_and_its_clean_comparison():
     assert "A clean static scan is not evidence" in section
 
 
+def test_reference_failing_demo_count_matches_the_fixture():
+    from collections import Counter
+
+    from lintlang.scanner import scan_file
+
+    findings = scan_file(REPO_ROOT / "samples/bad_tool_descriptions.yaml").structural_findings
+    counts = Counter(finding.severity.name for finding in findings)
+    summary = ", ".join(
+        f"{counts[severity]} {severity}"
+        for severity in ("CRITICAL", "HIGH", "MEDIUM", "LOW")
+        if counts[severity]
+    )
+
+    assert summary
+    assert f"FAIL — {summary}" in _text("llms-full.txt")
+
+
+def test_readme_links_to_checkout_free_first_run():
+    assert "[No instruction file yet? Try the checkout-free first run.]" in _text("README.md")
+
+
 def test_owning_guides_match_baseline_and_scan_default_contracts():
     baseline = _prose("docs/baselines.md").lower()
     github = _prose("docs/github.md")
@@ -88,8 +109,9 @@ def test_owning_guides_match_baseline_and_scan_default_contracts():
     assert "no verdict-failure threshold by default" in reference
     assert "Action" in github and "its default is `fail`" in github
     assert "directory with no eligible files" in github
-    assert "exits 0" in github and "not an `ERROR`" in github
-    assert "`--write-baseline`" in github and "zero scanned files is an error" in github
+    assert "is an input/coverage error" in github and "exits 1" in github
+    assert "`--allow-empty`" in github
+    assert "`--write-baseline`" in github and "zero scanned files is always an error" in github
     assert "github.md#code-scanning" in baseline
     assert "README.md#machine-readable-output" not in _text("docs/baselines.md")
 

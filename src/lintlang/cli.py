@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from pathlib import Path
 
@@ -10,13 +11,15 @@ from . import __version__
 from .github_init import configure_init_parser, run_init
 from .patterns import PATTERNS as _PATTERNS
 from .preflight_cli import configure_preflight_parser, run_preflight
-from .report import compute_verdict, format_markdown, format_summary_table, format_terminal
+from .report import compute_verdict, format_markdown, format_summary_table, format_terminal, strip_ansi
 from .scanner import (
     PYTHON_EXTRACTION_EXCLUDED_PATTERNS,
     ScanResult,
+    build_input_filter,
     input_error_result,
     scan_directory,
     scan_file,
+    scan_source,
 )
 
 
@@ -36,11 +39,56 @@ def main(argv: list[str] | None = None) -> int:
     )
     scan_parser.add_argument(
         "files",
-        nargs="+",
+        nargs="*",
         help=(
             "Language-bearing inputs: YAML, JSON, text, or Python "
             "(.py uses AST extraction for embedded prompts/pipeline artifacts; "
-            "not general Python code linting)"
+            "not general Python code linting). Use '-' exactly once with "
+            "--stdin-filename to scan one document from standard input."
+        ),
+    )
+    scan_parser.add_argument(
+        "--discover",
+        nargs="?",
+        const=".",
+        default=None,
+        metavar="ROOT",
+        help=(
+            "Also scan recognized agent instruction files found under ROOT "
+            "(default: '.'): AGENTS.md, CLAUDE.md, GEMINI.md, SKILL.md, "
+            "agent.yaml/.yml/.json, .github/copilot-instructions.md, and "
+            "*.instructions.md under .github/instructions/. Symlinks are not "
+            "followed; a skipped one is named on stderr. Explicit inputs still "
+            "win and are unioned with the discovered set."
+        ),
+    )
+    scan_parser.add_argument(
+        "--stdin-filename",
+        metavar="PATH",
+        default=None,
+        help=(
+            "Virtual path for the single '-' input. It selects the parser and "
+            "supplies the source identity used by locations, JSON/SARIF output, "
+            "and baseline matching. The path is never opened."
+        ),
+    )
+    scan_parser.add_argument(
+        "--allow-empty",
+        action="store_true",
+        help="Exit 0 when the scan inspected zero files (default: that is an input error)",
+    )
+    scan_parser.add_argument(
+        "--show-all",
+        action="store_true",
+        help="Terminal output: list every finding (default: 5 per finding code, then a count)",
+    )
+    scan_parser.add_argument(
+        "--allow-uninspected",
+        action="store_true",
+        help=(
+            "Report a named file whose tool-like content could not be inspected as SKIPPED "
+            "(default: that is an input error, because a named file that was not read must "
+            "never look clean). Also accept a scan in which every file was SKIPPED."
         ),
     )
     scan_parser.add_argument(
@@ -142,6 +190,50 @@ def _cmd_scan(args: argparse.Namespace) -> int:
 
     t_start = time.monotonic()
 
+    if not args.files and args.discover is None:
+        print(
+            "Error: scan requires at least one input path, or --discover [ROOT] to "
+            "scan recognized instruction files in a repository.",
+            file=sys.stderr,
+        )
+        return 2
+
+    # Exactly one stdin document, always under an explicit virtual path. Any
+    # ambiguous combination is rejected rather than guessed, so a generator
+    # can never silently scan the wrong identity.
+    stdin_requests = args.files.count("-")
+    if stdin_requests > 1:
+        print(
+            "Error: standard input can be scanned exactly once; pass '-' at most one time.",
+            file=sys.stderr,
+        )
+        return 2
+    if stdin_requests and not args.stdin_filename:
+        print(
+            "Error: '-' requires --stdin-filename <virtual-path> so the document has a "
+            "deterministic parser and identity.",
+            file=sys.stderr,
+        )
+        return 2
+    if args.stdin_filename and not stdin_requests:
+        print(
+            "Error: --stdin-filename only applies to standard input; pass '-' as an input.",
+            file=sys.stderr,
+        )
+        return 2
+    if stdin_requests and args.discover is not None:
+        # One invocation, one unambiguous source of files. A union of the two
+        # would have to define what happens when the virtual path and a
+        # discovered path name the same document, and nothing needs that: a
+        # generator scans what it generated, a repository gate scans the
+        # repository. Rejecting is the smaller deterministic contract.
+        print(
+            "Error: '-' cannot be combined with --discover; run them as separate scans "
+            "so each one has a single unambiguous source of files.",
+            file=sys.stderr,
+        )
+        return 2
+
     baseline_data = None
     baseline_root = None
     baseline_counts: dict[str, int] = {}
@@ -162,7 +254,79 @@ def _cmd_scan(args: argparse.Namespace) -> int:
 
     results: dict[str, ScanResult] = {}
 
-    for filepath in args.files:
+    inputs = list(args.files)
+    if args.discover is not None:
+        from .instructions import discover_instruction_files
+
+        discovery_root = Path(args.discover)
+        if discovery_root.is_dir():
+            # Discovery is an input source like any other, so the filters a
+            # directory scan already honours apply to it too. Without this,
+            # --exclude and .lintlangignore silently do nothing under
+            # --discover, and a repository that keeps deliberately broken
+            # instruction fixtures has no way to keep them out of its own gate.
+            is_filtered = build_input_filter(discovery_root, args.exclude)
+            # Explicit inputs stay canonical: discovery only appends recognized
+            # files that were not already requested, keeping the user's own
+            # spelling of any shared path.
+            seen: set[Path] = set()
+            for requested in inputs:
+                try:
+                    seen.add(Path(requested).resolve())
+                except OSError:
+                    continue
+            # Discovery does not follow symlinks, for the same reason a
+            # directory scan does not: a link can leave the tree or name the
+            # same document twice. A recognized instruction file skipped for
+            # that reason is a coverage gap, and a gap the user cannot see is
+            # the one failure mode this tool exists to prevent, so name it.
+            skipped_symlinks: list[Path] = []
+            for discovered in discover_instruction_files(discovery_root, skipped_symlinks=skipped_symlinks):
+                if is_filtered(discovered):
+                    continue
+                try:
+                    resolved = discovered.resolve()
+                except OSError:
+                    resolved = discovered
+                if resolved in seen:
+                    continue
+                seen.add(resolved)
+                inputs.append(str(discovered))
+            for link in skipped_symlinks:
+                if is_filtered(link):
+                    continue
+                print(
+                    f"Warning: --discover skipped {link}: it is a symlink, and discovery "
+                    "does not follow symlinks. Pass its target as an explicit file to scan it.",
+                    file=sys.stderr,
+                )
+        elif not discovery_root.exists():
+            results[str(discovery_root)] = input_error_result(discovery_root, "Discovery root not found")
+        else:
+            results[str(discovery_root)] = input_error_result(
+                discovery_root,
+                "Discovery root is not a directory. '--discover' takes an optional ROOT "
+                "directory, so 'scan --discover FILE' reads FILE as that root; write "
+                "'scan FILE --discover' or 'scan --discover . FILE' instead.",
+            )
+
+    for filepath in inputs:
+        if filepath == "-":
+            virtual = Path(args.stdin_filename)
+            try:
+                stream = getattr(sys.stdin, "buffer", sys.stdin)
+                data = stream.read()
+                text = data.decode("utf-8") if isinstance(data, bytes) else data
+            except (OSError, UnicodeError) as error:
+                results[str(virtual)] = input_error_result(virtual, f"Failed to read standard input: {error}")
+                continue
+            result = scan_source(text, virtual, patterns=args.patterns, explicit=not args.allow_uninspected)
+            result.structural_findings = [
+                f for f in result.structural_findings if severity_order.get(f.severity.value, 4) <= min_sev
+            ]
+            results[str(virtual)] = result
+            continue
+
         path = Path(filepath)
         if not path.exists():
             results[str(path)] = input_error_result(path, "File not found")
@@ -182,7 +346,7 @@ def _cmd_scan(args: argparse.Namespace) -> int:
             continue
 
         try:
-            result = scan_file(path, patterns=args.patterns)
+            result = scan_file(path, patterns=args.patterns, explicit=not args.allow_uninspected)
             result.structural_findings = [
                 f for f in result.structural_findings if severity_order.get(f.severity.value, 4) <= min_sev
             ]
@@ -249,13 +413,65 @@ def _cmd_scan(args: argparse.Namespace) -> int:
                 file=sys.stderr,
             )
 
+    # An invoked scan that inspected zero files is an input/coverage failure,
+    # not a silent success: every process boundary (terminal, JSON, SARIF,
+    # exit status) must say so. --allow-empty / --allow-uninspected opt out
+    # for ordinary scans, while --write-baseline remains strict: an empty
+    # suppression list cannot prove that any agent-facing content was read.
+    all_skipped = bool(results) and all(
+        r.skipped is not None and r.input_error is None for r in results.values()
+    )
+    if all_skipped:
+        reasons = "; ".join(f"{r.file}: {r.skipped}" for r in list(results.values())[:5])
+        requested = " ".join(inputs) if inputs else str(args.discover)
+        if args.write_baseline:
+            return _empty_scan_failure(
+                args,
+                requested,
+                f"Nothing was inspected: {reasons}. A baseline cannot be created from a scan that "
+                f"read no agent-facing content; baseline {args.write_baseline} was not written.",
+                skipped=reasons,
+            )
+        if not args.allow_uninspected:
+            return _empty_scan_failure(
+                args,
+                requested,
+                f"Nothing was inspected: {reasons}. A scan that read no agent-facing content is not a "
+                "pass. Use --allow-uninspected if these inputs may legitimately hold none.",
+                skipped=reasons,
+            )
+    if not results and not args.write_baseline and not args.allow_empty:
+        requested = " ".join(inputs) if inputs else str(args.discover)
+        return _empty_scan_failure(
+            args,
+            requested,
+            f"No files were inspected: {requested} matched no eligible input. "
+            "Pass an explicit file, widen --discover, or use --allow-empty.",
+        )
+
     # Output
     if args.format == "terminal":
+        use_color = sys.stdout.isatty() and "NO_COLOR" not in os.environ
+        skipped_files = [r for r in results.values() if r.skipped is not None and r.input_error is None]
+        compact_skips = len(results) > 1
         for key, result in results.items():
-            print(format_terminal(
+            if compact_skips and result.skipped is not None and result.input_error is None:
+                continue
+            # In a multi-file scan a clean file is one row of the summary
+            # table, not a screen of its own.
+            if compact_skips and result.input_error is None and not result.structural_findings and not result.notes:
+                continue
+            rendered = format_terminal(
                 result, show_suggestions=not args.no_suggestions,
                 baseline_count=baseline_counts.get(key, 0) if args.baseline else None,
-            ))
+                show_all=args.show_all,
+            )
+            print(rendered if use_color else strip_ansi(rendered))
+        if compact_skips and skipped_files:
+            print(f"  Skipped {len(skipped_files)} file(s) with nothing to inspect (not counted as PASS):")
+            for result in skipped_files:
+                print(f"    - {result.file}: {result.skipped}")
+            print()
     elif args.format == "markdown":
         for key, result in results.items():
             if result.input_error:
@@ -274,6 +490,11 @@ def _cmd_scan(args: argparse.Namespace) -> int:
                     "file": result.file,
                     "verdict": verdict,
                     "input_error": result.input_error,
+                    # What the verdict covers. "skipped" is set (and the verdict
+                    # is SKIPPED, never PASS) when nothing could be inspected.
+                    "inspected": result.inspected,
+                    "not_inspected": result.notes,
+                    "skipped": result.skipped,
                     "structural_findings": [
                         {
                             "pattern_id": f.pattern_id,
@@ -283,6 +504,7 @@ def _cmd_scan(args: argparse.Namespace) -> int:
                             "pattern_name": f.pattern_name,
                             "severity": f.severity.value,
                             "location": f.location,
+                            "line": f.source_region.start_line if f.source_region is not None else None,
                             "description": f.description,
                             "suggestion": f.suggestion,
                             "evidence": f.evidence,
@@ -291,7 +513,7 @@ def _cmd_scan(args: argparse.Namespace) -> int:
                     ],
                     # Raw HERM data preserved for programmatic consumers
                     "herm": None
-                    if result.input_error
+                    if result.input_error or result.skipped
                     else {
                         "score": result.score,
                         "dimensions": result.herm.dimension_scores,
@@ -330,6 +552,7 @@ def _cmd_scan(args: argparse.Namespace) -> int:
                 repository_root=repository_root,
                 source_base=invocation_root,
                 show_suggestions=not args.no_suggestions,
+                allow_empty=args.allow_empty,
             )
             if args.baseline:
                 parsed = json_mod.loads(document)
@@ -347,14 +570,16 @@ def _cmd_scan(args: argparse.Namespace) -> int:
     # Summary table for multi-file terminal scans
     if args.format == "terminal" and len(results) > 1:
         elapsed = time.monotonic() - t_start
-        print(format_summary_table(results, elapsed))
+        summary = format_summary_table(results, elapsed)
+        print(summary if use_color else strip_ansi(summary))
 
     # One-line, TTY-only pointer back to the project home. Never shown in
     # machine-readable formats or when output is piped/redirected.
     if args.format == "terminal" and sys.stdout.isatty():
         from .report import DIM, RESET
 
-        print(f"  {DIM}lintlang v{__version__} — https://github.com/hermes-labs-ai/lintlang{RESET}")
+        pointer = f"  {DIM}lintlang v{__version__} — https://github.com/hermes-labs-ai/lintlang{RESET}"
+        print(pointer if use_color else strip_ansi(pointer))
 
     if not results:
         # This branch is only reachable when every argument was a directory
@@ -376,6 +601,8 @@ def _cmd_scan(args: argparse.Namespace) -> int:
                 file=sys.stderr,
             )
             return 1
+        # Only reachable with --allow-empty: the caller explicitly accepted a
+        # scan that inspected nothing.
         print("No matching files found to scan.", file=sys.stderr)
         return 0
 
@@ -408,12 +635,47 @@ def _cmd_scan(args: argparse.Namespace) -> int:
 
     # Legacy --fail-under support (quality score threshold)
     if args.fail_under > 0:
-        min_score = min(r.score for r in results.values())
+        min_score = min((r.score for r in results.values() if r.skipped is None), default=100.0)
         if min_score < args.fail_under:
             print(f"\nQuality score {min_score:.1f} is below threshold {args.fail_under:.1f}", file=sys.stderr)
             return 1
 
     return 0
+
+
+def _empty_scan_failure(
+    args: argparse.Namespace, requested: str, message: str, skipped: str | None = None
+) -> int:
+    """Report a zero-file scan identically on every output channel."""
+    import json
+
+    print(f"Error: {message}", file=sys.stderr)
+    if args.format == "sarif":
+        from .sarif import format_sarif_error
+
+        print(format_sarif_error(message), end="")
+    elif args.format == "json":
+        print(
+            json.dumps(
+                [
+                    {
+                        "file": requested,
+                        "verdict": "ERROR",
+                        "input_error": message,
+                        "inspected": {},
+                        "not_inspected": [],
+                        # Set when files were read and held nothing agent-facing
+                        # (as opposed to no file matching at all). Editor hooks
+                        # use it to stay quiet about an ordinary package.json.
+                        "skipped": skipped,
+                        "structural_findings": [],
+                        "herm": None,
+                    }
+                ],
+                indent=2,
+            )
+        )
+    return 1
 
 
 def _baseline_failure(args: argparse.Namespace, message: str) -> int:
@@ -429,6 +691,7 @@ def _baseline_failure(args: argparse.Namespace, message: str) -> int:
         print(json.dumps([{
             "file": str(args.baseline or args.write_baseline),
             "verdict": "ERROR", "input_error": f"Baseline error: {message}",
+            "inspected": {}, "not_inspected": [], "skipped": None,
             "structural_findings": [], "herm": None,
         }], indent=2))
     return 1

@@ -8,7 +8,14 @@ import sys
 from pathlib import Path
 
 _WORKFLOW_PATH = Path(".github/workflows/lintlang.yml")
-_DEFAULT_INPUTS = (
+
+#: Deterministic first-match order for automatic scan-target selection.
+#:
+#: The *membership* of this tuple is the shared recognized-instruction
+#: definition owned by :mod:`lintlang.instructions`; the *order* is this
+#: command's own stable preference and is asserted against the primitive by
+#: the test suite. An explicit ``--path`` always wins over every entry here.
+DEFAULT_INPUT_ORDER = (
     Path("AGENTS.md"),
     Path("CLAUDE.md"),
     Path(".github/copilot-instructions.md"),
@@ -17,6 +24,7 @@ _DEFAULT_INPUTS = (
     Path("agent.yaml"),
     Path("agent.yml"),
     Path("agent.json"),
+    Path("SKILL.md"),
 )
 
 _WORKFLOW = """name: LintLang
@@ -111,7 +119,7 @@ def _git_root(start: Path) -> Path | None:
 
 def _scan_target(root: Path, requested: str | None) -> Path:
     if requested is None:
-        target = next((candidate for candidate in _DEFAULT_INPUTS if (root / candidate).exists()), None)
+        target = next((candidate for candidate in DEFAULT_INPUT_ORDER if (root / candidate).exists()), None)
         if target is None:
             raise ValueError(
                 "No supported instruction file was found; rerun with --path <repository-relative input>"

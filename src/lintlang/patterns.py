@@ -12,6 +12,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 from enum import Enum
+from pathlib import Path
 
 from .preflight.models import ScopeKind
 from .preflight.scope import ScopeAnalysis, analyze_scope
@@ -64,11 +65,30 @@ class Finding:
     citable root; the sub-code narrows it.
     """
     source_region: SourceRegion | None = None
+    offset: int | None = None
+    """Character offset of the evidence inside ``AgentConfig.system_prompt``.
+    The scanner turns it into a file line for text inputs."""
 
     @property
     def code(self) -> str:
         """The most specific stable identifier for this finding."""
         return self.sub_id or self.pattern_id
+
+
+@dataclass
+class SkillMeta:
+    """``name`` / ``description`` front matter of a skill or sub-agent file.
+
+    The description is what a model reads when deciding whether to load the
+    skill, so it is a selection-time tool description in everything but name."""
+
+    name: str
+    description: str
+    has_name: bool = True
+    has_description: bool = True
+    name_line: int = 0
+    description_line: int = 0
+    dir_name: str = ""
 
 
 @dataclass
@@ -83,6 +103,26 @@ class AgentConfig:
     raw: dict = field(default_factory=dict)
     source_file: str = ""
     source_region: SourceRegion | None = None
+    kind: str = "config"
+    """What the input is: "config" (parsed YAML/JSON), "prompt" (a prompt text
+    file), "instructions" (a Markdown document an agent reads, such as AGENTS.md
+    or a SKILL.md body) or "python" (an extracted literal). Detectors that only
+    make sense for one kind consult it rather than treating everything as a chat
+    system prompt."""
+    unclaimed: list[str] = field(default_factory=list)
+    """Paths of tool-like objects the parser saw and did not inspect."""
+    uninspected_text: list[str] = field(default_factory=list)
+    """Description paths whose localization keys could not be resolved offline."""
+    dropped: list[str] = field(default_factory=list)
+    """Members of a tool container the parser could not read."""
+    not_agent_content: str = ""
+    """Set when the document is a recognised non-agent format (JSON Schema, SBOM...)."""
+    prompt_paths: list[str] = field(default_factory=list)
+    """Paths of prompts read from nested keys of a config."""
+    skill: SkillMeta | None = None
+    """Front matter of a SKILL.md / agent definition, when the file has one."""
+    prompt_line_offset: int = 0
+    """Lines of the source file that precede ``system_prompt`` (front matter)."""
 
 
 @dataclass
@@ -90,6 +130,18 @@ class ToolDef:
     name: str
     description: str
     parameters: dict = field(default_factory=dict)
+    path: str = ""
+    """JSON path of the tool object inside its file."""
+    group: str = "tools"
+    """Path of the enclosing container. Pairwise checks compare within a group:
+    two MCP servers may each legitimately expose a tool called ``search``."""
+    owner: str = ""
+    has_schema: bool = False
+
+
+def is_localization_reference(text: str) -> bool:
+    """VS Code percent-delimited message keys are not model-facing prose."""
+    return bool(re.fullmatch(r"%[A-Za-z0-9_.-]+%", text.strip()))
 
 
 def _is_direct_match(scope: ScopeAnalysis, start: int, end: int) -> bool:
@@ -113,15 +165,12 @@ VAGUE_WORDS = {
     "process",
     "manage",
     "do",
-    "run",
-    "execute",
     "perform",
     "deal",
     "work",
-    "use",
-    "make",
-    "get",
-    "set",
+    # NOT here: get, set, run, execute, use, make. "Get the current time in a
+    # timezone", "Execute a SQL query" and "Run the test suite" are precise; on
+    # real MCP manifests every hit on those verbs was a false flag.
 }
 
 
@@ -468,9 +517,175 @@ def _differentia(a: ToolDef, b: ToolDef) -> tuple[set[str], set[str]]:
     return informative(only_a), informative(only_b)
 
 
+_GENERIC_CANONICALS = frozenset(_SYNONYM_CLASS.values())
+
+
+def _leading_verb(tool: ToolDef) -> str:
+    match = re.match(r"\W*([^\W_]+)", tool.description.lower(), re.UNICODE)
+    if not match:
+        return ""
+    word = match.group(1)
+    # The first word of a description is its verb. Read it as one: "Records
+    # changes" is the verb "record", not the generic payload noun "record".
+    for candidate in _stem_candidates(word):
+        if candidate in _SYNONYM_CLASS and _SYNONYM_CLASS[candidate] != "info":
+            return _SYNONYM_CLASS[candidate]
+    return _stem_candidates(word)[-1] if _stem_candidates(word) else word
+
+
+def _distinct_input_shapes(a: ToolDef, b: ToolDef) -> bool:
+    """Different input names or types/choices can explain a narrower operation."""
+    if not isinstance(a.parameters, dict) or not isinstance(b.parameters, dict):
+        return False
+    left, right = a.parameters.get("properties", {}), b.parameters.get("properties", {})
+    if not isinstance(left, dict) or not isinstance(right, dict) or not left or not right:
+        return False
+    if left.keys() != right.keys():
+        return True
+    return any(
+        isinstance(left[key], dict) and isinstance(right[key], dict)
+        and any(left[key].get(field) != right[key].get(field) for field in ("type", "enum", "const"))
+        for key in left
+    )
+
+
+def _domination_is_meaningful(dominated: ToolDef, dominant: ToolDef) -> bool:
+    """Guard the one-sided H1.6 verdict against artefacts of the term filter.
+
+    Term containment is only evidence of redundancy when the two tools are about
+    the same thing. Two conditions, both observed failing on real MCP manifests:
+
+    - They must share a DOMAIN term, not merely a generic verb class. "Retrieve
+      entity info" is not dominated by "Get the current user" because both "get".
+    - They must perform the same action. "Records changes to the repository" and
+      "Shows changes that are staged for commit" differ in the verb, which is
+      the first thing a model reads.
+    """
+    terms_a, terms_b = _meaning_terms(dominated), _meaning_terms(dominant)
+    shared = terms_a & terms_b
+    if not (shared - _GENERIC_CANONICALS):
+        return False
+    # A long description mentions many things in passing. Containment in a term
+    # set several times one's own size is coverage by accident, not redundancy.
+    if len(terms_b) > 2 * len(terms_a):
+        return False
+    # Different inputs give a reason to select one tool even when its
+    # vocabulary contains the other's.
+    if _distinct_input_shapes(dominated, dominant):
+        return False
+    verb_a, verb_b = _leading_verb(dominated), _leading_verb(dominant)
+    return not (verb_a and verb_b and verb_a != verb_b)
+
+
+_SKILL_NAME = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+_SKILL_DESCRIPTION_LIMIT = 1024
+_SKILL_NAME_LIMIT = 64
+
+# Words with which a description tells a model WHEN to load the skill, as
+# opposed to only what the skill contains.
+_SKILL_TRIGGER = re.compile(
+    r"\b(?:when(?:ever)?|if\s+(?:the\s+)?(?:user|you|a|an)|use\s+(?:this|it|for|to|when|before|after|whenever|if|on)|"
+    r"used\s+(?:for|to|when)|trigger(?:s|ed)?|invoke[ds]?|before|after|asks?|asked|requests?|mentions?|"
+    r"needs?\s+to|wants?\s+to|should\s+be\s+used|for\s+(?:any|all|every)\b|"
+    # a description written AS the situation: "About to cite a number ...",
+    # "User compares X to Y", "A launchd service fails with ...", "Saving a rule ..."
+    r"about\s+to|users?\b|fails?|returns?|appears?|reports?|exceeds?|approach(?:es|ing)?|"
+    r"^\s*[a-z]+ing\b)",
+    re.IGNORECASE,
+)
+
+
+def _detect_skill_metadata(config: AgentConfig) -> list[Finding]:
+    """H1 for a skill / sub-agent: its front matter is its tool description.
+
+    A model decides whether to load a skill from ``name`` and ``description``
+    alone, exactly as it picks a tool. The limits are the published Agent Skills
+    ones: ``name`` at most 64 characters of lowercase letters, digits and
+    hyphens; ``description`` non-empty and at most 1024 characters.
+    """
+    skill = config.skill
+    if skill is None:
+        return []
+    findings: list[Finding] = []
+
+    def add(sub_id: str, severity: Severity, field_name: str, line: int, description: str, suggestion: str,
+            evidence: str = "") -> None:
+        findings.append(
+            Finding(
+                pattern_id="H1",
+                sub_id=sub_id,
+                pattern_name="Tool Description Ambiguity",
+                severity=severity,
+                location=f"frontmatter.{field_name}",
+                description=description,
+                suggestion=suggestion,
+                evidence=evidence,
+                source_region=SourceRegion(max(line, 1), max(line, 1)),
+            )
+        )
+
+    label = skill.name or skill.dir_name or "this file"
+    description = skill.description.strip()
+    if not description:
+        add(
+            "H1.1", Severity.HIGH, "description", skill.description_line,
+            f"Skill '{label}' has front matter but no description. The description is the only text a model "
+            "sees when deciding whether to load this skill.",
+            "Add a 'description:' that says what the skill does AND when to use it.",
+        )
+    else:
+        if len(description) > _SKILL_DESCRIPTION_LIMIT:
+            add(
+                "H1.7", Severity.HIGH, "description", skill.description_line,
+                f"Skill '{label}' description is {len(description)} characters; the Agent Skills limit is "
+                f"{_SKILL_DESCRIPTION_LIMIT}. Hosts reject or truncate longer descriptions.",
+                "Move detail into the body. Keep the description to what the skill does and when to use it.",
+            )
+        if len(description) < 20:
+            add(
+                "H1.2", Severity.MEDIUM, "description", skill.description_line,
+                f"Skill '{label}' has a very short description ({len(description)} chars): \"{description}\"",
+                "Say what the skill does and the situations that should trigger it.",
+                evidence=description,
+            )
+        elif not _SKILL_TRIGGER.search(description):
+            add(
+                # MEDIUM only for a short description, where a missing trigger
+                # is unmistakable; a long one may state its trigger in words
+                # this vocabulary does not know, so it is advice, not a verdict.
+                "H1.8", Severity.MEDIUM if len(description) < 120 else Severity.LOW, "description",
+                skill.description_line,
+                f"Skill '{label}' description says what the skill is but not when to use it. A model selects "
+                "a skill from its description alone.",
+                "Add the trigger: 'Use when the user asks to ...', 'Use before ...', or the phrases that "
+                "should select it.",
+                evidence=description[:120],
+            )
+
+    if skill.has_name and skill.dir_name:
+        name = skill.name
+        if not name or len(name) > _SKILL_NAME_LIMIT or not _SKILL_NAME.match(name):
+            add(
+                "H1.9", Severity.MEDIUM, "name", skill.name_line,
+                f"Skill name '{name}' is not a valid Agent Skills name (1-{_SKILL_NAME_LIMIT} characters: "
+                "lowercase letters, digits and single hyphens).",
+                "Rename it, for example 'pdf-form-filler'.",
+                evidence=name,
+            )
+        elif name != skill.dir_name:
+            add(
+                "H1.9", Severity.MEDIUM, "name", skill.name_line,
+                f"Skill name '{name}' does not match its directory '{skill.dir_name}'. The Agent Skills "
+                "format requires them to be identical, and hosts resolve the skill by directory.",
+                f"Set 'name: {skill.dir_name}' or rename the directory.",
+                evidence=name,
+            )
+    return findings
+
+
 def detect_h1(config: AgentConfig) -> list[Finding]:
     """Detect tool description ambiguity."""
-    findings: list[Finding] = []
+    findings: list[Finding] = _detect_skill_metadata(config)
     tools = config.tools
     if not tools:
         return findings
@@ -492,9 +707,21 @@ def detect_h1(config: AgentConfig) -> list[Finding]:
             continue
 
         desc = tool.description.strip()
+        if is_localization_reference(desc):
+            continue
 
-        # Very short description
-        if len(desc) < 20:
+        # Length alone is not ambiguity: "Execute Python code" says more than
+        # "Handle all the necessary things". Keep the short-description check
+        # for text without a concrete action and domain object.
+        concrete_action = re.match(
+            r"(?:get|list|create|delete|read|write|execute|find|search|fetch|update|send|count|validate)\b",
+            desc, re.IGNORECASE,
+        )
+        object_text = desc[concrete_action.end():] if concrete_action else ""
+        domain_terms = _meaning_terms(ToolDef("", object_text)) - _GENERIC_CANONICALS - {
+            "all", "any", "anything", "everything", "something", "nothing", "this", "that", "these", "those",
+        }
+        if len(desc) < 20 and not (concrete_action and domain_terms):
             findings.append(
                 Finding(
                     pattern_id="H1",
@@ -511,7 +738,9 @@ def detect_h1(config: AgentConfig) -> list[Finding]:
         # Vague leading verbs (strip punctuation)
         first_match = re.match(r"\w+", desc.lower()) if desc else None
         first_word = first_match.group() if first_match else ""
-        if first_word in VAGUE_WORDS:
+        # A vague opener followed by the specifics ("Manage a subscription: ignore,
+        # watch, or delete ...") has said what it does; only a short one has not.
+        if first_word in VAGUE_WORDS and len(desc) < 60:
             findings.append(
                 Finding(
                     pattern_id="H1",
@@ -526,9 +755,10 @@ def detect_h1(config: AgentConfig) -> list[Finding]:
             )
 
     # Duplicate tool names
-    seen_names: dict[str, int] = {}
+    seen_names: dict[tuple[str, str], int] = {}
     for i, tool in enumerate(tools):
-        lower_name = tool.name.lower()
+        # Scoped to the container: two MCP servers may each expose `search`.
+        lower_name = (tool.group, tool.name.lower())
         if lower_name in seen_names:
             findings.append(
                 Finding(
@@ -550,7 +780,10 @@ def detect_h1(config: AgentConfig) -> list[Finding]:
     # duplicate findings are how a linter loses trust.
     for i, t1 in enumerate(tools):
         for t2 in tools[i + 1 :]:
-            if not t1.description or not t2.description:
+            if (not t1.description or not t2.description
+                    or is_localization_reference(t1.description) or is_localization_reference(t2.description)):
+                continue
+            if t1.group != t2.group:
                 continue
 
             # A pair that disambiguates itself inline is already correct.
@@ -618,7 +851,24 @@ def detect_h1(config: AgentConfig) -> list[Finding]:
             # loud even when a name carries the distinction, because then the
             # description is doing no work. Name-awareness belongs in H1.6,
             # which asks a different question.
-            if overlap > 0.7:
+            # Parallel families are good design, not ambiguity: "List code scanning
+            # alerts" / "List secret scanning alerts", "Add a reaction" / "Remove a
+            # reaction". High overlap is a defect only when the words that differ
+            # distinguish nothing on at least one side, and the pair does not name
+            # its own selection rule ("Prefer this tool over X").
+            desc_a = _meaning_terms(ToolDef(name="", description=t1.description))
+            desc_b = _meaning_terms(ToolDef(name="", description=t2.description))
+            each_side_distinct = bool(desc_a - desc_b) and bool(desc_b - desc_a)
+            states_preference = self_disambiguating and bool(
+                re.search(r"\b(?:prefer|instead\s+of|rather\s+than|in\s+place\s+of|supersedes?)\b",
+                          f"{t1.description} {t2.description}", re.IGNORECASE)
+            )
+            is_parallel_family = (
+                t1.name.lower() != t2.name.lower()
+                and overlap < 0.95
+                and (each_side_distinct or states_preference or _distinct_input_shapes(t1, t2))
+            )
+            if overlap > 0.7 and not is_parallel_family:
                 findings.append(
                     Finding(
                         pattern_id="H1",
@@ -671,6 +921,8 @@ def detect_h1(config: AgentConfig) -> list[Finding]:
                 )
             elif not only_a or not only_b:
                 dominated, dominant = (t1, t2) if not only_a else (t2, t1)
+                if not _domination_is_meaningful(dominated, dominant):
+                    continue
                 distinguishing = sorted(only_a or only_b)
                 findings.append(
                     Finding(
@@ -751,12 +1003,65 @@ CONSTRAINT_SIGNALS = [
     "max_tokens",
 ]
 
-_RETRY_UNTIL_PATTERN = r"retry\s+(?:until|as\s+many\s+times)"
+_EXPLICIT_NUMERIC_BUDGET = re.compile(
+    r"\b(?:max(?:imum)?(?:\s+of)?|at\s+most|no\s+more\s+than|up\s+to)\s+\d+\s+"
+    r"(?:tool\s+calls?|attempts?|retries|tries|iterations?|turns?|rounds?)\b",
+    re.IGNORECASE,
+)
+_EXPLICIT_EXECUTION_STEP_BUDGET = re.compile(
+    r"\b(?:execute|run|perform|take)\s+"
+    r"(?:max(?:imum)?(?:\s+of)?|at\s+most|no\s+more\s+than|up\s+to)\s+\d+\s+steps?\b|"
+    r"\b(?:max(?:imum)?(?:\s+of)?|at\s+most|no\s+more\s+than|up\s+to)\s+\d+\s+"
+    r"(?:execution|agent|tool|action)\s+steps?\b|"
+    r"\b(?:max(?:imum)?(?:\s+of)?|at\s+most|no\s+more\s+than|up\s+to)\s+\d+\s+steps?"
+    r"\s*[,;.]?\s*(?:then\s+)?(?:stop|terminate|exit)\b",
+    re.IGNORECASE,
+)
+_NEGATED_NUMERIC_BUDGET_PREFIX = re.compile(
+    r"(?:\b(?:no|without)\s+(?:an?\s+)?(?:(?:explicit|fixed|hard)\s+)?|"
+    r"\b(?:not|never)\s+(?:(?:have|use|set|enforce|apply|execute|run|perform|take)\s+)?(?:an?\s+)?"
+    r"(?:(?:explicit|fixed|hard)\s+)?)$",
+    re.IGNORECASE,
+)
+_NEGATED_CONSTRAINT_PREFIX = re.compile(
+    r"(?:\b(?:no|without|neither)\b(?:\s+(?:an?|any|the))?"
+    r"(?:\s+(?:explicit|fixed|hard|retry|iteration|turn|step|token|time|tool|"
+    r"call|execution|action|max(?:imum)?|max_iterations|max_retries|retry_limit|"
+    r"timeout|max_turns|max_steps|budget|limit|terminate|stop_condition|"
+    r"exit_condition|max_tokens|or|nor|an?|the)){0,5}|"
+    r"\b(?:do|does|did)\s+not(?:\s+(?:have|use|set|enforce|apply))?"
+    r"(?:\s+(?:an?|any|the))?|"
+    r"\b(?:not|never)(?:\s+(?:have|use|set|enforce|apply))?"
+    r"(?:\s+(?:an?|any|the))?)\s*$",
+    re.IGNORECASE,
+)
+
+
+def _has_explicit_numeric_budget(text: str) -> bool:
+    """Recognize an affirmative numeric action budget, not its negation."""
+    for pattern in (_EXPLICIT_NUMERIC_BUDGET, _EXPLICIT_EXECUTION_STEP_BUDGET):
+        for match in pattern.finditer(text):
+            prefix = text[max(0, match.start() - 64) : match.start()]
+            if not _NEGATED_NUMERIC_BUDGET_PREFIX.search(prefix):
+                return True
+    return False
+
+
+def _has_affirmative_constraint_signal(text: str, signal: str) -> bool:
+    """Recognize a constraint keyword only when the local phrase is affirmative."""
+    pattern = re.compile(rf"\b{re.escape(signal)}\b", re.IGNORECASE)
+    for match in pattern.finditer(text):
+        prefix = text[max(0, match.start() - 64) : match.start()]
+        if not _NEGATED_CONSTRAINT_PREFIX.search(prefix):
+            return True
+    return False
+
+_RETRY_UNTIL_PATTERN = r"(?:retry(?:ing)?|try\s+again|repeat)\s+(?:until|as\s+many\s+times)"
 _LOOP_OVER_THROUGH_PATTERN = r"loop\s+(?:through|over)"
 
 
 DANGEROUS_PATTERNS = [
-    (r"keep\s+trying\s+until", "Unbounded retry loop — 'keep trying until' needs an explicit limit."),
+    (r"keep\s+(?:on\s+)?trying\s+until", "Unbounded retry loop — 'keep trying until' needs an explicit limit."),
     (_RETRY_UNTIL_PATTERN, "Unbounded retry — add max_retries or a fallback."),
     (r"don'?t\s+stop\s+until", "Negative termination condition — rephrase as a positive bound."),
     (r"loop\s+until", "Potential infinite loop — ensure a max iteration count."),
@@ -773,16 +1078,108 @@ _VERIFICATION_GUIDANCE = re.compile(
     r"\bverify\s*:\s*\S|\b(?:write|run|ensure)\s+(?:[\w-]+\s+){0,6}(?:tests?|checks?)\b",
     re.IGNORECASE,
 )
-_NEGATED_RETRY_PROHIBITION = re.compile(r"\b(?:never|do\s+not|don'?t)\s+$", re.IGNORECASE)
 _UNBOUNDED_CONTINUATION_SIGNALS = re.compile(
     r"\b(?:indefinitely|forever|endlessly|continuously|perpetually|non-?stop|without\s+(?:end|stopping|limit))\b",
     re.IGNORECASE,
 )
-# Allow up to two adverbial modifiers between the negator and ``loop``
-# ("don't continuously loop", "never ever loop"), but not arbitrary words, so
-# "never give up and loop ... forever" is still an instruction, not a prohibition.
-_NEGATED_UNBOUNDED_LOOP = re.compile(
-    r"\b(?:never|do\s+not|don'?t|should\s+not)(?:\s+(?!only\b)(?:\w+ly|ever)\b){0,2}\s*$",
+# ── H2 negation: one mechanism ─────────────────────────────────────
+# "Do not continue indefinitely" states a bound; reporting it as unbounded
+# inverts the author's meaning. ``_is_negated_prohibition`` is the only place
+# H2 decides that, for every ``DANGEROUS_PATTERNS`` entry and for the
+# continuation signal of a ``loop over/through`` traversal alike.
+#
+# H2 findings are CRITICAL, so a missed unbounded instruction costs more than a
+# prohibition that stays reported. Every rule below is therefore written to
+# fail towards reporting: anything not positively recognized is not a
+# prohibition.
+
+# Whitespace allowed between the negator, its adverbs, and the behavior: spaces,
+# or one line break with optional indentation, because hard-wrapped prose ends
+# lines anywhere ("you should never\nretry until ..."). A tab within a line, a
+# blank line, a list marker, and any punctuation all break adjacency.
+_NEG_GAP = r"(?:[ ]+|[ \t]*\r?\n[ \t]*)"
+_NEG_APOSTROPHE = "['\u2019]"
+_NEGATOR = (
+    rf"(?:never|do{_NEG_GAP}not|don{_NEG_APOSTROPHE}?t"
+    rf"|should{_NEG_GAP}not|shouldn{_NEG_APOSTROPHE}t"
+    rf"|must{_NEG_GAP}not|mustn{_NEG_APOSTROPHE}t"
+    rf"|(?P<ability>cannot|can{_NEG_APOSTROPHE}t))"
+)
+# A closed list, not ``\w+ly``: "reply", "apply", "rely", "comply", and "supply"
+# end in the same letters and are verbs. Restrictive adverbs ("only", "merely",
+# "simply", "solely", "just") are deliberately absent: "do not merely retry
+# until ..." asks for more than the retry, not for none.
+_NEGATION_ADVERBS = (
+    r"(?:ever|blindly|continuously|continually|constantly|endlessly|perpetually|repeatedly|indefinitely)"
+)
+# The negator sits immediately before the behavior, with at most two listed
+# adverbs between them. The anchor is ``\Z``: ``$`` also matches before a
+# trailing newline.
+_ADJACENT_NEGATOR = re.compile(
+    rf"\b(?P<negator>{_NEGATOR})(?:{_NEG_GAP}{_NEGATION_ADVERBS}){{0,2}}{_NEG_GAP}\Z",
+    re.IGNORECASE,
+)
+# Another negative word earlier in the negator's own clause is a double
+# negation ("it is not true that you must not ...", "do not never ...").
+# Contractions are listed with and without their apostrophe, because an author
+# who writes "dont" also writes "wont", "isnt" and "didnt"; the apostrophe form
+# alone would make the guard's verdict depend on typing style.
+_APOSTROPHE_LESS_NEGATIVE = (
+    r"(?:dont|wont|cant|isnt|arent|wasnt|werent|doesnt|didnt|hasnt|havent"
+    r"|hadnt|shouldnt|wouldnt|couldnt|mustnt|aint)"
+)
+_EARLIER_NEGATIVE = re.compile(
+    rf"\b(?:not|never|no|nor|neither|cannot|{_APOSTROPHE_LESS_NEGATIVE})\b|n{_NEG_APOSTROPHE}t\b",
+    re.IGNORECASE,
+)
+_LEADING_NEGATOR = re.compile(rf"{_NEGATOR}\b", re.IGNORECASE)
+_SUBJECT_BEFORE_NEGATOR = re.compile(rf"\w{_NEG_GAP}\Z")
+# An exception licenses the unbounded run wherever it sits in the sentence:
+# "unless the operator sets RUN_FOREVER, do not continue indefinitely" and
+# "do not continue indefinitely unless ..." both permit it.
+_LICENSING_EXCEPTION = re.compile(r"\b(?:unless|except)\b", re.IGNORECASE)
+# A prohibition that is conditional, interrogative, or itself negated by "no
+# reason" does not state a bound either.
+_PROHIBITION_DEFEATER = re.compile(
+    r"\b(?:if|when|whenever|why)\b|\bno\s+reason\b",
+    re.IGNORECASE,
+)
+_SENTENCE_BREAK = re.compile(
+    r"[.!?;](?=\s|\Z)|\n[ \t]*\n|\n[ \t]*(?:[-*+\u2022]|\d+[.)]|#{1,6})[ \t]",
+)
+# A condition attached to the prohibited behavior itself makes the prohibition
+# conditional ("do not keep trying until it works when the credentials are
+# wrong"). A condition in a clause coordinated *after* it is the author's own
+# stop condition ("do not continue indefinitely and stop when the queue
+# drains") \u2014 which is exactly the corrected wording a user writes once H2 has
+# flagged them \u2014 and must not defeat the prohibition. The right-hand defeater
+# search therefore ends at the first clause boundary after the behavior.
+_RIGHT_CLAUSE_BOUNDARY = re.compile(
+    r"[,(]|\s[-\u2013\u2014]\s|\s(?:and|but|or|then)\s",
+    re.IGNORECASE,
+)
+# ...except when the comma, dash, or opening parenthesis introduces a condition
+# of its own ("do not retry until it works, if the queue is non-empty", "do not
+# retry until it works (if the queue is non-empty)"). That condition qualifies
+# the prohibited behavior rather than stating the author's stop condition, so
+# the right-hand search must see it. A parenthesis that opens anything else
+# ("... (see the runbook)", "... (stop after ten items)") still closes the
+# clause, because it is an aside or the author's own bound, not a condition.
+_TRAILING_CONDITION = re.compile(
+    r"(?:[,(\u2013\u2014]|\s[-\u2013\u2014])\s*(?:\(\s*)*"
+    r"(?:(?:but\s+)?only\s+)?(?:if|when|whenever)\b",
+    re.IGNORECASE,
+)
+# A comma only starts a new clause to the left of the negator when it opens a
+# coordinated one ("... , and do not retry until success"). A fronted condition
+# still qualifies the prohibition ("When the push fails, do not retry until
+# ..."), so it must remain visible to the defeater check. Taking the last comma
+# unconditionally hid both conditions and earlier negatives behind a
+# parenthetical or complement ("It is not true, however, that you must never
+# retry until it works"), which inverted the author's meaning.
+_LEFT_CLAUSE_COMMA = re.compile(r",")
+_COORDINATED_CLAUSE = re.compile(
+    r"\s*(?:and|but|or|so|then|yet|while|whereas)\b",
     re.IGNORECASE,
 )
 
@@ -805,10 +1202,89 @@ def _immediate_clause(text: str, start: int, limit: int = 80) -> str:
     return window[: boundary.start()] if boundary else window
 
 
-def _is_negated_retry_prohibition(text: str, retry_start: int) -> bool:
-    """Return whether an adjacent negation forbids, rather than requires, retrying."""
-    prefix = text[max(0, retry_start - 20) : retry_start]
-    return bool(_NEGATED_RETRY_PROHIBITION.search(prefix))
+def _left_clause_start(before_negator: str, sentence_start: int) -> int:
+    """Return where the negator's own clause begins, at or after ``sentence_start``.
+
+    Only a comma that opens a coordinated clause moves the start. A fronted
+    condition must remain in the clause because it qualifies the prohibition;
+    a parenthetical (", however,") or complement (", that you must ...") also
+    leaves the earlier text in the clause.
+    """
+    clause_start = sentence_start
+    for comma in _LEFT_CLAUSE_COMMA.finditer(before_negator, sentence_start):
+        if _COORDINATED_CLAUSE.match(before_negator, comma.end()):
+            clause_start = comma.end()
+    return clause_start
+
+
+def _is_negated_prohibition(text: str, position: int) -> bool:
+    """Return whether the behavior starting at ``position`` is forbidden, not instructed.
+
+    True only when all of these hold:
+
+    - a negator sits immediately before ``position``, separated by nothing but
+      whitespace and at most two adverbs from the closed list;
+    - ``cannot`` / ``can't`` has a subject ("You cannot ..."), because a bare
+      "Cannot continue indefinitely: ..." reads as a status message;
+    - no other negative word precedes the negator in its own clause ("do not
+      never ...", "it is not true that you must not ..."), and the behavior does
+      not itself open with one ("never don't stop until ...");
+    - the sentence carries no licensing exception ("unless", "except"), before
+      or after the prohibition, and the next sentence does not open with one;
+    - the sentence is not a question;
+    - the negator's clause is not conditional or interrogative. To the left the
+      clause begins after a sentence break or after a comma that opens a
+      coordinated clause ("..., and do not retry until success"); a fronted
+      condition remains part of it. To
+      the right it ends at the first clause boundary after the behavior, so the
+      author's own stop condition in a coordinated clause ("do not continue
+      indefinitely and stop when the queue drains") does not defeat the
+      prohibition — unless that boundary itself introduces a condition on the
+      behavior ("..., if the queue is non-empty", "... (if the queue is
+      non-empty)"), which does.
+
+    Known limitations, reported rather than guessed at: an interrupted negator
+    ("Do not, under any circumstances, ...", "Never, ever ..."), a delegated
+    one ("Do not let the agent ...", "Do not allow it to ..."), and a
+    subjectless "Cannot ..." all stay reported.
+    """
+    prefix = text[:position]
+    adjacent = _ADJACENT_NEGATOR.search(prefix)
+    if adjacent is None:
+        return False
+
+    before_negator = prefix[: adjacent.start("negator")]
+    if adjacent.group("ability") and not _SUBJECT_BEFORE_NEGATOR.search(before_negator):
+        return False
+    # The behavior itself opens with a negator: "never don't stop until ...".
+    if _LEADING_NEGATOR.match(text, position):
+        return False
+
+    sentence_start = 0
+    for boundary in _SENTENCE_BREAK.finditer(before_negator):
+        sentence_start = boundary.end()
+    next_break = _SENTENCE_BREAK.search(text, position)
+    sentence_end = next_break.start() if next_break else len(text)
+    # A question asks about the behavior; it does not forbid it.
+    if next_break is not None and next_break.group().startswith("?"):
+        return False
+    if _LICENSING_EXCEPTION.search(text, sentence_start, sentence_end):
+        return False
+    # "...; except when directed otherwise" and "... . Unless RUN_FOREVER is set."
+    # attach to the prohibition even though a break precedes them.
+    if next_break is not None:
+        after_break = len(text) - len(text[next_break.end() :].lstrip())
+        if _LICENSING_EXCEPTION.match(text, after_break):
+            return False
+
+    clause_start = _left_clause_start(before_negator, sentence_start)
+    if _EARLIER_NEGATIVE.search(text, clause_start, adjacent.start("negator")):
+        return False
+    right_boundary = _RIGHT_CLAUSE_BOUNDARY.search(text, position, sentence_end)
+    clause_end = right_boundary.start() if right_boundary else sentence_end
+    if right_boundary is not None and _TRAILING_CONDITION.match(text, right_boundary.start()):
+        clause_end = sentence_end
+    return _PROHIBITION_DEFEATER.search(text, clause_start, clause_end) is None
 
 
 def _is_unbounded_loop_traversal(text: str, match: re.Match[str]) -> bool:
@@ -819,27 +1295,17 @@ def _is_unbounded_loop_traversal(text: str, match: re.Match[str]) -> bool:
     control flow, not a missing-constraint risk. Only treat it as a potential
     infinite loop when the same clause also carries an explicit indefinite-
     continuation signal (e.g. "loop over tasks indefinitely").
+
+    A negator before the traversal itself is handled by ``detect_h2``, which
+    applies ``_is_negated_prohibition`` to every pattern. The same guard is
+    applied here to the continuation signal ("loop over the items but never
+    indefinitely").
     """
     window = _immediate_clause(text, match.end())
     signal = _UNBOUNDED_CONTINUATION_SIGNALS.search(window)
     if signal is None:
         return False
-
-    # A prohibition such as "do not loop over the queue indefinitely" must
-    # not be treated as an instruction to run indefinitely. Check both a
-    # negation immediately before the traversal and one attached to the
-    # continuation signal later in the same clause.
-    before_match = text[max(0, match.start() - 40) : match.start()]
-    # Only a negation in the traversal's own clause counts.
-    before_match = re.split(r"[.!?;,\n]", before_match)[-1]
-    if _NEGATED_UNBOUNDED_LOOP.search(before_match):
-        return False
-    before_signal = window[: signal.start()]
-    return not re.search(
-        r"\b(?:never|do\s+not|don'?t|should\s+not)\b(?:\s+\w+){0,6}\s*$",
-        before_signal,
-        re.IGNORECASE,
-    )
+    return not _is_negated_prohibition(text, match.end() + signal.start())
 
 
 def _is_bounded_verification_loop(text: str, match: re.Match[str]) -> bool:
@@ -862,6 +1328,55 @@ def _is_bounded_verification_loop(text: str, match: re.Match[str]) -> bool:
     return bool(_SUCCESS_CRITERIA_PREFIX.search(prefix) and _VERIFICATION_GUIDANCE.search(guidance))
 
 
+_STATED_BOUND = re.compile(
+    r"\bmax(?:imum)?\b|\bmax[_A-Za-z]\w*|\bat\s+most\b|\bup\s+to\s+\d|\bno\s+more\s+than\b|"
+    r"\b\d+\s*(?:x|times?|attempts?|retries|tries|iterations?|rounds?|minutes?|seconds?|s|ms)\b|"
+    r"\btime(?:s)?\s*out\b|\btimeout\b|\blimit(?:ed)?\s+(?:of|to)\b|\bbudget\b|\bthen\s+stop\b|\bor\s+stop\b",
+    re.IGNORECASE,
+)
+_LOOP_AS_NOUN = re.compile(
+    r"(?:\b(?:a|an|the|this|that|its|their|your|each|every|agent|agentic|run|event|main|outer|inner|"
+    r"feedback|control|tool|game|while|for|revise|retry|review)\s+|[-=]>\s*\w+\s+|\w-)$",
+    re.IGNORECASE,
+)
+
+
+def _sentence_around(text: str, start: int, end: int) -> str:
+    left = max(text.rfind(".", 0, start), text.rfind("\n\n", 0, start), text.rfind("!", 0, start), text.rfind("?", 0, start))
+    rights = [i for i in (text.find(". ", end), text.find(".\n", end), text.find("\n\n", end)) if i != -1]
+    return text[left + 1 : (min(rights) if rights else len(text))]
+
+
+def _is_bounded_or_descriptive(text: str, match: re.Match[str]) -> bool:
+    """The same sentence states the bound, or 'loop' is a noun being described.
+
+    "... runs a revise loop until the artifact meets the rubric, hits
+    `max_iterations`, or is interrupted" names its limit. "block the agent loop
+    until answered" describes a loop; it does not instruct one.
+    """
+    if _STATED_BOUND.search(_sentence_around(text, match.start(), match.end())):
+        return True
+    return match.group().lower().startswith("loop") and bool(_LOOP_AS_NOUN.search(text[max(0, match.start() - 24) : match.start()]))
+
+
+def _is_ordinary_loop_in_document(text: str, match: re.Match[str]) -> bool:
+    """In a Markdown document, "loop / repeat / continue until <condition>" states
+    its own termination condition ("Loop until `stop_reason == \"end_turn\"`",
+    "Repeat until the branch is one commit ahead"). That is what `until` means; it
+    is a procedure, not an unbounded instruction. What stays reported there is
+    effort without a cap — keep trying / retry until, "don't stop until",
+    "continue indefinitely" — and anything inside a quoted example is not an
+    instruction at all.
+    """
+    phrase = match.group().lower()
+    line_start = text.rfind("\n", 0, match.start()) + 1
+    if text.count('"', line_start, match.start()) % 2 == 1:
+        return True
+    if "indefinitely" in phrase:
+        return False
+    return phrase.startswith(("loop", "repeat", "continue"))
+
+
 def detect_h2(config: AgentConfig) -> list[Finding]:
     """Detect missing constraint scaffolding."""
     findings: list[Finding] = []
@@ -870,15 +1385,18 @@ def detect_h2(config: AgentConfig) -> list[Finding]:
     prompt = config.system_prompt.lower()
     constraints = config.constraints
 
-    has_any_constraint = False
+    has_any_constraint = _has_explicit_numeric_budget(prompt)
     constraints_str = str(constraints).lower()
     for signal in CONSTRAINT_SIGNALS:
-        pattern = rf"\b{re.escape(signal)}\b"
-        if re.search(pattern, prompt) or re.search(pattern, constraints_str):
+        if has_any_constraint:
+            break
+        if _has_affirmative_constraint_signal(
+            prompt, signal
+        ) or _has_affirmative_constraint_signal(constraints_str, signal):
             has_any_constraint = True
             break
 
-    if config.system_prompt and not has_any_constraint and len(config.tools) > 0:
+    if config.system_prompt and config.kind != "server" and not has_any_constraint and len(config.tools) > 0:
         findings.append(
             Finding(
                 pattern_id="H2",
@@ -886,7 +1404,10 @@ def detect_h2(config: AgentConfig) -> list[Finding]:
                 severity=Severity.HIGH,
                 location="system_prompt",
                 description="System prompt defines tools but contains no termination conditions, retry budgets, or progress checks.",
-                suggestion="Add explicit constraints: 'You have a maximum of 5 tool calls per task. If no progress after 2 attempts, stop and report the issue.'",
+                suggestion=(
+                    "Add explicit constraints: 'Retry limit: 2 attempts. "
+                    "If no progress after 2 attempts, stop and report the issue.'"
+                ),
             )
         )
 
@@ -900,7 +1421,11 @@ def detect_h2(config: AgentConfig) -> list[Finding]:
                 continue
             if _is_bounded_verification_loop(text, match):
                 continue
-            if pattern == _RETRY_UNTIL_PATTERN and _is_negated_retry_prohibition(text, match.start()):
+            if _is_negated_prohibition(text, match.start()):
+                continue
+            if _is_bounded_or_descriptive(text, match):
+                continue
+            if config.kind == "instructions" and _is_ordinary_loop_in_document(text, match):
                 continue
             if pattern == _LOOP_OVER_THROUGH_PATTERN and not _is_unbounded_loop_traversal(text, match):
                 continue
@@ -915,6 +1440,7 @@ def detect_h2(config: AgentConfig) -> list[Finding]:
                     description=message,
                     suggestion="Add an explicit bound: max iterations, timeout, or fallback behavior.",
                     evidence=text[start:end].strip(),
+                    offset=match.start(),
                 )
             )
 
@@ -932,11 +1458,15 @@ def detect_h3(config: AgentConfig) -> list[Finding]:
 
     for tool in config.tools:
         params = tool.parameters
-        if not params:
+        if not params or not isinstance(params, dict):
             continue
 
         properties = params.get("properties", {})
         required_list = params.get("required", [])
+        if not isinstance(properties, dict):
+            continue
+        if not isinstance(required_list, list):
+            required_list = []
 
         # Phantom required fields
         for req_name in required_list:
@@ -952,12 +1482,16 @@ def detect_h3(config: AgentConfig) -> list[Finding]:
                     )
                 )
 
-        _check_properties(findings, tool.name, properties, "parameters")
+        _check_properties(findings, tool.name, properties, "parameters", tool.description)
 
     # Check schemas list too
     for i, schema in enumerate(config.schemas):
         props = schema.get("properties", {})
+        if not isinstance(props, dict):
+            continue
         for prop_name, prop_def in props.items():
+            if not isinstance(prop_def, dict):
+                continue
             if "description" not in prop_def and prop_name.lower() in GENERIC_PROP_NAMES:
                 findings.append(
                     Finding(
@@ -973,13 +1507,28 @@ def detect_h3(config: AgentConfig) -> list[Finding]:
     return findings
 
 
-def _check_properties(findings: list[Finding], tool_name: str, properties: dict, path: str) -> None:
+def _check_properties(
+    findings: list[Finding], tool_name: str, properties: dict, path: str, tool_description: str = "",
+) -> None:
     """Check properties for schema-intent issues, including nested objects."""
     for prop_name, prop_def in properties.items():
         full_path = f"{path}.{prop_name}"
+        if not isinstance(prop_def, dict):
+            continue  # `true` / `false` are valid JSON Schema and say nothing to lint
 
-        # Missing description on parameter
-        if "description" not in prop_def:
+        # A schema constraint or the tool's own prose can explain a scalar
+        # parameter. Do not demand a duplicate sentence for a format, enum,
+        # named boolean switch, or an input explicitly named in that prose.
+        explained = bool(prop_def.get("enum") or "const" in prop_def or prop_def.get("format"))
+        scalar = prop_def.get("type") in ("string", "boolean", "integer", "number")
+        words = _split_identifiers(prop_name).lower().split()
+        prose = set(re.findall(r"\w+", tool_description.lower()))
+        if scalar and prop_name.lower() not in GENERIC_PROP_NAMES:
+            explained |= bool(words and set(words) <= prose)
+            explained |= prop_def.get("type") == "boolean" and len(words) > 1
+            explained |= prop_name.lower() == "password" and prop_def.get("type") == "string"
+            explained |= prop_name.lower() == "path" and bool(prose & {"file", "files", "disk"})
+        if "description" not in prop_def and not explained:
             findings.append(
                 Finding(
                     pattern_id="H3",
@@ -1008,8 +1557,20 @@ def _check_properties(findings: list[Finding], tool_name: str, properties: dict,
         for union_key in ("anyOf", "oneOf"):
             if union_key in prop_def:
                 variants = prop_def[union_key]
-                undescribed = [v for v in variants if "description" not in v]
-                if undescribed:
+                if not isinstance(variants, list):
+                    continue
+                variants = [v for v in variants if isinstance(v, dict)]
+                undescribed = [v for v in variants if "description" not in v and "title" not in v]
+                # A union of scalar types ({"type": "string"} | {"type": "number"},
+                # or the nullable idiom) explains itself. The defect is a choice
+                # between STRUCTURES the model cannot tell apart.
+                structural = [
+                    v for v in undescribed
+                    if v.get("type") in ("object", "array") or "properties" in v or "$ref" in v or "items" in v
+                ]
+                # A parent description long enough to explain the forms does the job.
+                parent_explains = isinstance(prop_def.get("description"), str) and len(prop_def["description"]) >= 80
+                if undescribed and structural and not parent_explains:
                     findings.append(
                         Finding(
                             pattern_id="H3",
@@ -1023,7 +1584,9 @@ def _check_properties(findings: list[Finding], tool_name: str, properties: dict,
 
         # Recurse into nested object properties
         if prop_def.get("type") == "object" and "properties" in prop_def:
-            _check_properties(findings, tool_name, prop_def["properties"], full_path)
+            _check_properties(
+                findings, tool_name, prop_def["properties"], full_path, tool_description
+            )
 
 
 # ── H4: Context Boundary Erosion ───────────────────────────────────
@@ -1089,9 +1652,183 @@ def _is_cross_context_persistence(text: str, match: re.Match[str]) -> bool:
     return bool(_CROSS_CONTEXT_PERSISTENCE_SIGNALS.search(window))
 
 
+_H4_STATEFULNESS_SIGNALS = re.compile(
+    r"(?:"
+    r"\b(?:conversation|chat|message|dialogue)\s+history\b|"
+    r"\bcontext\s+window\b|"
+    r"\b(?:prior|previous|past|earlier)\s+(?:[\w'-]+\s+){0,2}?"
+    r"(?:conversations?|messages?|turns?|tasks?|sessions?|requests?|interactions?|"
+    r"exchanges?|answers?|responses?|results?|states?|context|contexts|inputs?|chats?)\b|"
+    r"\bacross\s+(?:the\s+|all\s+|multiple\s+)?"
+    r"(?:conversations?|tasks?|sessions?|turns?|requests?|messages?|threads?)\b|"
+    r"\bbetween\s+(?:conversations?|tasks?|sessions?|turns?|requests?|messages?)\b|"
+    r"\bcarry(?:ing)?\s+(?:over\s+)?(?:state|context|memory|results?|information)\b|"
+    r"\bcarry[- ]?over\b|\bcross[- ]?(?:task|session|turn|request|conversation)\b|"
+    r"\bremember\s+(?:everything|all|each|every)\b|"
+    r"\b(?:what|anything|everything)\s+the\s+user\s+(?:said|told|asked|wrote)\b|"
+    r"\bmulti[- ]?turn\b|"
+    r"\b(?:maintain|maintaining|keep|keeping|track|tracking|retain|retaining|persist|persisting)\s+"
+    r"(?:[\w'-]+\s+){0,2}?(?:context|state|memory|history)\b|"
+    r"\b(?:every|each|any)\s+future\s+"
+    r"(?:request|session|chat|conversation|message|task|turn|visit|reply|response)\b|"
+    r"\bfrom\s+(?:that|the)\s+same\s+(?:person|user|customer|client)\b|"
+    r"\bnext\s+time\s+(?:they|he|she|the\s+[\w'-]+)\s+"
+    r"(?:ask|asks|request|requests|return|returns|come|comes|visit|visits|write|writes|message|messages)\b|"
+    r"\bbrand\s+new\s+(?:chat|session|conversation)(?:\s+window)?\b"
+    r")",
+    re.IGNORECASE,
+)
+
+
+def _shows_cross_context_statefulness(prompt: str, scope: ScopeAnalysis) -> bool:
+    """Return whether a prompt demonstrates the statefulness H4's length rule assumes.
+
+    The historical rule was applicability-free: any system prompt longer than 500
+    characters had to contain context-boundary vocabulary or it was reported as
+    MEDIUM "Long system prompt with no context boundary markers". Length alone is
+    not evidence of boundary erosion risk: a long, single-shot reference document
+    that never asks the agent to carry anything between turns has no boundary to
+    erode, and LintLang's own ``AGENTS.md`` and ``SKILL.md`` prose were reported
+    that way (RESEARCH.md section 5).
+
+    The rule now requires demonstrated applicability: the prompt must actually
+    instruct or describe cross-context behaviour — conversation/chat history, a
+    context window, prior turns/tasks/sessions, carrying state across or between
+    them, remembering everything, maintaining context/state/memory, or an
+    instruction to carry behaviour into a future request/session ("every future
+    request", "from that same user", "next time they ask", "a brand new chat
+    window"). A prompt with no such signal is not reported for missing boundary
+    vocabulary; the EROSION_PATTERNS rules are unchanged and still fire on their
+    own evidence.
+    """
+    return any(
+        _is_direct_match(scope, match.start(), match.end())
+        for match in _H4_STATEFULNESS_SIGNALS.finditer(prompt)
+    )
+
+
+_FENCE = re.compile(r"^[ \t]*(```|~~~)")
+_PATH_CANDIDATE = re.compile(r"`([^`\n]+)`|\]\(([^)\s]+)\)")
+_PATH_EXTENSION = re.compile(
+    r"\.(?:md|mdc|txt|json|ya?ml|toml|ini|cfg|py|pyi|js|jsx|mjs|cjs|ts|tsx|go|rs|rb|java|kt|swift|c|h|cc|cpp|hpp|"
+    r"cs|php|sh|bash|zsh|ps1|sql|html|css|scss|vue|svelte|lock|env|proto|graphql|tf|gradle|xml|ipynb)$",
+    re.IGNORECASE,
+)
+_NOT_A_LITERAL_PATH = re.compile(r"[\s*?\[\]{}<>$|=,;'\"\\%#]|\.\.\.|://|^[-~/@.]?$|^[-~/@]|^\.\./")
+_HYPOTHETICAL_LINE = re.compile(
+    r"\b(?:e\.g\.|for example|examples?|such as|like|would|could|append(?:s|ed)?|create[sd]?|creating|generate[sd]?|generating|"
+    r"will (?:be|write|create)|writes? (?:to|a|the)|written to|outputs?|produces?|add a|new file|rename[sd]?|"
+    r"moved?|deleted?|removed?|formerly|used to|instead of|not|never|don't|do not|if (?:it|there|a|the)|"
+    r"optional(?:ly)?|may|might|when present|if present|ignored?)\b",
+    re.IGNORECASE,
+)
+
+
+_AGENT_DOCUMENT_NAMES = frozenset(
+    {"AGENTS.md", "CLAUDE.md", "GEMINI.md", "SKILL.md", "copilot-instructions.md", ".cursorrules", ".windsurfrules"}
+)
+
+
+def _repository_root(start: Path) -> Path | None:
+    for candidate in (start, *start.parents):
+        if (candidate / ".git").exists():
+            return candidate
+    return None
+
+
+def _detect_dangling_references(config: AgentConfig) -> list[Finding]:
+    """Report file paths an instruction document names that are not there.
+
+    Agents act on AGENTS.md / CLAUDE.md literally: a path that no longer exists
+    after a refactor sends them searching, or makes them recreate the file. This
+    is context that points nowhere. The check is deliberately narrow — a finding
+    needs ALL of:
+
+    - a literal relative path with a directory part, in backticks or a Markdown
+      link, outside fenced code blocks;
+    - whose FIRST segment exists beside the document or at the repository root
+      (so it is a path into this project, not an illustration from another one);
+    - that resolves from neither place;
+    - on a line that does not talk about creating, renaming, removing or
+      exemplifying it.
+    """
+    if config.kind != "instructions" or not config.source_file:
+        return []
+    source = Path(config.source_file)
+    # Only documents written FOR an agent. A user guide that tells a person to
+    # create `.vscode/mcp.json` is not an instruction pointing at a missing file.
+    if config.skill is None and source.name not in _AGENT_DOCUMENT_NAMES and not source.name.endswith(
+        ".instructions.md"
+    ):
+        return []
+    try:
+        if not source.is_file():
+            return []
+        base = source.resolve().parent
+    except OSError:
+        return []
+    roots = [base]
+    repo = _repository_root(base)
+    if repo is not None and repo != base:
+        roots.append(repo)
+
+    findings: list[Finding] = []
+    seen: set[str] = set()
+    in_fence = False
+    offset = 0
+    for line in config.system_prompt.split("\n"):
+        line_offset = offset
+        offset += len(line) + 1
+        if _FENCE.match(line):
+            in_fence = not in_fence
+            continue
+        if in_fence or _HYPOTHETICAL_LINE.search(line):
+            continue
+        for match in _PATH_CANDIDATE.finditer(line):
+            token = (match.group(1) or match.group(2) or "").strip()
+            token = re.sub(r"(?::\d+(?:-\d+)?|#[\w-]+)$", "", token)
+            if token.startswith("./"):
+                token = token[2:]
+            if "/" not in token.strip("/") or _NOT_A_LITERAL_PATH.search(token):
+                continue
+            # Files only: a named directory is as often a build output or a
+            # runtime location as a checked-in one.
+            if not _PATH_EXTENSION.search(token):
+                continue
+            if re.search(r"(?:^|[/_.-])(?:your|my|foo|bar|baz|example|sample|name|xxx|placeholder)(?:[/_.-]|$)", token, re.I):
+                continue
+            if token in seen:
+                continue
+            first = token.split("/", 1)[0]
+            try:
+                anchored = [root for root in roots if (root / first).is_dir()]
+                if not anchored or any((root / token).exists() for root in roots):
+                    continue
+            except OSError:
+                continue
+            seen.add(token)
+            findings.append(
+                Finding(
+                    pattern_id="H4",
+                    sub_id="H4.5",
+                    pattern_name="Context Boundary Erosion",
+                    severity=Severity.MEDIUM,
+                    location=f"reference:{token}",
+                    description=(
+                        f"Referenced path '{token}' does not exist, although '{first}/' does. An agent "
+                        "following this instruction is sent to a file that is not there."
+                    ),
+                    suggestion="Update the path, or remove the reference if the file is gone.",
+                    evidence=line.strip()[:160],
+                    offset=line_offset + match.start(),
+                )
+            )
+    return findings
+
+
 def detect_h4(config: AgentConfig) -> list[Finding]:
     """Detect context boundary erosion risks."""
-    findings: list[Finding] = []
+    findings: list[Finding] = _detect_dangling_references(config)
     prompt = config.system_prompt
 
     if prompt:
@@ -1104,7 +1841,15 @@ def detect_h4(config: AgentConfig) -> list[Finding]:
             for match in re.finditer(rf"\b{re.escape(signal)}\b", prompt, re.IGNORECASE)
         )
 
-        if len(prompt) > 500 and not has_boundary:
+        # Absence of boundary vocabulary is a property of a chat system prompt;
+        # a Markdown reference document that mentions "conversation history"
+        # is describing an API, not failing to scope a session.
+        if (
+            config.kind not in ("instructions", "templates", "server")
+            and len(prompt) > 500
+            and not has_boundary
+            and _shows_cross_context_statefulness(prompt, scope)
+        ):
             findings.append(
                 Finding(
                     pattern_id="H4",
@@ -1135,6 +1880,7 @@ def detect_h4(config: AgentConfig) -> list[Finding]:
                         description=message,
                         suggestion="Scope what should be remembered: 'Remember the user's name for this session. Do not carry tool results between tasks.'",
                         evidence=prompt[start:end].strip(),
+                        offset=match.start(),
                     )
                 )
 
@@ -1418,8 +2164,16 @@ def detect_h5(config: AgentConfig) -> list[Finding]:
         else:
             problematic_negatives.append((neg_start, neg_text))
 
+    # The two density heuristics below judge the SHAPE of a chat system prompt.
+    # An instruction document (AGENTS.md, CLAUDE.md, a SKILL.md body) is a
+    # reference an agent consults, not one prompt. In the audited instruction
+    # corpus, "N instructions with no priority ordering" fired broadly and
+    # named no sentence to repair. A finding that cannot point at its evidence,
+    # on a surface it was not designed for, is noise.
+    is_chat_prompt = config.kind not in ("instructions", "templates", "server")
+
     # Flag problematic negatives (those NOT near safety keywords)
-    if len(problematic_negatives) > 3:
+    if is_chat_prompt and len(problematic_negatives) > 3:
         findings.append(
             Finding(
                 pattern_id="H5",
@@ -1428,25 +2182,17 @@ def detect_h5(config: AgentConfig) -> list[Finding]:
                 location="system_prompt",
                 description=f"System prompt has {len(problematic_negatives)} negative instructions ('don't', 'never', 'avoid'). Models follow positive instructions more reliably.",
                 suggestion="Rewrite negatives as positives. Instead of 'Don't apologize', use 'Respond directly without apologies'. Instead of 'Never make up data', use 'Only cite data from provided context'.",
+                evidence=problematic_negatives[0][1],
+                offset=problematic_negatives[0][0],
             )
         )
 
-    # Optionally flag each problematic negative individually (helps with targeted fixes)
-    for neg_start, neg_text in problematic_negatives[:2]:  # Show first 2 examples
-        start = max(0, neg_start - 30)
-        end = min(len(prompt), neg_start + 60)
-        evidence = prompt[start:end].strip()
-        findings.append(
-            Finding(
-                pattern_id="H5",
-                pattern_name="Implicit Instruction Failure",
-                severity=Severity.LOW,
-                location="system_prompt",
-                description=f"Negative instruction '{neg_text}' could be reframed positively.",
-                suggestion=f"Instead of '{neg_text}...', specify what TO do. Example context: '{evidence}'",
-                evidence=evidence,
-            )
-        )
+    # Per-negative LOW notices were removed: a single unexempted negative directive
+    # is ordinary, correct instruction prose, and the exemption layers above are a
+    # 100-character keyword window rather than a scope decision, so each notice
+    # asserted a defect the detector had not demonstrated (RESEARCH.md section 5).
+    # The tested density signal — more than three unexempted negatives in one
+    # prompt — is kept above, unchanged, as the aggregated MEDIUM finding.
 
     # Vague qualifiers (deduplicate identical matched text)
     seen_vague: set[str] = set()
@@ -1470,6 +2216,7 @@ def detect_h5(config: AgentConfig) -> list[Finding]:
                     description=f"{category}: '{match.group()}'",
                     suggestion="Make it procedural. Instead of 'be concise', specify 'Respond in 2-3 sentences maximum'. Instead of 'as needed', specify the exact condition.",
                     evidence=prompt[start:end].strip(),
+                    offset=match.start(),
                 )
             )
 
@@ -1482,12 +2229,15 @@ def detect_h5(config: AgentConfig) -> list[Finding]:
     instruction_count = (
         len(re.findall(r"[.!?]\s+[A-Z]", prompt)) + prompt.count("\n-") + prompt.count("\n*") + prompt.count("\n1")
     )
-    if instruction_count > 10 and not has_priority:
+    if is_chat_prompt and instruction_count > 10 and not has_priority:
         findings.append(
             Finding(
                 pattern_id="H5",
                 pattern_name="Implicit Instruction Failure",
-                severity=Severity.MEDIUM,
+                # A sentence count is not evidence of a conflict. It stays MEDIUM
+                # where it was designed (a standalone prompt file or a config's
+                # system prompt) and is advice for a literal extracted from code.
+                severity=Severity.LOW if config.kind == "python" else Severity.MEDIUM,
                 location="system_prompt",
                 description=f"System prompt has ~{instruction_count} instructions with no explicit priority ordering.",
                 suggestion="Add priority ordering: 'PRIORITY 1: Always cite sources. PRIORITY 2: Be concise. When these conflict, prioritize accuracy over brevity.'",
@@ -1498,6 +2248,85 @@ def detect_h5(config: AgentConfig) -> list[Finding]:
 
 
 # ── H6: Template Format Contract Violation ─────────────────────────
+
+
+_OUTPUT_FORMAT_INSTRUCTION_TEMPLATES = (
+    # A descriptive contract on the agent's own response is still a contract:
+    # "The agent's reply is delivered as JSON ... and as Markdown ...". Keep
+    # the subject explicit so descriptions of another service stay silent.
+    r"\b(?:the\s+agent(?:'s)?\s+)?(?:responses?|reply|replies|answers?)\b"
+    r"[^\n.!?]{{0,120}}\b(?:as|in|using)\s+{fmt}\b",
+    # "respond in JSON", "return the result as markdown", "output using XML", and
+    # the coordinated form "respond in JSON and Markdown" / "output as JSON or XML",
+    # where one instruction names both halves of the competing contract.
+    r"\b(?:respond|reply|answer|output|return|emit|print|render|produce|send|format|write)"
+    r"(?:\w+)?\s+(?:[\w'-]+\s+){{0,3}}?(?:in|as|with|using|to)\s+"
+    r"(?:(?:valid|plain|raw|pure|strict)\s+)?"
+    r"(?:[\w'-]+\s*(?:,|/|\band\b|\bor\b)\s*){{0,3}}?{fmt}\b",
+    # "write your reply as friendly Markdown text", "answer the user in plain XML" —
+    # a response verb pointed at the format through a single descriptive word
+    # ("friendly", "clean", "simple") rather than a comma/and/or coordination.
+    r"\b(?:respond|reply|answer|write)\s+(?:[\w'-]+\s+){{0,3}}?(?:as|in|using|with|to)\s+"
+    r"(?:[\w'-]+\s+){{0,1}}?{fmt}\b",
+    # "use JSON for data queries", "use markdown when it helps"
+    r"\b(?:use|using|prefer|choose)\s+{fmt}\s+(?:for|when|if|unless)\b",
+    # dispatch ellipsis at the start of a sentence: "XML for configs."
+    r"(?:^|[.;:!?\n]\s*){fmt}\s+for\s+[\w'-]+",
+    # "XML is acceptable", "Markdown is also allowed"
+    r"(?:^|[.;:!?\n]\s*){fmt}\s+(?:is|are)\s+(?:also\s+)?"
+    r"(?:acceptable|allowed|fine|ok|okay|preferred|required|expected|permitted)\b",
+    # "output format: JSON", "output format is markdown"
+    r"\boutput\s+format\s*(?:[:=]|is|must\s+be|should\s+be)\s*"
+    r"(?:[\w'-]+\s+){{0,2}}?{fmt}\b",
+    # "JSON output only", "markdown response required"
+    r"\b{fmt}\s+(?:output|response|responses|reply|replies)\s+"
+    r"(?:only|required|expected|is\s+required|is\s+expected)\b",
+    # "responses conform to this JSON schema", "output adheres to the XML format" —
+    # a schema/format-conformance contract on the response/output is itself an
+    # output-format instruction (kept narrow: the subject must name the
+    # response/output, not just any document or file conforming to a schema).
+    r"\b(?:responses?|output|reply|replies|answers?)\s+"
+    r"(?:must\s+|should\s+|will\s+|shall\s+)?"
+    r"(?:conform|conforms|conforming|adhere|adheres|adhering)\s+to\s+"
+    r"(?:(?:this|a|an|the)\s+)?(?:[\w'-]+\s+){{0,2}}?{fmt}\b",
+    # Bare imperative taking the format as a direct object: "Always output
+    # JSON.", "Return JSON only.", "Emit XML." This is the most ordinary way to
+    # state an output contract, and without it the narrowing above cut a real
+    # positive. The verb must be imperative — at a sentence start, or after a
+    # modal or one of these adverbs — so a descriptive third-person clause
+    # ("The upstream service returns JSON.") is still not a contract.
+    r"(?:(?:^|[.;:!?\n]|\b(?:always|only|just|strictly|must|should|shall|will|please|also|and)\b)\s*)"
+    r"(?:(?:always|only|just|strictly|also)\s+)?"
+    r"(?:respond|reply|answer|output|return|emit)\s+"
+    r"(?:(?:only|always|just|strictly)\s+)?"
+    r"(?:(?:valid|plain|raw|pure|strict|well-?formed)\s+)?{fmt}\b",
+)
+
+_OUTPUT_FORMAT_INSTRUCTIONS: dict[str, tuple[re.Pattern[str], ...]] = {
+    fmt: tuple(
+        re.compile(template.format(fmt=fmt), re.IGNORECASE)
+        for template in _OUTPUT_FORMAT_INSTRUCTION_TEMPLATES
+    )
+    for fmt in ("json", "markdown", "xml")
+}
+
+
+def _instructs_output_format(cleaned: str, fmt: str) -> bool:
+    """Return whether the prompt actually instructs responding in ``fmt``.
+
+    H6's competing-contract finding used to be true whenever the words "JSON",
+    "Markdown", or "XML" appeared twice over, so a document that merely listed
+    the file types a tool accepts was reported as a format contract violation.
+    A format now counts only when the prompt gives it as an output instruction:
+    a response verb pointing at it (including through a single descriptive word,
+    as in "write your reply as friendly Markdown"), a "use X for/when" dispatch,
+    a sentence-initial dispatch ellipsis ("XML for configs."), an explicit
+    acceptability statement, an "output format:" declaration, an "X output only"
+    demand, or a response/output schema-conformance clause ("responses conform
+    to this JSON schema"). The existing code-block, inline-code, filename, and
+    CLI-flag cleaning still runs first and is unchanged.
+    """
+    return any(pattern.search(cleaned) for pattern in _OUTPUT_FORMAT_INSTRUCTIONS[fmt])
 
 
 def detect_h6(config: AgentConfig) -> list[Finding]:
@@ -1516,10 +2345,14 @@ def detect_h6(config: AgentConfig) -> list[Finding]:
     cleaned = re.sub(r"\w+\.(?:json|yaml|yml|xml|md|toml|csv)\b", " ", cleaned, flags=re.IGNORECASE)  # filenames
     cleaned = re.sub(r"--(?:json|format|output)(?:\s+\w+)?", " ", cleaned, flags=re.IGNORECASE)  # CLI flags
 
-    # Mixed format instructions
-    has_json = bool(re.search(r"\bjson\b", cleaned, re.IGNORECASE))
-    has_markdown = bool(re.search(r"\bmarkdown\b", cleaned, re.IGNORECASE))
-    has_xml = bool(re.search(r"\bxml\b", cleaned, re.IGNORECASE))
+    # Mixed format instructions. A bare mention is not a contract: naming JSON and
+    # Markdown while describing which file types a tool reads is ordinary prose,
+    # and it made any document that named two formats an H6 MEDIUM
+    # (RESEARCH.md section 5). Each format must carry its own output-format
+    # instruction before it counts towards a competing contract.
+    has_json = _instructs_output_format(cleaned, "json")
+    has_markdown = _instructs_output_format(cleaned, "markdown")
+    has_xml = _instructs_output_format(cleaned, "xml")
     format_count = sum([has_json, has_markdown, has_xml])
 
     if format_count > 1:
@@ -1535,17 +2368,30 @@ def detect_h6(config: AgentConfig) -> list[Finding]:
             )
         )
 
-    # No output format specification at all
+    # No output format specification at all. The recognizer has to accept the
+    # ordinary ways of stating one, or the finding contradicts the document it
+    # is reporting on: "Return Markdown only." and "Return a plan as Markdown."
+    # both specify a format, and both used to be missed because the verb had to
+    # be immediately followed by in/as/with/using. It is deliberately not
+    # widened to arbitrary words before the format name, which would reopen the
+    # mere-mention false positive that the competing-contract rule above just
+    # removed — so "Output exactly one Markdown document." is a known miss.
     has_output_format = bool(
         re.search(
-            r"(?:respond|output|return|format|reply)\s+(?:in|as|with|using)\s+(?:json|markdown|xml|yaml|text|plain|html|csv)",
+            r"\b(?:respond|output|return|reply|answer|emit|format)\s+"
+            r"(?:(?:[\w'-]+\s+){0,3}?(?:in|as|with|using)\s+)?"
+            r"(?:(?:only|valid|plain|raw|strict|well-?formed)\s+)*"
+            r"(?:json|markdown|xml|yaml|text|html|csv)\b",
             prompt,
             re.IGNORECASE,
         )
     )
     has_format_example = bool(re.search(r"```|example\s*(?:output|response)", prompt, re.IGNORECASE))
 
-    if len(prompt) > 200 and not has_output_format and not has_format_example:
+    # An output contract is a property of a chat/system prompt. A Markdown
+    # instruction document has no single response to contract.
+    is_chat_prompt = config.kind not in ("instructions", "templates", "server")
+    if is_chat_prompt and len(prompt) > 200 and not has_output_format and not has_format_example:
         findings.append(
             Finding(
                 pattern_id="H6",
@@ -1561,7 +2407,7 @@ def detect_h6(config: AgentConfig) -> list[Finding]:
     has_version = bool(
         re.search(r"(?:^|\s)v\d+\.\d|version\s*[:\d]|prompt\s*v\d", prompt, re.IGNORECASE | re.MULTILINE)
     )
-    if len(prompt) > 500 and not has_version:
+    if is_chat_prompt and config.kind != "python" and len(prompt) > 500 and not has_version:
         findings.append(
             Finding(
                 pattern_id="H6",

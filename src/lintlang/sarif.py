@@ -174,8 +174,14 @@ def format_sarif(
     repository_root: str | Path,
     source_base: str | Path | None = None,
     show_suggestions: bool = True,
+    allow_empty: bool = False,
 ) -> str:
-    """Serialize scan results as canonical, evidence-minimal SARIF JSON."""
+    """Serialize scan results as canonical, evidence-minimal SARIF JSON.
+
+    ``allow_empty`` mirrors the CLI's ``--allow-empty``: the caller has stated
+    that a scan inspecting zero files is an acceptable outcome, so the report
+    must not contradict the exit status by declaring the run unsuccessful.
+    """
     rules: dict[str, dict[str, object]] = {}
     sarif_results: list[tuple[tuple[object, ...], dict[str, object]]] = []
     errors: list[str] = []
@@ -212,7 +218,7 @@ def format_sarif(
             )
             sarif_results.append((sort_key, item))
 
-    if not results:
+    if not results and not allow_empty:
         errors.append("No files were successfully scanned")
 
     invocation: dict[str, object] = {"executionSuccessful": not errors}

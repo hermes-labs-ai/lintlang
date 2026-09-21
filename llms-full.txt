@@ -50,9 +50,44 @@ lintlang scan config.yaml --fail-on review
 lintlang scan config.yaml --min-severity high
 lintlang scan config.yaml --patterns H1 H3
 lintlang scan prompts/ --exclude 'archive/**'
+lintlang scan --discover
+lintlang scan AGENTS.md --discover subdir/
+lintlang scan config.yaml --allow-empty
+printf 'Do not stop until done.' | lintlang scan - --stdin-filename AGENTS.md
 lintlang patterns
 lintlang init --github --path AGENTS.md
 ```
+
+`--discover [ROOT]` (default `.`) additionally scans every recognized
+agent-instruction file found anywhere under `ROOT`: `AGENTS.md`, `CLAUDE.md`,
+`GEMINI.md`, `SKILL.md`, `agent.yaml`/`.yml`/`.json`,
+`.github/copilot-instructions.md`, and `*.instructions.md` under
+`.github/instructions/`, matched case-sensitively. A plain Markdown file kept
+in that directory is not an instruction surface. Editor and host layouts are
+not discovery targets — `.cursor/rules`, `.claude/agents` and `.windsurfrules`
+are known omissions; pass such a file as an explicit argument. Explicit file
+arguments
+stay canonical; `--discover` unions its discovered set with them, deduplicated.
+Symlinks are not followed, as in a directory scan; a recognized instruction
+file skipped for that reason is named on stderr, because an unscanned
+instruction file is a coverage gap rather than a clean result.
+`--exclude` globs and a repository's `.lintlangignore` filter discovered files
+exactly as they filter a directory scan, and an excluded symlink is not
+reported. It does not change generic directory
+scanning (`lintlang scan <dir>`), which keeps its own broader, extension-based
+sweep. Because `ROOT` is optional, `lintlang scan --discover FILE` reads `FILE`
+as the discovery root; write `lintlang scan FILE --discover` instead.
+
+`-` scans exactly one document from standard input and requires
+`--stdin-filename <virtual-path>`, which selects the parser (including `.py`
+AST extraction) and supplies the identity used in locations, JSON/SARIF
+output, and baseline matching; the virtual path is never opened. More than
+one `-`, a `-` without `--stdin-filename`, `--stdin-filename` without a `-`
+input, and `-` combined with `--discover` are all rejected with the usage-error
+exit (2). One invocation takes one unambiguous source of files.
+
+`--allow-empty` exits 0 when the scan inspected zero files; without it, that
+case is an input/coverage error (see below).
 
 Scan arguments are files or directories, resolved from the invocation directory.
 `--patterns`/`-p` selects H1-H7 families, not individual sub-codes such as H1.6.
@@ -79,6 +114,7 @@ The initializer does not scan, commit, publish, or enable repository features.
 | Verdict | Meaning after selected filters and any baseline |
 | --- | --- |
 | ERROR | A requested input could not be inspected |
+| SKIPPED | The file was read and holds nothing LintLang inspects. Never a PASS |
 | FAIL | At least one HIGH or CRITICAL structural finding remains |
 | REVIEW | At least one MEDIUM finding remains and none is HIGH/CRITICAL |
 | PASS | No MEDIUM, HIGH, or CRITICAL finding remains; LOW/INFO may remain |
@@ -94,15 +130,43 @@ location/output errors are also nonzero. Invalid CLI arguments use argparse's
 nonzero usage-error exit (2). A positive `--fail-under` threshold can independently
 produce exit 1 when the HERM score is below it; baselines do not change that score.
 
-An existing directory with no eligible files prints
-`No matching files found to scan.` to stderr and exits 0. JSON output is `[]`;
-SARIF contains an empty run. This is different from an uninspectable requested
-input and does not prove that the intended instructions were scanned.
-`--write-baseline` deliberately rejects this zero-file case and writes nothing.
+A scan that inspects zero files is an input/coverage error: it exits 1, with a
+matching `ERROR` result on every output channel. JSON output is a one-entry
+array with `"verdict": "ERROR"`; SARIF carries the corresponding error tool
+result, and `executionSuccessful: false` to match the exit status.
+`--allow-empty` exits 0 instead (a stderr note, `[]` for JSON, and an empty
+SARIF run reporting `executionSuccessful: true`) for a caller that
+intentionally scans an
+input that may sometimes be empty; that is different from an uninspectable
+requested input and does not prove that the intended instructions were
+scanned. `--write-baseline` keeps its own stricter, pre-existing behavior:
+zero scanned files is always an error and writes nothing, `--allow-empty` or
+not.
 
-PASS applies only to recognized content and selected checks. It does not mean
-that arbitrary nested vendor configuration was extracted, that prose is true,
-or that a model will behave correctly. Determinism describes findings and
+Every result states what it inspected: the terminal and Markdown reports print
+an `Inspected:` line ("12 tools (11 described, 12 with a schema)", "skill front
+matter, instruction text (418 lines)"), and JSON carries the same counts under
+`inspected`. A verdict covers that content and nothing else.
+
+A file in which nothing was inspected is `SKIPPED`, with the reason (for example
+"this is a JSON Schema document, not agent-facing content", or "no embedded prompt
+literals or threshold assignments were found in this Python file"). SKIPPED is
+never PASS and does not by itself change the exit status, so a wrapper may hand
+LintLang a `package.json` beside an `AGENTS.md`. Two cases are input errors
+(exit 1), because a scan the author believes covers a file must not look clean:
+
+- a scan in which EVERY file was SKIPPED (the same rule as a zero-file scan);
+- a named file that holds tool-like objects (a `name` with a `description`) none
+  of which could be inspected as tools. The error names them by path.
+
+`--allow-uninspected` reports both as SKIPPED instead. Files met while walking a
+directory are never errors for this reason. In a multi-file terminal scan,
+SKIPPED files are listed once at the end and clean files appear only in the
+summary table. Terminal output shows five findings per finding code and counts
+the rest; `--show-all`, JSON and SARIF carry every finding.
+
+PASS applies only to the inspected content and selected checks. It does not mean
+that prose is true or that a model will behave correctly. Determinism describes findings and
 verdicts for the same inputs and rules; terminal elapsed-time summaries are not
 a byte-identical-output promise.
 
@@ -110,29 +174,82 @@ a byte-identical-output promise.
 
 | Input | Recognized content and limits |
 | --- | --- |
-| `.yaml`, `.yml` | Top-level recognized agent fields; non-object YAML is treated as prompt text, not normalized as a list of tools |
-| `.json` | Top-level object with recognized fields; a non-object JSON root is an input error |
-| `.md`, `.txt`, `.prompt` | Source text as a system prompt, not automatic parsing of every host's frontmatter or configuration grammar |
-| `.py` | AST-extracted prompt-like strings and supported numeric assignments; not general Python linting |
+| `.yaml`, `.yml`, `.json` | Tool definitions found by shape anywhere in the document (object or array root); top-level prompt, message and schema fields |
+| `.md` | An instruction DOCUMENT (AGENTS.md, CLAUDE.md, a SKILL.md body). YAML front matter with `name`/`description` is read as skill metadata and kept out of the body |
+| `.txt`, `.prompt` | Source text as a chat system prompt |
+| `.py` | AST-extracted strings that the code uses as prompts, and supported numeric assignments; not general Python linting |
 
 For YAML/JSON objects, the first string among `system_prompt`, `system`,
-`systemPrompt`, `instructions`, and `prompt` supplies the system prompt. Tools
-come from a top-level `tools` list, or `functions` when `tools` is absent. Supported
-tool shapes include a direct `name`/`description` with `parameters` or
-`input_schema`, and OpenAI-style `type: function` with a nested `function` object.
+`systemPrompt`, `instructions`, and `prompt` supplies the system prompt.
+
+Tools are recognized by shape, not by file name or an allowlist of keys:
+
+- STRONG: a mapping with a string `name` and a parameter schema under
+  `inputSchema`, `input_schema`, `parameters`, `parametersJsonSchema` or
+  `parameters_json_schema`, or an OpenAI `{"type": "function", "function": {...}}`
+  / `{"type": "custom", ...}` wrapper. Read wherever it sits: a root array, a
+  vendor key such as `contributes.languageModelTools`, `result.tools`, any depth.
+  `parameters` only counts when it is empty or carries `type`, `properties` or
+  `$schema`, which keeps CI pipeline templates out.
+- Under a `tools`, `functions` or `functionDeclarations` key, a mapping with a
+  string `name` is a tool even without a schema (at depth it also needs a
+  description key). A `tools` MAP is read as name-keyed tools when its values
+  carry a schema or a description. An unknown-key map is read as tools only when
+  it has at least two entries and every one carries a schema.
+- `mcpServers.<server>.tools` and `servers[].tools` are read and the tools are
+  attributed to their server. Launch-only server entries (`command`, `args`,
+  `url`) define no tool language and are not units.
+- The model-facing description is the first non-empty string among
+  `modelDescription`, `model_description`, `description_for_model`, `description`.
+- The same tool listed twice in one file (a short declaration and a full
+  `tools/list` response) is read once, keeping the copy with a schema.
+- H1.4/H1.5/H1.6 compare tools within one container, so two MCP servers may each
+  expose a `search`.
+
+A document that is itself one STRONG tool object (a per-tool snapshot file) is
+read as one tool. JSON with `//` or `/* */` comments and trailing commas is
+accepted, and YAML application tags (`!Ref`, `!!python/name:`) are read as plain
+data; nothing is constructed or executed.
+
+Prompts under nested keys are read too: a string of at least 40 characters under
+a key such as `system_template`, `instance_template`, `system_prompt`,
+`instructions`, `*_prompt`, `persona` or `backstory`, at any depth. They are
+joined and checked as templates: evidence-bearing checks (H2, H4 phrases, H5
+qualifiers, H6 conflicts) run; the chat-prompt shape heuristics do not, because
+several templates are not one prompt.
+
+Tool findings carry the line on which the tool's `name` is declared when that
+name is declared exactly once in the file and the file uses no YAML anchors.
+
+Never read as tools: `dependencies`-style maps, JSON Schema `properties`/`$defs`,
+`components`/`packages` lists, and whole documents recognized as JSON Schema
+(`$schema` with `properties`/`$defs`/`definitions`), OpenAPI, a package
+lockfile, an SBOM (CycloneDX/SPDX) or an in-toto attestation. A bare
+`{name, description}` object outside a tools container is not claimed (it is as
+likely a package or a server); when a file has no tools at all, such objects are
+reported as not inspected. Known limits: a custom container key whose members
+have no parameter schema is not read; tool definitions built in code are not
+read; YAML anchors are resolved by the YAML parser, but templated YAML is not.
+
 Messages come from a top-level `messages` list; its first system message can
 supply the prompt when one was not otherwise found.
 
 Recognized schema fields are `response_format`, `output_schema`, `schema`, and
 `schemas`; constraint mappings come from `constraints`, `config`, `settings`,
 and `parameters`. These are extraction rules, not comprehensive provider-schema
-validation. Unrecognized nested vendor layouts can yield no covered findings.
+validation.
 
 An explicitly named file with an unknown extension is tried as JSON, then YAML,
 then text. Directory discovery uses the listed, case-sensitive extensions only.
-Directories are traversed in sorted order; dependency/cache/build trees and
-conventional non-prompt names such as README, CHANGELOG, LICENSE, CONTRIBUTING,
-and SECURITY are skipped. Symlink files and directories are not followed during
+Directories are traversed in sorted order; dependency/cache/build trees,
+issue/pull-request template directories and conventional non-prompt names such
+as README, CHANGELOG, LICENSE (and other licence, NOTICE and third-party notice
+files), CONTRIBUTING, and SECURITY are skipped. Python test code (`tests/`, `test_*.py`, `*_test.py`, `conftest.py`) is returned as SKIPPED
+during a walk: it holds fixtures, not what an agent is given, and its explicit result keeps that exclusion visible. A `.txt` file met during a walk
+is scanned only if it contains prompt language; name it explicitly to scan it
+regardless. Front matter is read as skill metadata only when it has a
+`description`, or a `name` in a `SKILL.md` or under a `skills`/`agents`/`commands`
+directory, so GitHub issue templates are not skills. Symlink files and directories are not followed during
 directory discovery. Explicit file scans do not use these directory exclusions.
 Traversal errors remain input errors rather than disappearing as clean results.
 
@@ -151,18 +268,34 @@ runtime interpolation and data flow are not evaluated. Prompt candidates are
 deduplicated by their first 200 characters, so distinct strings with the same
 prefix can collapse to one candidate. Python syntax errors produce ERROR.
 
-Only H2, H4, H5, and H6 run on extracted prompts. H1, H3, and H7 require a declared
-tool/schema/message surface that this extraction does not produce. Selecting
-only those excluded families emits a warning for Python inputs, not proof that
-those checks passed. P1/P2 still run independently of that selection.
+Only H2, H4, H5, and H6 run on extracted prompts. Literal Python tool
+definitions provide a separate declared surface on which H1 and H3 run; H7
+does not run in Python extraction mode. Selecting a family for which a Python
+input provides no supported surface is not proof that the check passed. P1/P2
+still run independently of that selection.
 
 - **P1: Uncalibrated Threshold.** Inspects supported nonzero numeric assignments
   to threshold/confidence-like names, excluding recognized counters. No recognized
   nearby calibration comment produces MEDIUM; a recognized comment containing
   uncertainty markers can produce LOW. This tests a documented justification
   signal, not whether the threshold was actually calibrated or is correct.
+- A string is extracted as a prompt when the code uses it as one: it is bound to
+  a prompt-like name, keyword argument or message-dict key (`prompt`, `system`,
+  `instructions`, `template`, `content`, ...), or it addresses a model ("You
+  are", "your task"), or it matches three or more prompt signals. Docstrings, bare
+  string statements, and text passed to logging, argparse/click help, or an
+  exception are never prompts.
+- Tool definitions written as literals are read: a call or dict literal with a
+  literal `name`, a schema keyword (`inputSchema`, `input_schema`, `parameters`,
+  `parameters_json_schema`, `args_schema`) and a literal or absent description —
+  the way Python MCP servers declare `Tool(name=..., description=...,
+  inputSchema=...)`. H1 and H3 run on them, with the call's line. Tools declared
+  by decorator and docstring, or with a computed description, are not read. A
+  dynamic or non-object schema expression is not evaluated: the literal name
+  and description remain inspected, while the schema is excluded from
+  `tools_with_schema` and named under `not_inspected`.
 - **P2: Embedded Scaffold.** An extracted prompt longer than 500 characters
-  produces MEDIUM; one longer than 200 and at most 500 produces LOW. It suggests
+  produces LOW; one longer than 200 and at most 500 produces INFO. It suggests
   reviewing whether the prompt should be externalized, not that embedded prompts
   necessarily cause runtime failures.
 
@@ -175,20 +308,60 @@ text/configuration loading uses strict UTF-8. Neither path executes source code.
 
 ### H1: Tool Description Ambiguity
 
-Checks empty and very short descriptions, selected vague opening verbs, duplicate
+Checks empty and underspecified short descriptions, selected vague opening verbs, duplicate
 tool names, high word overlap, and relational nondistinction. Findings keep
 `pattern_id: H1`; `code` provides the more specific stable identifier.
 
 | Code | Reports | Severity |
 | --- | --- | --- |
 | H1.1 | Tool has no description | CRITICAL |
-| H1.2 | Description shorter than 20 characters | HIGH |
+| H1.2 | Description shorter than 20 characters without a recognized concrete action and domain object | HIGH |
 | H1.3 | Description opens with a selected vague verb | MEDIUM |
 | H1.4 | Two tools share a name | CRITICAL |
 | H1.5 | Near-duplicate descriptions under the word-overlap model | HIGH |
 | H1.6 | One or both tools lack a distinguishing analyzed term | MEDIUM |
+| H1.7 | Skill description longer than 1024 characters | HIGH |
+| H1.8 | Skill description does not say when to use the skill | MEDIUM under 120 characters, else LOW |
+| H1.9 | Skill `name` invalid, or different from its `SKILL.md` directory | MEDIUM |
 
-H1.5 uses Jaccard word similarity with stopword removal. H1.6 compares analyzed
+One-sided H1.6 containment and non-identical H1.5 overlap are suppressed when
+both tools declare different input names, types, or choices in nonempty property
+schemas: those inputs provide a selection distinction. Descriptions that are
+nearly identical (95% or greater word overlap) still receive H1.5.
+H3 does not demand duplicate descriptions for scalar parameters explained by an
+enum, const, format, a named boolean switch, or the tool description. Ambiguous
+parameters such as an unconstrained role or line/column coordinates still need
+semantics. These are bounded heuristics, not proof of semantic completeness.
+
+Server manifests with `server`, `tools`, and root `instructions` retain their
+instruction text for evidence-bearing checks, but do not inherit host-agent
+requirements for a retry budget, output format, version, or priority ordering.
+Percent-delimited localization references are not counted as inspected tool
+prose; `not_inspected` names unresolved tool and schema descriptions. No sibling
+files or remote localization resources are fetched. Skill source catalogs with
+`repo` and `skillPath` are explicitly skipped; their bodies are not present.
+
+For a Markdown file with `name`/`description` front matter (a skill or sub-agent
+definition) the description is the selection-time text, so H1.1 (no description,
+HIGH) and H1.2 (under 20 characters, MEDIUM) apply to it, located at
+`frontmatter.description` with its line. H1.8 looks for trigger vocabulary ("use
+when", "if the user", "before", a description written as the situation); it is a
+finite vocabulary, which is why a long description is only LOW. H1.9's directory
+comparison runs only for a file named `SKILL.md`.
+
+H1.3's vague verbs are handle, process, manage, do, perform, deal, work, and it
+reports only a description under 60 characters: a vague opener followed by the
+specifics has said what the tool does. `get`,
+`set`, `run`, `execute`, `use` and `make` were removed: on real MCP manifests every
+hit on them was a precise description ("Get the current time in a timezone").
+One-sided H1.6 (domination) additionally requires that the two tools share a
+domain term, not only a generic verb class, and open with the same action.
+
+H1.5 uses Jaccard word similarity with stopword removal. Differently named tools
+whose descriptions each carry a term the other lacks are a parallel family
+("List code scanning alerts" / "List secret scanning alerts", add / remove) and
+are not reported below 95% overlap; nor is a pair in which a description states
+the selection rule ("Prefer this tool over X"). H1.6 compares analyzed
 terms from tool names and descriptions under a finite synonym lexicon. It can
 reach some pairs missed by word overlap: "Look up an order" and "Search for
 orders in the system" have Jaccard 0.00 under H1.5 but no differentia under H1.6's
@@ -214,28 +387,50 @@ point, prefer X in new code" are not equivalent coverage promises. See
 
 Checks for selected missing termination conditions, unbounded retry language
 such as "keep trying until", negative termination such as "don't stop until",
-"continue until" without limits, and missing retry budgets. These are static
+"continue until" without limits, "retrying / try again / repeat until", and
+missing retry budgets. A match is not reported when the same sentence states a
+bound (`max_iterations`, "at most", "up to 3", "5 attempts", a timeout) or when
+"loop" is a noun being described ("block the agent loop until answered"). These are static
 indicators, not a proof that a loop will or will not terminate.
 
 ### H3: Schema-Intent Mismatch
 
 Checks phantom required fields absent from `properties`, undescribed parameters,
 generic parameter names such as `data`, `input`, `value`, and `payload`,
-undescribed `anyOf`/`oneOf` variants, and nested objects without descriptions.
+undescribed `anyOf`/`oneOf` variants when at least one undescribed variant is
+structural (an object, array or `$ref`; a union of scalar types explains itself),
+and nested objects without descriptions. Boolean property schemas are skipped.
 It is not full JSON Schema validation or an oracle for a tool's implementation.
 
 ### H4: Context Boundary Erosion
 
 Checks selected unscoped requests to remember everything or use all conversation,
-history, or context; unbounded always-remember language; and long prompts without
-recognized boundary markers. It does not inspect a host's actual context window.
+history, or context; unbounded always-remember language; and, for chat prompts
+only, long prompts without recognized boundary markers. It does not inspect a
+host's actual context window.
+
+H4.5 (MEDIUM; only `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `SKILL.md`, Copilot
+instruction files and files with skill front matter, read from disk) reports a
+referenced project file that does not exist. It needs all of: a literal relative
+path with a directory part and a known file extension, in backticks or a Markdown
+link, outside fenced code; a first segment that exists beside the document or at
+the repository root; a path that resolves from neither; and a line that does not
+talk about creating, renaming, removing or exemplifying it. It reads the
+filesystem, so it does not run on standard input, and it is deliberately quiet:
+directories, globs, placeholders and paths into other projects are never reported.
 
 ### H5: Implicit Instruction Failure
 
 Checks selected vague qualifiers ("be concise", "be helpful", "use common sense"),
 ambiguous conditionals ("as needed", "when appropriate"), figurative verbs
-("lean into", "err on the side of", "keep it simple"), and high instruction count
-without priority ordering. Negative-instruction exemptions have three layers:
+("lean into", "err on the side of", "keep it simple"). The instruction-count finding is LOW for a literal extracted from Python. In a
+Markdown document, H2 does not report "loop / repeat / continue until <condition>"
+(a stated termination condition) or text inside a quoted example. For chat prompts only
+(`.txt`, `.prompt`, a config's system prompt, an extracted Python literal) it also
+checks negative-instruction density and high instruction count without priority
+ordering; those two judge the shape of a single prompt and do not run on Markdown
+instruction documents, where they fired on most real files and named no sentence.
+Negative-instruction exemptions have three layers:
 
 1. Structural: HTML comments, fenced/inline code, and generated-file markers.
 2. Phrase-level: selected privacy disclaimers, UI labels, descriptive wording,
@@ -250,7 +445,8 @@ understanding; a useful false-positive report includes a minimal reproduction.
 
 Strips fenced code, inline code, filenames, and CLI flags before counting format
 keywords. Checks selected conflicting output formats without disambiguation,
-missing format specifications, template variables, and missing version markers.
+template variables and, for chat prompts only, a missing format specification and
+(not for extracted Python literals) a missing version marker.
 It does not prove arbitrary output contracts satisfiable.
 
 ### H7: Role Confusion
@@ -266,7 +462,7 @@ not every provider's protocol.
 from lintlang import compute_verdict, scan_directory, scan_file
 
 result = scan_file("config.yaml")
-print(compute_verdict(result))  # ERROR, PASS, REVIEW, or FAIL
+print(compute_verdict(result))  # ERROR, SKIPPED, PASS, REVIEW, or FAIL
 if result.input_error is not None:
     print(result.input_error)
 else:
@@ -280,8 +476,10 @@ for path, scanned in results.items():
 ```
 
 `scan_file(path, patterns=None)` returns a `ScanResult` with `file`, `score`,
-`herm`, `structural_findings`, and `input_error`. Load/parse failures use the
-`input_error` channel. `scan_directory(directory, patterns=None,
+`herm`, `structural_findings`, `input_error`, `inspected`, `notes`, and
+`skipped`. Load/parse failures use the `input_error` channel; inputs with no
+recognized agent-facing content return `SKIPPED`, never `PASS`.
+`scan_directory(directory, patterns=None,
 extensions=(".yaml", ".yml", ".json", ".txt", ".md", ".prompt", ".py"),
 exclude=None)` returns a path-keyed result dictionary. Directory failures remain
 represented in that dictionary. Severity gates are CLI policy, not exceptions
@@ -296,9 +494,13 @@ verdicts. They are not a validated probability of correctness or safety.
 ## JSON and SARIF
 
 `--format json` writes an array, including for a single input. Each entry has
-`file`, `verdict`, `input_error`, `structural_findings`, and `herm`. Each finding
-contains `pattern_id`, the specific `code`, `pattern_name`, lowercase `severity`,
-`location`, `description`, `suggestion`, and `evidence`. HERM contains `score`,
+`file`, `verdict`, `input_error`, `inspected` (counts of what the verdict
+covers, such as `tools`, `tools_described`, `tools_with_schema`, `instructions`,
+`system_prompt`, `messages`, `python_prompts`), `not_inspected` (coverage
+notices), `skipped` (the reason, or null), `structural_findings`, and `herm`.
+Each finding contains `pattern_id`, the specific `code`, `pattern_name`,
+lowercase `severity`, `location`, `line` (a file line for text inputs, else
+null), `description`, `suggestion`, and `evidence`. HERM contains `score`,
 `dimensions`, `signal_counts`, `coverage`, `confidence`, `findings`, and
 `context_flags`; it is null for input errors. Applying a baseline adds
 `baseline: {"suppressed": N}` to each scanned result. Operational baseline errors
@@ -425,7 +627,7 @@ lintlang scan samples/bad_tool_descriptions.yaml
 Excerpt from `lintlang 0.6.0`:
 
 ```text
-FAIL — 1 CRITICAL, 2 HIGH, 7 MEDIUM, 3 LOW
+FAIL — 1 CRITICAL, 1 HIGH, 5 MEDIUM, 3 LOW
 H1.1: Tool 'process_ticket' has no description
 ```
 

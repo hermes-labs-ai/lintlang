@@ -1,0 +1,69 @@
+{
+  "server": {
+    "command": "file-service"
+  },
+  "instructions": "The service exposes deterministic file operations. Each call returns a structured result or error.",
+  "tools": [
+    {
+      "name": "read_workspace_file",
+      "description": "Read UTF-8 text from a path inside the configured workspace; absolute paths and traversal are rejected",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "Path relative to the configured workspace root"
+          }
+        },
+        "required": [
+          "path"
+        ]
+      }
+    },
+    {
+      "name": "evaluate_arithmetic",
+      "description": "Evaluate a basic arithmetic expression with a deterministic offline evaluator",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "expression": {
+            "type": "string",
+            "description": "Arithmetic expression using numbers, parentheses, and basic operators"
+          }
+        },
+        "required": [
+          "expression"
+        ]
+      }
+    },
+    {
+      "name": "create_rule",
+      "description": "Create a firewall rule",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "port": {
+            "type": "integer",
+            "description": "Destination port to allow"
+          }
+        }
+      }
+    },
+    {
+      "name": "create_rule_preset",
+      "description": "Create a firewall rule from a preset",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "preset": {
+            "type": "string",
+            "enum": [
+              "web",
+              "ssh"
+            ]
+          }
+        }
+      }
+    }
+  ]
+}
