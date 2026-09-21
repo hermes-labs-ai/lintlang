@@ -1166,7 +1166,8 @@ _RIGHT_CLAUSE_BOUNDARY = re.compile(
 # ("... (see the runbook)", "... (stop after ten items)") still closes the
 # clause, because it is an aside or the author's own bound, not a condition.
 _TRAILING_CONDITION = re.compile(
-    r"(?:[,(\u2013\u2014]|\s[-\u2013\u2014])\s*(?:if|when|whenever)\b",
+    r"(?:[,(\u2013\u2014]|\s[-\u2013\u2014])\s*(?:\(\s*)*"
+    r"(?:(?:but\s+)?only\s+)?(?:if|when|whenever)\b",
     re.IGNORECASE,
 )
 # A comma only starts a new clause to the left of the negator when it closes a
@@ -2255,6 +2256,11 @@ def detect_h5(config: AgentConfig) -> list[Finding]:
 
 
 _OUTPUT_FORMAT_INSTRUCTION_TEMPLATES = (
+    # A descriptive contract on the agent's own response is still a contract:
+    # "The agent's reply is delivered as JSON ... and as Markdown ...". Keep
+    # the subject explicit so descriptions of another service stay silent.
+    r"\b(?:the\s+agent(?:'s)?\s+)?(?:responses?|reply|replies|answers?)\b"
+    r"[^\n.!?]{{0,120}}\b(?:as|in|using)\s+{fmt}\b",
     # "respond in JSON", "return the result as markdown", "output using XML", and
     # the coordinated form "respond in JSON and Markdown" / "output as JSON or XML",
     # where one instruction names both halves of the competing contract.

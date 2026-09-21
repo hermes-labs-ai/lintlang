@@ -754,10 +754,6 @@ class TestH2:
         ):
             assert not self._critical(prompt), prompt
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="documented limitation: a trailing condition is missed when a modifier precedes its subordinator",
-    )
     @pytest.mark.parametrize(
         "prompt",
         (
@@ -770,19 +766,11 @@ class TestH2:
         ),
     )
     def test_a_modified_trailing_condition_should_defeat_the_prohibition(self, prompt):
-        """DESIRED BEHAVIOUR, not today's behaviour.
+        """A modifier before a trailing condition must not hide the condition.
 
-        The right-hand search reopens its window only when the subordinator is
-        the first word after the delimiter, so any modifier in front of it
-        (`only if`, `but only when`, a second parenthesis) hides the condition
-        and the prohibition is read as a bound. Each sentence below RESTRICTS
-        the prohibition and should be reported, exactly as its unmodified form
-        is. A modifier that merely EXEMPLIFIES (`e.g. when …`) does not
-        restrict it and stays a hard negative with the other asides. The miss
-        does not depend on the delimiter: the comma, the dash, and the
-        parenthesis all lose it. Each case is parametrized so
-        that every one of them has to fail on its own; the day one starts to
-        pass, strict xfail turns that into a suite failure.
+        Each sentence restricts the prohibition and should be reported,
+        exactly as its unmodified form is. A modifier that merely exemplifies
+        (`e.g. when …`) remains a hard negative with the other asides.
         """
         assert self._critical(prompt), prompt
 
@@ -1693,33 +1681,16 @@ class TestH6:
             "The upstream service returns JSON. Our docs are written in Markdown.",
             "This tool outputs JSON. Some legacy feeds use XML.",
             "Write JSON to disk under build/. Parse the JSON payload before use.",
+            "Responses are serialized to JSON. The changelog entry is Markdown.",
         ):
             findings = detect_h6(AgentConfig(system_prompt=prompt))
             assert not any("multiple output formats" in f.description for f in findings), prompt
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="documented limitation: a two-format delivery of the agent's own reply is missed in the third person",
-    )
     def test_descriptive_two_format_delivery_should_be_reported(self):
-        """DESIRED BEHAVIOUR, not today's behaviour.
-
-        Both prompts describe two delivery formats for the AGENT'S OWN reply,
-        which is the competing contract the rule exists to surface, but they
-        describe it in the third person instead of instructing it, so the
-        narrowed rule misses them. That is the line: a third-person clause
-        about another system's output is a correct hard negative above; a
-        third-person clause about the agent's own output is this miss. The
-        changelog states it as a known limitation. The day the rule reports
-        them, this test passes, strict xfail turns that into a suite failure,
-        and the marker and the changelog note both come off.
-        """
-        for prompt in (
-            "The agent's reply is delivered as JSON to the API and as Markdown to the UI.",
-            "Responses are serialized to JSON. The changelog entry is Markdown.",
-        ):
-            findings = detect_h6(AgentConfig(system_prompt=prompt))
-            assert any("multiple output formats" in f.description for f in findings), prompt
+        """A third-person contract on the agent's own reply still counts."""
+        prompt = "The agent's reply is delivered as JSON to the API and as Markdown to the UI."
+        findings = detect_h6(AgentConfig(system_prompt=prompt))
+        assert any("multiple output formats" in f.description for f in findings)
 
     def test_no_format_spec(self):
         config = AgentConfig(system_prompt="You are an assistant. " * 20)

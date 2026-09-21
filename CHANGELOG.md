@@ -205,14 +205,11 @@
   also a verdict change relative to 0.6.0 in the silent direction:
   `When the queue is non-empty, do not continue indefinitely.` was CRITICAL in
   released 0.6.0 and now reports nothing, so a file relying on that form to
-  fail a gate can move from FAIL to REVIEW or PASS. A second known limitation
-  sits next to it: a trailing condition is only recognized when its `if` /
-  `when` / `whenever` is the first word after the comma, dash, or parenthesis,
-  so a modifier in front of it (`Do not retry until it works, only if the
-  queue is non-empty.`) hides the condition and the prohibition is read as a
-  bound, and a test asserts the behaviour H2 should have there too. Finding
-  descriptions and evidence text are unchanged, so existing baseline entries
-  still match.
+  fail a gate can move from FAIL to REVIEW or PASS. Trailing conditions remain
+  visible through ordinary modifiers (`Do not retry until it works, only if
+  the queue is non-empty.`), so the prohibition is not mistaken for a bound.
+  Finding descriptions and evidence text are unchanged, so existing baseline
+  entries still match.
 - H4's `Long system prompt with no context boundary markers` (MEDIUM) now also
   requires the prompt to demonstrate cross-context statefulness — carrying
   state, memory, or history across turns, tasks, or sessions — before it
@@ -232,10 +229,7 @@
   correct only when the clause describes what some other system emits. A
   two-format *delivery of the agent's own reply* stated in the third person
   (`The agent's reply is delivered as JSON to the API and as Markdown to the
-  UI.`) is exactly the competing contract this rule exists to surface, and the
-  narrowing misses it: that is a known limitation, recorded by a test that
-  asserts the behaviour the rule should have and is expected to fail until it
-  does.
+  UI.`) is recognized as the competing contract this rule exists to surface.
 - H6's `System prompt has no explicit output format specification or example.`
   (LOW) no longer reports on a prompt that does specify one in an ordinary
   spelling. `Return Markdown only.` and `Return a plan as Markdown.` were both
