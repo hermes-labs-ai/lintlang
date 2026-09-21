@@ -80,7 +80,10 @@
   `.pre-commit-config.yaml` — `args: [AGENTS.md]`, `pass_filenames: false`,
   and `always_run: true` — because pre-commit appends the changed filenames
   after `args`, so `args:` alone adds a fixed path rather than replacing the
-  selection.
+  selection. The pre-commit guide now states that consequence and the
+  advisory default it sits next to: without `--fail-on`, a FAIL verdict does
+  not block the commit, because the scan exits 0 whatever it found and only
+  an input error is nonzero.
 - **Behavior change: `--exclude` and `.lintlangignore` globs are now anchored
   and translated correctly.** The previous translator rewrote the pattern by
   sequential string replacement and matched it unanchored, with two

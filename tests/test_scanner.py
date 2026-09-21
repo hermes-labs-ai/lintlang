@@ -369,8 +369,19 @@ class TestGlobTranslation:
         assert self._matches("*/drop/*", "skills/drop/SKILL.md")
         assert not self._matches("*/drop/*", "skills/keep/SKILL.md")
 
-    def test_invalid_pattern_returns_none_rather_than_raising(self):
-        assert _glob_to_regex("[") is not None  # escaped literally, not a class
+    def test_a_regex_metacharacter_is_translated_as_a_literal(self):
+        """The name said the opposite of the assertion.
+
+        The translator escapes every character it does not handle itself, so
+        `[` — which alone is not a valid regex — becomes a literal rather than
+        an unterminated character class, and compilation succeeds. The
+        ``None`` return remains the contract if a compilation ever does fail.
+        """
+        compiled = _glob_to_regex("[")
+
+        assert compiled is not None
+        assert compiled.search("[") is not None
+        assert compiled.search("a") is None
 
 
 class TestHealthScore:

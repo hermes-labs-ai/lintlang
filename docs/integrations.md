@@ -69,9 +69,11 @@ matches — only when a commit or `--all-files` touches one of those paths; it
 does not run unconditionally on unrelated commits, and it does not need a
 configured path for that default behavior.
 
-An explicit `args:` entry is optional. pre-commit appends the changed
+An explicit `args:` entry is optional, and it is not a way to override the
+hook's selection. pre-commit appends the changed
 filenames *after* `args`, so adding a path there does not replace the hook's
-selection — it scans that path **in addition to** each changed file. To pin
+selection — it scans that path **in addition to** each changed file, and a
+flag placed after a path still applies to the whole invocation. To pin
 the hook to one fixed path regardless of what changed, set all three
 settings, which is useful when your repository's canonical instructions live
 somewhere the `files:` regex does not match:
@@ -84,7 +86,14 @@ hooks:
     always_run: true
 ```
 
-Findings are advisory by default. To block HIGH or CRITICAL findings, add a
+Findings are advisory by default: **a FAIL verdict does not block the
+commit.** Without `--fail-on`, the scan prints the verdict and its findings
+and exits 0 whatever it found, so pre-commit records the hook as passed and
+the commit proceeds. Only an input error — a missing, unreadable, or
+unparseable file — is nonzero without that flag. A hook that prints `FAIL`
+and lets the commit through is configured, not broken.
+
+To block HIGH or CRITICAL findings, add a
 `--fail-on` argument. On the default changed-file hook, pass only the flag,
 since the filenames arrive on their own:
 
