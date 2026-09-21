@@ -1436,7 +1436,9 @@ def _check_properties(findings: list[Finding], tool_name: str, properties: dict,
                     v for v in undescribed
                     if v.get("type") in ("object", "array") or "properties" in v or "$ref" in v or "items" in v
                 ]
-                if undescribed and structural:
+                # A parent description long enough to explain the forms does the job.
+                parent_explains = isinstance(prop_def.get("description"), str) and len(prop_def["description"]) >= 80
+                if undescribed and structural and not parent_explains:
                     findings.append(
                         Finding(
                             pattern_id="H3",

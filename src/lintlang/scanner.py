@@ -65,6 +65,7 @@ NON_PROMPT_PATTERNS = [
     re.compile(r"^contributing", re.I),
     re.compile(r"^code.of.conduct", re.I),
     re.compile(r"^security", re.I),
+    re.compile(r"licen[sc]e|(?:^|[-_.])ofl(?:[-_.]|$)|^notice|third[-_ ]?party|^copying|^patents|^pull_request_template", re.I),
 ]
 
 # Directory paths that indicate non-prompt content
@@ -84,6 +85,8 @@ NON_PROMPT_DIRS = {
     "dist",
     "build",
     "htmlcov",
+    "issue_template",
+    "pull_request_template",
 }
 
 
@@ -504,17 +507,36 @@ def scan_directory(
 
         try:
             if filepath.suffix == ".py":
-                results[str(filepath)] = scan_python_file(filepath, patterns=patterns)
+                result = scan_python_file(filepath, patterns=patterns)
             else:
-                results[str(filepath)] = scan_file(filepath, patterns=patterns)
+                result = _scan_walked_file(filepath, patterns)
         except Exception as e:
-            results[str(filepath)] = input_error_result(filepath, f"Failed to parse: {e}")
+            result = input_error_result(filepath, f"Failed to parse: {e}")
+        results[str(filepath)] = result
 
     for error in sorted(traversal_errors, key=lambda item: str(item.filename or directory)):
         failed_path = Path(error.filename) if error.filename else directory
         results[str(failed_path)] = input_error_result(failed_path, f"Failed to traverse: {error}")
 
     return {path: results[path] for path in sorted(results)}
+
+
+def _scan_walked_file(filepath: Path, patterns: list[str] | None) -> ScanResult:
+    """Scan a file the walk met. A loose .txt is a prompt only if it reads like one."""
+    if filepath.suffix == ".txt":
+        from .extractors import PROMPT_SIGNALS
+
+        try:
+            text = filepath.read_text(encoding="utf-8")
+        except (OSError, UnicodeError):
+            return scan_file(filepath, patterns=patterns)
+        if not any(pattern.search(text) for pattern, _ in PROMPT_SIGNALS):
+            herm = score_text("", source_path=str(filepath))
+            return ScanResult(
+                file=str(filepath), score=herm.score, herm=herm,
+                skipped="no prompt language was recognised in this text file (name it explicitly to scan it anyway)",
+            )
+    return scan_file(filepath, patterns=patterns)
 
 
 def compute_health_score(findings: list[Finding]) -> float:

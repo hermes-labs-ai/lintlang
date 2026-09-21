@@ -55,9 +55,33 @@ def parse_source(text: str, path: str | Path) -> AgentConfig:
         return parse_text(text, source_file=str(path))
 
 
+class _TolerantLoader(yaml.SafeLoader):
+    """SafeLoader that reads application tags (`!!python/name:...`, `!Ref`, `!ENV`)
+    as plain data instead of failing. Nothing is constructed or executed."""
+
+
+def _construct_unknown(loader: yaml.SafeLoader, tag_suffix: str, node: yaml.Node) -> object:
+    if isinstance(node, yaml.ScalarNode):
+        return loader.construct_scalar(node)
+    if isinstance(node, yaml.SequenceNode):
+        return loader.construct_sequence(node, deep=True)
+    return loader.construct_mapping(node, deep=True)
+
+
+_TolerantLoader.add_multi_constructor("!", _construct_unknown)
+_TolerantLoader.add_multi_constructor("tag:yaml.org,2002:python/", _construct_unknown)
+
+_JSONC_TOKEN = re.compile(r'"(?:\\.|[^"\\])*"|//[^\n]*|/\*.*?\*/', re.DOTALL)
+
+
+def _strip_jsonc(text: str) -> str:
+    without_comments = _JSONC_TOKEN.sub(lambda m: m.group() if m.group().startswith('"') else "", text)
+    return re.sub(r",(\s*[}\]])", r"\1", without_comments)
+
+
 def parse_yaml(text: str, source_file: str = "") -> AgentConfig:
     """Parse YAML agent config."""
-    data = yaml.safe_load(text)
+    data = yaml.load(text, Loader=_TolerantLoader)  # noqa: S506 - SafeLoader subclass
     if isinstance(data, list):
         return _normalize({}, source_file, document=data)
     if not isinstance(data, dict):
@@ -67,7 +91,14 @@ def parse_yaml(text: str, source_file: str = "") -> AgentConfig:
 
 def parse_json(text: str, source_file: str = "") -> AgentConfig:
     """Parse JSON agent config."""
-    data = json.loads(text)
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError as strict_error:
+        # JSON with comments / trailing commas (.vscode/*.json, tsconfig.json).
+        try:
+            data = json.loads(_strip_jsonc(text))
+        except json.JSONDecodeError:
+            raise strict_error from None
     if isinstance(data, list):
         return _normalize({}, source_file, document=data)
     if not isinstance(data, dict):
@@ -104,7 +135,12 @@ def parse_text(text: str, source_file: str = "") -> AgentConfig:
         if isinstance(meta, dict):
             offset = text[: match.end()].count("\n")
             body = text[match.end() :]
-            if "name" in meta or "description" in meta:
+            # `name` alone is not skill metadata: GitHub issue templates carry
+            # `name` + `about`. A skill is a SKILL.md, a file under a skills /
+            # agents / commands directory, or front matter with a description.
+            parents = {part.lower() for part in Path(source_file).parts[:-1]}
+            is_skill_file = Path(source_file).name == "SKILL.md" or bool(parents & {"skills", "agents", "commands"})
+            if "description" in meta or ("name" in meta and is_skill_file):
                 skill = _skill_meta(meta, match.group(1), source_file)
 
     leading = len(body) - len(body.lstrip())

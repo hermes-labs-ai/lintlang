@@ -207,3 +207,7 @@ class TestToolCheckPrecision:
         path = tmp_path / "t.json"
         path.write_text(json.dumps({"tools": [{"name": "read_row", "description": "Read one row of the orders table by id", "inputSchema": schema}]}))
         assert not [f for f in scan_file(path).structural_findings if "anyOf" in f.description]
+
+
+def test_document_that_is_one_tool():
+    assert names({"name": "create_gist", "description": "Create a new gist", "inputSchema": SCHEMA}) == ["create_gist"]

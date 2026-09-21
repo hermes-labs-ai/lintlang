@@ -289,7 +289,11 @@ def discover_tools(data: Any) -> Discovery:
     if veto:
         return Discovery(veto=veto)
     walker = _Walker()
-    walker.walk(data, "", "", is_root=True)
+    if is_strong(data):
+        # The whole document is ONE tool (a per-tool snapshot file).
+        walker.claim(data, "<root>", "<root>", "")
+    else:
+        walker.walk(data, "", "", is_root=True)
     found = walker.found
     # A manifest often lists the same tool twice: a short `tools` declaration and
     # a full `tools/list` response. Keep the fuller copy; reporting both doubles
