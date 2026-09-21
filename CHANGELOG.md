@@ -160,15 +160,6 @@
   bound, and a test asserts the behaviour H2 should have there too. Finding
   descriptions and evidence text are unchanged, so existing baseline entries
   still match.
-- **Verdict change carried over from unreleased work after the 0.6.0 tag.** H2
-  no longer reports a `loop over` / `loop through` traversal that carries no
-  indefinite-continuation word: `Loop through all search results and analyze
-  each one.` was CRITICAL in released 0.6.0 and now reports nothing, while
-  `Loop over the queue indefinitely.` is still CRITICAL. The bundled
-  `samples/bad_agent_config.json` moves from 4 CRITICAL findings to 3 for the
-  same reason. This narrowing is not part of the H2 prohibition guard below; it
-  landed between the 0.6.0 tag and this release and is recorded here so an
-  upgrade from 0.6.0 accounts for it.
 - H4's `Long system prompt with no context boundary markers` (MEDIUM) now also
   requires the prompt to demonstrate cross-context statefulness — carrying
   state, memory, or history across turns, tasks, or sessions — before it
