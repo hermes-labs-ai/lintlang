@@ -703,8 +703,7 @@ class TestH2:
         assert not self._critical("Agents without approval must not continue indefinitely.")
 
     def test_a_parenthetical_comma_does_not_hide_an_earlier_negative(self):
-        """A comma only starts a new left-hand clause when it closes a fronted
-        condition or opens a coordinated clause.
+        """A comma only starts a new left-hand clause for coordination.
 
         Reported: taking the last comma let a parenthetical or a complement
         clause hide the earlier negative, so a double negation scanned clean.
@@ -824,21 +823,8 @@ class TestH2:
         ):
             assert not self._critical(prompt), prompt
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="documented limitation: a condition fronted before the negator does not defeat the prohibition",
-    )
     def test_a_fronted_condition_should_defeat_the_prohibition(self):
-        """DESIRED BEHAVIOUR, not today's behaviour.
-
-        A condition placed after the behaviour makes the prohibition
-        conditional and is reported; the same condition moved in front of the
-        negator is read as closing its own clause and reports nothing. The two
-        say the same thing, so both should be reported. The changelog records
-        the asymmetry as a known limitation and as a verdict change relative to
-        0.6.0, which reported the fronted form. The day it is reported again,
-        this test passes, strict xfail turns that into a suite failure, and the
-        marker and the changelog note come off together.
+        """A fronted condition qualifies a prohibition just as a trailing one does.
 
         This covers every fronted condition, whichever negator follows it. A
         coordinated sibling clause (`Do not continue indefinitely, and do not

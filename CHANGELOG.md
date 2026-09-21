@@ -180,7 +180,6 @@
   attached to the forbidden behaviour itself (`Do not keep trying until it
   works when the credentials are wrong.`) still is. The guard reads the
   negator's own clause: to its left a comma opens that clause only when it
-  closes a fronted condition (`When the push fails, do not retry until …`) or
   starts a coordinated one (`…, and do not retry until success`), so a
   parenthetical or a complement cannot hide an earlier negative
   (`It is not true, however, that you must never retry until it works.` is
@@ -193,21 +192,13 @@
   anything other than an `if` / `when` / `whenever` condition is an aside or
   the author's own bound and leaves the prohibition whole
   (`Do not retry indefinitely (see the runbook).`,
-  `Do not continue indefinitely (stop after ten items).`). Only a *trailing*
-  condition does this. A condition **fronted** before the negator is read as
-  closing its own clause, so the prohibition stays whole and H2 stays silent:
-  `If the queue is non-empty, do not retry until it works.` and
-  `When the queue is non-empty, do not continue indefinitely.` carry no H2
-  finding, while the same conditions placed after the phrase are reported. This
-  asymmetry is a known limitation rather than a judgement that a fronted
-  condition bounds the behaviour, and a test asserts the behaviour H2 should
-  have and is expected to fail until it does. It is
-  also a verdict change relative to 0.6.0 in the silent direction:
-  `When the queue is non-empty, do not continue indefinitely.` was CRITICAL in
-  released 0.6.0 and now reports nothing, so a file relying on that form to
-  fail a gate can move from FAIL to REVIEW or PASS. Trailing conditions remain
-  visible through ordinary modifiers (`Do not retry until it works, only if
-  the queue is non-empty.`), so the prohibition is not mistaken for a bound.
+  `Do not continue indefinitely (stop after ten items).`). Fronted and trailing
+  conditions are treated consistently: both `If the queue is non-empty, do not
+  retry until it works.` and `Do not retry until it works, if the queue is
+  non-empty.` remain reportable because neither states an unconditional bound.
+  Trailing conditions remain visible through ordinary modifiers (`Do not retry
+  until it works, only if the queue is non-empty.`), so the prohibition is not
+  mistaken for a bound.
   Finding descriptions and evidence text are unchanged, so existing baseline
   entries still match.
 - H4's `Long system prompt with no context boundary markers` (MEDIUM) now also

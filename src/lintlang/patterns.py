@@ -1170,17 +1170,14 @@ _TRAILING_CONDITION = re.compile(
     r"(?:(?:but\s+)?only\s+)?(?:if|when|whenever)\b",
     re.IGNORECASE,
 )
-# A comma only starts a new clause to the left of the negator when it closes a
-# fronted subordinate clause ("When the push fails, do not retry until ...") or
-# opens a coordinated one ("... , and do not retry until success"). Taking the
-# last comma unconditionally hid an earlier negative behind a parenthetical or
-# a complement ("It is not true, however, that you must never retry until it
-# works"), which inverted the author's meaning.
+# A comma only starts a new clause to the left of the negator when it opens a
+# coordinated one ("... , and do not retry until success"). A fronted condition
+# still qualifies the prohibition ("When the push fails, do not retry until
+# ..."), so it must remain visible to the defeater check. Taking the last comma
+# unconditionally hid both conditions and earlier negatives behind a
+# parenthetical or complement ("It is not true, however, that you must never
+# retry until it works"), which inverted the author's meaning.
 _LEFT_CLAUSE_COMMA = re.compile(r",")
-_FRONTED_SUBORDINATOR = re.compile(
-    r"[\s\u2022*\-]*(?:if|when|whenever|while|once|after|before|although|though|because|since|unless|until|as)\b",
-    re.IGNORECASE,
-)
 _COORDINATED_CLAUSE = re.compile(
     r"\s*(?:and|but|or|so|then|yet|while|whereas)\b",
     re.IGNORECASE,
@@ -1208,16 +1205,14 @@ def _immediate_clause(text: str, start: int, limit: int = 80) -> str:
 def _left_clause_start(before_negator: str, sentence_start: int) -> int:
     """Return where the negator's own clause begins, at or after ``sentence_start``.
 
-    Only a comma that closes a fronted subordinate clause or opens a
-    coordinated one moves the start; a parenthetical (", however,") or a
-    complement (", that you must ...") leaves the earlier text in the clause.
+    Only a comma that opens a coordinated clause moves the start. A fronted
+    condition must remain in the clause because it qualifies the prohibition;
+    a parenthetical (", however,") or complement (", that you must ...") also
+    leaves the earlier text in the clause.
     """
     clause_start = sentence_start
     for comma in _LEFT_CLAUSE_COMMA.finditer(before_negator, sentence_start):
-        closes_fronted = clause_start == sentence_start and _FRONTED_SUBORDINATOR.match(
-            before_negator, sentence_start
-        )
-        if _COORDINATED_CLAUSE.match(before_negator, comma.end()) or closes_fronted:
+        if _COORDINATED_CLAUSE.match(before_negator, comma.end()):
             clause_start = comma.end()
     return clause_start
 
@@ -1238,9 +1233,9 @@ def _is_negated_prohibition(text: str, position: int) -> bool:
       or after the prohibition, and the next sentence does not open with one;
     - the sentence is not a question;
     - the negator's clause is not conditional or interrogative. To the left the
-      clause begins after a sentence break or after a comma that closes a
-      fronted condition ("When the push fails, do not retry until ...") or
-      opens a coordinated clause ("..., and do not retry until success"). To
+      clause begins after a sentence break or after a comma that opens a
+      coordinated clause ("..., and do not retry until success"); a fronted
+      condition remains part of it. To
       the right it ends at the first clause boundary after the behavior, so the
       author's own stop condition in a coordinated clause ("do not continue
       indefinitely and stop when the queue drains") does not defeat the
