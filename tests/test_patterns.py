@@ -702,6 +702,112 @@ class TestH2:
         assert not self._critical("Do not continue indefinitely, and do not retry until success.")
         assert not self._critical("Agents without approval must not continue indefinitely.")
 
+    def test_a_parenthetical_comma_does_not_hide_an_earlier_negative(self):
+        """A comma only starts a new left-hand clause when it closes a fronted
+        condition or opens a coordinated clause.
+
+        Reported: taking the last comma let a parenthetical or a complement
+        clause hide the earlier negative, so a double negation scanned clean.
+        """
+        for prompt in (
+            "It is not true, however, that you must never retry until it works.",
+            "It is not true, in general, that you must not continue indefinitely.",
+            "There is no reason, the runbook says, that you should not continue indefinitely.",
+        ):
+            assert self._critical(prompt), prompt
+
+        # HARD NEGATIVES: a coordinated sibling clause closes the clause, so
+        # the earlier prohibition is not read as an earlier negative and these
+        # stay silent.
+        for prompt in (
+            "Do not continue indefinitely, and do not retry until success.",
+            "Stop at the first error, and never retry until it works.",
+        ):
+            assert not self._critical(prompt), prompt
+
+    def test_apostrophe_less_negatives_count_like_their_contractions(self):
+        """An earlier negative is read the same way with or without its apostrophe."""
+        for with_apostrophe, without_apostrophe in (
+            ("It won't help to never retry until success.", "It wont help to never retry until success."),
+            (
+                "It doesn't say you must not continue indefinitely.",
+                "It doesnt say you must not continue indefinitely.",
+            ),
+            (
+                "It didn't say you must not continue indefinitely.",
+                "It didnt say you must not continue indefinitely.",
+            ),
+            (
+                "It isn't true that you must never retry until it works.",
+                "It isnt true that you must never retry until it works.",
+            ),
+        ):
+            assert self._critical(with_apostrophe), with_apostrophe
+            assert self._critical(without_apostrophe), without_apostrophe
+
+        # HARD NEGATIVES: the apostrophe-less forms are whole words, not
+        # substrings of ordinary ones, and an unnegated clause stays silent.
+        for prompt in (
+            "The wonton vendor must never continue indefinitely.",
+            "The cantina rota says you must not continue indefinitely.",
+            "Do not continue indefinitely.",
+        ):
+            assert not self._critical(prompt), prompt
+
+    @pytest.mark.xfail(
+        strict=True,
+        reason="documented limitation: a trailing condition is missed when a modifier precedes its subordinator",
+    )
+    @pytest.mark.parametrize(
+        "prompt",
+        (
+            "Do not retry until it works, only if the queue is non-empty.",
+            "Do not retry until it works (only if the queue is non-empty).",
+            "Do not continue indefinitely (but only when the queue is non-empty).",
+            "Do not retry until it works ((if the queue is non-empty)).",
+            "Do not continue indefinitely, but only when the queue is non-empty.",
+            "Do not continue indefinitely - only if the queue is non-empty.",
+        ),
+    )
+    def test_a_modified_trailing_condition_should_defeat_the_prohibition(self, prompt):
+        """DESIRED BEHAVIOUR, not today's behaviour.
+
+        The right-hand search reopens its window only when the subordinator is
+        the first word after the delimiter, so any modifier in front of it
+        (`only if`, `but only when`, a second parenthesis) hides the condition
+        and the prohibition is read as a bound. Each sentence below RESTRICTS
+        the prohibition and should be reported, exactly as its unmodified form
+        is. A modifier that merely EXEMPLIFIES (`e.g. when …`) does not
+        restrict it and stays a hard negative with the other asides. The miss
+        does not depend on the delimiter: the comma, the dash, and the
+        parenthesis all lose it. Each case is parametrized so
+        that every one of them has to fail on its own; the day one starts to
+        pass, strict xfail turns that into a suite failure.
+        """
+        assert self._critical(prompt), prompt
+
+    def test_a_trailing_condition_still_defeats_the_prohibition(self):
+        """A condition introduced after the behavior qualifies it.
+
+        Reported: the right-hand clause search stopped at the comma, so a
+        trailing ", if ..." never reached the conditional check.
+        """
+        for prompt in (
+            "Do not retry until it works, if the queue is non-empty.",
+            "Never continue indefinitely, when the operator is away.",
+            "Do not keep trying until it works - if the credentials are wrong.",
+        ):
+            assert self._critical(prompt), prompt
+
+        # HARD NEGATIVES: the author's own stop condition in a coordinated or
+        # concessive clause is not a condition on the prohibited behavior.
+        for prompt in (
+            "Do not retry until it works, and escalate if the queue is non-empty.",
+            "You must not retry until success, even if the operator asks.",
+            "Do not continue indefinitely - report when you stop.",
+        ):
+            assert not self._critical(prompt), prompt
+
     def test_only_listed_adverbs_may_sit_between_negator_and_behavior(self):
         for prompt in (
             "Don't continuously loop over the queue indefinitely.",

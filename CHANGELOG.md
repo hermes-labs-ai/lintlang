@@ -106,7 +106,16 @@
   drains.` — does not make the prohibition conditional, so the corrected
   wording a user writes after being flagged is not flagged again; a condition
   attached to the forbidden behaviour itself (`Do not keep trying until it
-  works when the credentials are wrong.`) still is. Finding descriptions and
+  works when the credentials are wrong.`) still is. The guard reads the
+  negator's own clause: to its left a comma opens that clause only when it
+  closes a fronted condition (`When the push fails, do not retry until …`) or
+  starts a coordinated one (`…, and do not retry until success`), so a
+  parenthetical or a complement cannot hide an earlier negative
+  (`It is not true, however, that you must never retry until it works.` is
+  reported); an earlier negative counts with or without its apostrophe (`wont`
+  as well as `won't`); and a condition introduced after the phrase
+  (`…, if the queue is non-empty`) defeats the prohibition exactly as an
+  unpunctuated one does. Finding descriptions and
   evidence text are unchanged, so existing baseline entries still match.
 - **Verdict change carried over from unreleased work after the 0.6.0 tag.** H2
   no longer reports a `loop over` / `loop through` traversal that carries no

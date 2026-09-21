@@ -816,8 +816,15 @@ _ADJACENT_NEGATOR = re.compile(
 )
 # Another negative word earlier in the negator's own clause is a double
 # negation ("it is not true that you must not ...", "do not never ...").
+# Contractions are listed with and without their apostrophe, because an author
+# who writes "dont" also writes "wont", "isnt" and "didnt"; the apostrophe form
+# alone would make the guard's verdict depend on typing style.
+_APOSTROPHE_LESS_NEGATIVE = (
+    r"(?:dont|wont|cant|isnt|arent|wasnt|werent|doesnt|didnt|hasnt|havent"
+    r"|hadnt|shouldnt|wouldnt|couldnt|mustnt|aint)"
+)
 _EARLIER_NEGATIVE = re.compile(
-    rf"\b(?:not|never|no|nor|neither|cannot|dont)\b|n{_NEG_APOSTROPHE}t\b",
+    rf"\b(?:not|never|no|nor|neither|cannot|{_APOSTROPHE_LESS_NEGATIVE})\b|n{_NEG_APOSTROPHE}t\b",
     re.IGNORECASE,
 )
 _LEADING_NEGATOR = re.compile(rf"{_NEGATOR}\b", re.IGNORECASE)
@@ -846,6 +853,29 @@ _RIGHT_CLAUSE_BOUNDARY = re.compile(
     r"[,(]|\s[-\u2013\u2014]\s|\s(?:and|but|or|then)\s",
     re.IGNORECASE,
 )
+# ...except when the comma or dash introduces a condition of its own ("do not
+# retry until it works, if the queue is non-empty"). That condition qualifies
+# the prohibited behavior rather than stating the author's stop condition, so
+# the right-hand search must see it.
+_TRAILING_CONDITION = re.compile(
+    r"(?:[,\u2013\u2014]|\s[-\u2013\u2014])\s*(?:if|when|whenever)\b",
+    re.IGNORECASE,
+)
+# A comma only starts a new clause to the left of the negator when it closes a
+# fronted subordinate clause ("When the push fails, do not retry until ...") or
+# opens a coordinated one ("... , and do not retry until success"). Taking the
+# last comma unconditionally hid an earlier negative behind a parenthetical or
+# a complement ("It is not true, however, that you must never retry until it
+# works"), which inverted the author's meaning.
+_LEFT_CLAUSE_COMMA = re.compile(r",")
+_FRONTED_SUBORDINATOR = re.compile(
+    r"[\s\u2022*\-]*(?:if|when|whenever|while|once|after|before|although|though|because|since|unless|until|as)\b",
+    re.IGNORECASE,
+)
+_COORDINATED_CLAUSE = re.compile(
+    r"\s*(?:and|but|or|so|then|yet|while|whereas)\b",
+    re.IGNORECASE,
+)
 
 
 _CLAUSE_BOUNDARY = re.compile(
@@ -866,6 +896,23 @@ def _immediate_clause(text: str, start: int, limit: int = 80) -> str:
     return window[: boundary.start()] if boundary else window
 
 
+def _left_clause_start(before_negator: str, sentence_start: int) -> int:
+    """Return where the negator's own clause begins, at or after ``sentence_start``.
+
+    Only a comma that closes a fronted subordinate clause or opens a
+    coordinated one moves the start; a parenthetical (", however,") or a
+    complement (", that you must ...") leaves the earlier text in the clause.
+    """
+    clause_start = sentence_start
+    for comma in _LEFT_CLAUSE_COMMA.finditer(before_negator, sentence_start):
+        closes_fronted = clause_start == sentence_start and _FRONTED_SUBORDINATOR.match(
+            before_negator, sentence_start
+        )
+        if _COORDINATED_CLAUSE.match(before_negator, comma.end()) or closes_fronted:
+            clause_start = comma.end()
+    return clause_start
+
+
 def _is_negated_prohibition(text: str, position: int) -> bool:
     """Return whether the behavior starting at ``position`` is forbidden, not instructed.
 
@@ -882,12 +929,14 @@ def _is_negated_prohibition(text: str, position: int) -> bool:
       or after the prohibition, and the next sentence does not open with one;
     - the sentence is not a question;
     - the negator's clause is not conditional or interrogative. To the left the
-      clause ends at the nearest comma or sentence break, so a fronted
-      condition ("When the push fails, do not retry until ...") still leaves a
-      prohibition. To the right it ends at the first clause boundary after the
-      behavior, so the author's own stop condition in a coordinated clause
-      ("do not continue indefinitely and stop when the queue drains") does not
-      defeat the prohibition.
+      clause begins after a sentence break or after a comma that closes a
+      fronted condition ("When the push fails, do not retry until ...") or
+      opens a coordinated clause ("..., and do not retry until success"). To
+      the right it ends at the first clause boundary after the behavior, so the
+      author's own stop condition in a coordinated clause ("do not continue
+      indefinitely and stop when the queue drains") does not defeat the
+      prohibition — unless that boundary itself introduces a condition on the
+      behavior ("..., if the queue is non-empty"), which does.
 
     Known limitations, reported rather than guessed at: an interrupted negator
     ("Do not, under any circumstances, ...", "Never, ever ..."), a delegated
@@ -923,11 +972,13 @@ def _is_negated_prohibition(text: str, position: int) -> bool:
         if _LICENSING_EXCEPTION.match(text, after_break):
             return False
 
-    clause_start = max(sentence_start, before_negator.rfind(",") + 1)
+    clause_start = _left_clause_start(before_negator, sentence_start)
     if _EARLIER_NEGATIVE.search(text, clause_start, adjacent.start("negator")):
         return False
     right_boundary = _RIGHT_CLAUSE_BOUNDARY.search(text, position, sentence_end)
     clause_end = right_boundary.start() if right_boundary else sentence_end
+    if right_boundary is not None and _TRAILING_CONDITION.match(text, right_boundary.start()):
+        clause_end = sentence_end
     return _PROHIBITION_DEFEATER.search(text, clause_start, clause_end) is None
 
 
