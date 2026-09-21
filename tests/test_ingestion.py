@@ -306,5 +306,9 @@ def test_python_literal_tool_definitions_are_read(tmp_path):
     )
     result = scan_file(path)
     assert result.inspected["tools"] == 2
+    assert result.inspected["tools_with_schema"] == 1
+    assert result.notes == [
+        "Tool schema not inspected (non-literal or non-object Python expression): log at line 3"
+    ]
     finding = next(f for f in result.structural_findings if f.code == "H1.2")
     assert finding.source_region.start_line == 2

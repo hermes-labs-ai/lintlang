@@ -715,7 +715,13 @@ def _scan_python_extraction(
     if extraction.tools:
         inspected["tools"] = len(extraction.tools)
         inspected["tools_described"] = sum(1 for t in extraction.tools if t.description.strip())
-        inspected["tools_with_schema"] = len(extraction.tools)
+        inspected["tools_with_schema"] = sum(1 for t in extraction.tools if t.has_schema)
+
+    notes = [
+        f"Tool schema not inspected (non-literal or non-object Python expression): {t.name} at line {t.line}"
+        for t in extraction.tools
+        if not t.has_schema
+    ]
 
     return ScanResult(
         file=str(path),
@@ -723,6 +729,7 @@ def _scan_python_extraction(
         herm=herm,
         structural_findings=all_findings,
         inspected=inspected,
+        notes=notes,
         skipped=(
             None
             if inspected or extraction.parse_errors

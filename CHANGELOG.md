@@ -50,7 +50,9 @@
 - Python: a string is extracted as a prompt when the code uses it as one;
   docstrings, help text, log and exception messages are not prompts. P2 is LOW
   (over 500 characters) / INFO instead of MEDIUM / LOW, and the version-marker
-  note does not apply to extracted literals.
+  note does not apply to extracted literals. A Python tool's schema is counted
+  as inspected only when it is a literal object; dynamic schema expressions are
+  retained as coverage notices rather than silently treated as empty schemas.
 - Baselines: evidence is part of a finding's fingerprint and H2/H4/H5 evidence in
   text files is now the whole line, so such entries recorded by 0.6.0 resurface
   once and need re-recording.

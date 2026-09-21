@@ -157,12 +157,15 @@ def _literal_tools(tree: ast.AST, parents: dict[ast.AST, ast.AST]) -> list[Extra
             schema = ast.literal_eval(schema_node)
         except (ValueError, SyntaxError, TypeError):
             schema = {}
+            schema_readable = False
+        else:
+            schema_readable = isinstance(schema, dict)
         found.append(
             ExtractedTool(
                 name=name,
                 description=description or "",
                 parameters=schema if isinstance(schema, dict) else {},
-                has_schema=True,
+                has_schema=schema_readable,
                 line=getattr(node, "lineno", 1),
                 group=_enclosing_collection(node, parents),
             )

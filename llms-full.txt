@@ -268,10 +268,11 @@ runtime interpolation and data flow are not evaluated. Prompt candidates are
 deduplicated by their first 200 characters, so distinct strings with the same
 prefix can collapse to one candidate. Python syntax errors produce ERROR.
 
-Only H2, H4, H5, and H6 run on extracted prompts. H1, H3, and H7 require a declared
-tool/schema/message surface that this extraction does not produce. Selecting
-only those excluded families emits a warning for Python inputs, not proof that
-those checks passed. P1/P2 still run independently of that selection.
+Only H2, H4, H5, and H6 run on extracted prompts. Literal Python tool
+definitions provide a separate declared surface on which H1 and H3 run; H7
+does not run in Python extraction mode. Selecting a family for which a Python
+input provides no supported surface is not proof that the check passed. P1/P2
+still run independently of that selection.
 
 - **P1: Uncalibrated Threshold.** Inspects supported nonzero numeric assignments
   to threshold/confidence-like names, excluding recognized counters. No recognized
@@ -289,7 +290,10 @@ those checks passed. P1/P2 still run independently of that selection.
   `parameters_json_schema`, `args_schema`) and a literal or absent description —
   the way Python MCP servers declare `Tool(name=..., description=...,
   inputSchema=...)`. H1 and H3 run on them, with the call's line. Tools declared
-  by decorator and docstring, or with a computed description, are not read.
+  by decorator and docstring, or with a computed description, are not read. A
+  dynamic or non-object schema expression is not evaluated: the literal name
+  and description remain inspected, while the schema is excluded from
+  `tools_with_schema` and named under `not_inspected`.
 - **P2: Embedded Scaffold.** An extracted prompt longer than 500 characters
   produces LOW; one longer than 200 and at most 500 produces INFO. It suggests
   reviewing whether the prompt should be externalized, not that embedded prompts
