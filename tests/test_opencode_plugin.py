@@ -11,3 +11,9 @@ def test_opencode_adapter_is_bounded_and_documents_contract():
     assert "file.edited" in docs
     assert "explicit path" in docs
     assert "raw" in docs and "evidence" in docs
+
+
+def test_opencode_adapter_reports_input_error_before_skipped_metadata():
+    plugin = (ROOT / "integrations/opencode/lintlang.js").read_text()
+
+    assert plugin.index("if (result.input_error)") < plugin.index("if (result.skipped)")

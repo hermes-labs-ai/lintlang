@@ -22,8 +22,8 @@ function candidatePaths(input, output) {
 }
 
 function formatResult(path, result) {
-  if (result.skipped) return "" // nothing agent-facing in the edited file: nothing to say
   if (result.input_error) return `LintLang could not scan ${path}: ${result.input_error}`
+  if (result.skipped) return "" // nothing agent-facing in the edited file: nothing to say
   const findings = result.structural_findings || []
   if (!findings.length) return ""
   const lines = [
