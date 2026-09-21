@@ -204,7 +204,7 @@ those checks passed. P1/P2 still run independently of that selection.
   uncertainty markers can produce LOW. This tests a documented justification
   signal, not whether the threshold was actually calibrated or is correct.
 - **P2: Embedded Scaffold.** An extracted prompt longer than 500 characters
-  produces MEDIUM; one longer than 200 and at most 500 produces LOW. It suggests
+  produces LOW; one longer than 200 and at most 500 produces INFO. It suggests
   reviewing whether the prompt should be externalized, not that embedded prompts
   necessarily cause runtime failures.
 

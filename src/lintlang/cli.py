@@ -421,6 +421,7 @@ def _cmd_scan(args: argparse.Namespace) -> int:
             " ".join(inputs) if inputs else str(args.discover),
             f"Nothing was inspected: {reasons}. A scan that read no agent-facing content is not a "
             "pass. Use --allow-uninspected if these inputs may legitimately hold none.",
+            skipped=reasons,
         )
     if not results and not args.write_baseline and not args.allow_empty:
         requested = " ".join(inputs) if inputs else str(args.discover)
@@ -437,6 +438,10 @@ def _cmd_scan(args: argparse.Namespace) -> int:
         compact_skips = len(results) > 1
         for key, result in results.items():
             if compact_skips and result.skipped is not None and result.input_error is None:
+                continue
+            # In a multi-file scan a clean file is one row of the summary
+            # table, not a screen of its own.
+            if compact_skips and result.input_error is None and not result.structural_findings and not result.notes:
                 continue
             print(format_terminal(
                 result, show_suggestions=not args.no_suggestions,
@@ -616,7 +621,9 @@ def _cmd_scan(args: argparse.Namespace) -> int:
     return 0
 
 
-def _empty_scan_failure(args: argparse.Namespace, requested: str, message: str) -> int:
+def _empty_scan_failure(
+    args: argparse.Namespace, requested: str, message: str, skipped: str | None = None
+) -> int:
     """Report a zero-file scan identically on every output channel."""
     import json
 
@@ -633,6 +640,10 @@ def _empty_scan_failure(args: argparse.Namespace, requested: str, message: str) 
                         "file": requested,
                         "verdict": "ERROR",
                         "input_error": message,
+                        # Set when files were read and held nothing agent-facing
+                        # (as opposed to no file matching at all). Editor hooks
+                        # use it to stay quiet about an ordinary package.json.
+                        "skipped": skipped,
                         "structural_findings": [],
                         "herm": None,
                     }

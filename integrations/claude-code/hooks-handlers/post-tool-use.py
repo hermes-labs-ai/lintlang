@@ -102,6 +102,8 @@ def _lintlang_command() -> list[str] | None:
 
 
 def _format_result(path: Path, result: dict[str, Any]) -> str | None:
+    if result.get("skipped"):
+        return None  # nothing agent-facing in the edited file: nothing to say
     input_error = result.get("input_error")
     if input_error:
         return f"LintLang could not scan {path}: {input_error}"

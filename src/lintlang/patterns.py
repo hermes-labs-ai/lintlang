@@ -1639,7 +1639,15 @@ def detect_h4(config: AgentConfig) -> list[Finding]:
             for match in re.finditer(rf"\b{re.escape(signal)}\b", prompt, re.IGNORECASE)
         )
 
-        if len(prompt) > 500 and not has_boundary and _shows_cross_context_statefulness(prompt, scope):
+        # Absence of boundary vocabulary is a property of a chat system prompt;
+        # a Markdown reference document that mentions "conversation history"
+        # is describing an API, not failing to scope a session.
+        if (
+            config.kind != "instructions"
+            and len(prompt) > 500
+            and not has_boundary
+            and _shows_cross_context_statefulness(prompt, scope)
+        ):
             findings.append(
                 Finding(
                     pattern_id="H4",
@@ -2187,7 +2195,7 @@ def detect_h6(config: AgentConfig) -> list[Finding]:
     has_version = bool(
         re.search(r"(?:^|\s)v\d+\.\d|version\s*[:\d]|prompt\s*v\d", prompt, re.IGNORECASE | re.MULTILINE)
     )
-    if is_chat_prompt and len(prompt) > 500 and not has_version:
+    if is_chat_prompt and config.kind != "python" and len(prompt) > 500 and not has_version:
         findings.append(
             Finding(
                 pattern_id="H6",

@@ -32,6 +32,8 @@ def _display_path(path: Path, cwd: str | None) -> str:
 
 
 def _format_result(path: str, verdict: str, result: Any) -> str | None:
+    if getattr(result, "skipped", None) and not result.input_error:
+        return None  # nothing agent-facing in the edited file: nothing to say
     if result.input_error:
         return f"LintLang could not scan {path}: {result.input_error}"
     findings = result.structural_findings

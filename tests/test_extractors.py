@@ -220,9 +220,10 @@ class TestEmbeddedScaffoldDetector:
         findings = detect_scaffold_in_code(result)
         assert len(findings) == 1
         assert findings[0].pattern_id == "P2"
-        assert findings[0].severity == Severity.MEDIUM
+        # Length alone is advice, not a verdict-moving defect (was MEDIUM).
+        assert findings[0].severity == Severity.LOW
 
-    def test_medium_prompt_flagged_low(self):
+    def test_medium_prompt_flagged_info(self):
         medium_text = "You are an assistant. " * 12 + "Respond with analysis."
         result = ExtractionResult(
             prompts=[
@@ -237,7 +238,7 @@ class TestEmbeddedScaffoldDetector:
         )
         findings = detect_scaffold_in_code(result)
         assert len(findings) == 1
-        assert findings[0].severity == Severity.LOW
+        assert findings[0].severity == Severity.INFO
 
     def test_short_prompt_not_flagged(self):
         short_text = "You are an assistant. Respond briefly."
@@ -347,3 +348,42 @@ MAX_RETRIES = 5
         assert result.input_error is not None
         assert "Python parse error" in result.input_error
         assert not any(f.pattern_id == "ERR" for f in result.structural_findings)
+
+
+class TestPromptsAreRecognisedByUse:
+    """A string is a prompt because the code uses it as one, not because it has prose in it."""
+
+    def _prompts(self, source: str) -> list[str]:
+        from lintlang.extractors import extract_from_python
+
+        return [p.text for p in extract_from_python(source).prompts]
+
+    def test_docstrings_are_not_prompts(self):
+        source = (
+            'def build(function):\n'
+            '    """Build a validator from a tool function. First, read the user input schema; then respond with JSON output."""\n'
+            '    return function\n'
+        )
+        assert self._prompts(source) == []
+
+    def test_help_log_and_exception_text_are_not_prompts(self):
+        text = "First, pass the user input file; then the tool will respond with JSON output for each step."
+        source = (
+            f'parser.add_argument("--x", help="{text}")\n'
+            f'logger.info("{text}")\n'
+            f'raise ValueError("{text}")\n'
+        )
+        assert self._prompts(source) == []
+
+    def test_prompt_named_binding_is_a_prompt(self):
+        source = 'SYSTEM_PROMPT = "Analyze the ticket and respond in JSON with the fields priority and owner."\n'
+        assert len(self._prompts(source)) == 1
+
+    def test_keyword_and_message_dict_are_prompts(self):
+        text = "Summarise the user message in two sentences and respond in JSON only, nothing else."
+        source = f'agent = Agent(model, instructions="{text}")\nmessages = [{{"role": "system", "content": "{text} Always."}}]\n'
+        assert len(self._prompts(source)) == 2
+
+    def test_text_addressing_a_model_is_a_prompt_wherever_it_sits(self):
+        source = 'run("You are a triage clinician coordinating a medical workflow for the on-call team.")\n'
+        assert len(self._prompts(source)) == 1

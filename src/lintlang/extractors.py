@@ -175,6 +175,86 @@ def _has_calibration_comment(source_lines: list[str], line_idx: int) -> tuple[bo
     return False, ""
 
 
+_PROMPT_NAME = re.compile(
+    r"prompt|system|instruction|template|persona|preamble|scaffold|few_?shot|guideline|rubric|^content$", re.I
+)
+_NOT_PROMPT_NAME = re.compile(r"^(?:help|description|doc|epilog|usage|msg|message|reason|error|warning|title|label|summary)$", re.I)
+_NOT_PROMPT_CALL = re.compile(
+    r"^(?:print|log|debug|info|warn|warning|error|exception|critical|fail|skip|add_argument|add_parser|"
+    r"ArgumentParser|echo|secho|option|argument|command|Field|deprecated|write|format_exc)$|Error$|Exception$|Warning$"
+)
+
+
+def _docstring_nodes(tree: ast.AST) -> set[ast.AST]:
+    """String nodes that are documentation for a human, not a prompt for a model."""
+    found: set[ast.AST] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
+            body = getattr(node, "body", [])
+            if body and isinstance(body[0], ast.Expr) and isinstance(body[0].value, ast.Constant):
+                found.add(body[0].value)
+        # A bare string statement anywhere (attribute docstring, commented-out block)
+        if isinstance(node, ast.Expr) and isinstance(node.value, (ast.Constant, ast.JoinedStr)):
+            found.add(node.value)
+    return found
+
+
+def _call_name(call: ast.Call) -> str:
+    func = call.func
+    if isinstance(func, ast.Attribute):
+        return func.attr
+    if isinstance(func, ast.Name):
+        return func.id
+    return ""
+
+
+def _is_prompt_in_context(node: ast.AST, parents: dict[ast.AST, ast.AST], text: str, signals: list[str]) -> bool:
+    """Decide whether a signal-bearing string is used as a prompt.
+
+    Prose that mentions "the user input" or "first, ..." is everywhere in Python:
+    docstrings, help text, log and exception messages. A string is a prompt when
+    the code treats it as one — it is bound to a prompt-like name, keyword or
+    dict key — or when it addresses a model directly ("You are ...") . Text handed
+    to logging, argparse or an exception is never a prompt.
+    """
+    child: ast.AST = node
+    parent = parents.get(child)
+    # Look through concatenation, formatting and implicit wrapping.
+    while isinstance(parent, (ast.BinOp, ast.FormattedValue, ast.JoinedStr, ast.Tuple, ast.List, ast.IfExp)) or (
+        isinstance(parent, ast.Call)
+        and isinstance(parent.func, ast.Attribute)
+        and parent.func.value is child
+    ) or (isinstance(parent, ast.Attribute) and parent.value is child):
+        child, parent = parent, parents.get(parent)
+
+    name = ""
+    if isinstance(parent, ast.keyword):
+        name = parent.arg or ""
+        call = parents.get(parent)
+        if isinstance(call, ast.Call) and _NOT_PROMPT_CALL.search(_call_name(call)):
+            return False
+    elif isinstance(parent, ast.Assign):
+        name = _get_assignment_target(parent)
+    elif isinstance(parent, ast.AnnAssign) and isinstance(parent.target, (ast.Name, ast.Attribute)):
+        name = parent.target.id if isinstance(parent.target, ast.Name) else parent.target.attr
+    elif isinstance(parent, ast.Dict):
+        for key, value in zip(parent.keys, parent.values):
+            if value is child and isinstance(key, ast.Constant) and isinstance(key.value, str):
+                name = key.value
+    elif isinstance(parent, ast.Call):
+        if _NOT_PROMPT_CALL.search(_call_name(parent)):
+            return False
+    elif isinstance(parent, ast.Raise):
+        return False
+
+    if name and _NOT_PROMPT_NAME.search(name):
+        return False
+    if name and _PROMPT_NAME.search(name):
+        return True
+    addresses_model = bool(re.search(r"\byou are\b|\byour (?:task|job|role|goal)\b|\byou (?:must|should|will)\b", text, re.I))
+    return addresses_model or len(signals) >= 3
+
+
 def extract_from_python(source: str, source_file: str = "") -> ExtractionResult:
     """Extract LLM prompts and thresholds from Python source code.
 
@@ -199,15 +279,23 @@ def extract_from_python(source: str, source_file: str = "") -> ExtractionResult:
         result.parse_errors.append(f"SyntaxError at line {e.lineno}: {e.msg}")
         return result
 
+    parents: dict[ast.AST, ast.AST] = {}
+    for parent in ast.walk(tree):
+        for child in ast.iter_child_nodes(parent):
+            parents[child] = parent
+    docstrings = _docstring_nodes(tree)
+
     # Walk the AST
     for node in ast.walk(tree):
         # ── Extract prompts from string literals ──
         if isinstance(node, (ast.Constant, ast.JoinedStr)):
+            if node in docstrings or isinstance(parents.get(node), ast.JoinedStr):
+                continue
             text = _get_string_value(node)
             if text is None:
                 continue
             signals = _classify_prompt(text)
-            if len(signals) >= MIN_SIGNAL_MATCHES:
+            if len(signals) >= MIN_SIGNAL_MATCHES and _is_prompt_in_context(node, parents, text, signals):
                 prompt = ExtractedPrompt(
                     text=text,
                     source_file=source_file,
@@ -332,7 +420,10 @@ def detect_scaffold_in_code(result: ExtractionResult) -> list[Finding]:
                 Finding(
                     pattern_id="P2",
                     pattern_name="Embedded Scaffold",
-                    severity=Severity.MEDIUM,
+                    # LOW, not MEDIUM: keeping a prompt in source is a common, deliberate
+                    # choice, not a defect. At MEDIUM this made every Python file
+                    # that holds a real prompt a REVIEW on length alone.
+                    severity=Severity.LOW,
                     location=f"{p.source_file}:{p.line_start}-{p.line_end}"
                     if p.source_file
                     else f"lines:{p.line_start}-{p.line_end}",
@@ -347,7 +438,7 @@ def detect_scaffold_in_code(result: ExtractionResult) -> list[Finding]:
                 Finding(
                     pattern_id="P2",
                     pattern_name="Embedded Scaffold",
-                    severity=Severity.LOW,
+                    severity=Severity.INFO,
                     location=f"{p.source_file}:{p.line_start}-{p.line_end}"
                     if p.source_file
                     else f"lines:{p.line_start}-{p.line_end}",
@@ -374,6 +465,7 @@ def extracted_prompts_to_configs(result: ExtractionResult) -> list[AgentConfig]:
             system_prompt=prompt.text,
             source_file=loc,
             source_region=SourceRegion(prompt.line_start, prompt.line_end),
+            kind="python",
         )
         configs.append(config)
     return configs
