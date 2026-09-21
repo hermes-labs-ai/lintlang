@@ -1008,19 +1008,47 @@ _EXPLICIT_NUMERIC_BUDGET = re.compile(
     r"(?:tool\s+calls?|attempts?|retries|tries|iterations?|turns?|rounds?)\b",
     re.IGNORECASE,
 )
+_EXPLICIT_EXECUTION_STEP_BUDGET = re.compile(
+    r"\b(?:execute|run|perform|take)\s+"
+    r"(?:max(?:imum)?(?:\s+of)?|at\s+most|no\s+more\s+than|up\s+to)\s+\d+\s+steps?\b|"
+    r"\b(?:max(?:imum)?(?:\s+of)?|at\s+most|no\s+more\s+than|up\s+to)\s+\d+\s+"
+    r"(?:execution|agent|tool|action)\s+steps?\b|"
+    r"\b(?:max(?:imum)?(?:\s+of)?|at\s+most|no\s+more\s+than|up\s+to)\s+\d+\s+steps?"
+    r"\s*[,;.]?\s*(?:then\s+)?(?:stop|terminate|exit)\b",
+    re.IGNORECASE,
+)
 _NEGATED_NUMERIC_BUDGET_PREFIX = re.compile(
     r"(?:\b(?:no|without)\s+(?:an?\s+)?(?:(?:explicit|fixed|hard)\s+)?|"
-    r"\b(?:not|never)\s+(?:(?:have|use|set|enforce|apply)\s+)?(?:an?\s+)?"
+    r"\b(?:not|never)\s+(?:(?:have|use|set|enforce|apply|execute|run|perform|take)\s+)?(?:an?\s+)?"
     r"(?:(?:explicit|fixed|hard)\s+)?)$",
+    re.IGNORECASE,
+)
+_NEGATED_CONSTRAINT_PREFIX = re.compile(
+    r"(?:\b(?:no|without)\b(?:\s+\w+){0,4}|"
+    r"\b(?:do|does|did)\s+not(?:\s+(?:have|use|set|enforce|apply))?"
+    r"(?:\s+(?:an?|any|the))?|"
+    r"\b(?:not|never)(?:\s+(?:have|use|set|enforce|apply))?"
+    r"(?:\s+(?:an?|any|the))?)\s*$",
     re.IGNORECASE,
 )
 
 
 def _has_explicit_numeric_budget(text: str) -> bool:
     """Recognize an affirmative numeric action budget, not its negation."""
-    for match in _EXPLICIT_NUMERIC_BUDGET.finditer(text):
+    for pattern in (_EXPLICIT_NUMERIC_BUDGET, _EXPLICIT_EXECUTION_STEP_BUDGET):
+        for match in pattern.finditer(text):
+            prefix = text[max(0, match.start() - 64) : match.start()]
+            if not _NEGATED_NUMERIC_BUDGET_PREFIX.search(prefix):
+                return True
+    return False
+
+
+def _has_affirmative_constraint_signal(text: str, signal: str) -> bool:
+    """Recognize a constraint keyword only when the local phrase is affirmative."""
+    pattern = re.compile(rf"\b{re.escape(signal)}\b", re.IGNORECASE)
+    for match in pattern.finditer(text):
         prefix = text[max(0, match.start() - 64) : match.start()]
-        if not _NEGATED_NUMERIC_BUDGET_PREFIX.search(prefix):
+        if not _NEGATED_CONSTRAINT_PREFIX.search(prefix):
             return True
     return False
 
@@ -1362,8 +1390,9 @@ def detect_h2(config: AgentConfig) -> list[Finding]:
     for signal in CONSTRAINT_SIGNALS:
         if has_any_constraint:
             break
-        pattern = rf"\b{re.escape(signal)}\b"
-        if re.search(pattern, prompt) or re.search(pattern, constraints_str):
+        if _has_affirmative_constraint_signal(
+            prompt, signal
+        ) or _has_affirmative_constraint_signal(constraints_str, signal):
             has_any_constraint = True
             break
 

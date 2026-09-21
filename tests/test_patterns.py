@@ -1054,9 +1054,28 @@ class TestH2:
             "There is no maximum of 5 tool calls; continue until resolved.",
             "Do not use a maximum of 5 tool calls; continue until resolved.",
             "Proceed without a fixed maximum of 5 tool calls; continue until resolved.",
+            "Do not execute at most 5 steps; continue until resolved.",
         ],
     )
     def test_negated_numeric_tool_budget_is_not_a_constraint(self, prompt):
+        config = AgentConfig(
+            system_prompt=prompt,
+            tools=[ToolDef(name="search", description="Search the database for records matching a query")],
+        )
+
+        findings = detect_h2(config)
+
+        assert any("no termination" in finding.description.lower() for finding in findings)
+
+    @pytest.mark.parametrize(
+        "prompt",
+        [
+            "There is no retry limit.",
+            "There is no retry limit of 2 attempts.",
+            "Do not set a retry_limit.",
+        ],
+    )
+    def test_negated_natural_constraint_signal_is_not_a_constraint(self, prompt):
         config = AgentConfig(
             system_prompt=prompt,
             tools=[ToolDef(name="search", description="Search the database for records matching a query")],
@@ -1075,6 +1094,24 @@ class TestH2:
         findings = detect_h2(config)
 
         assert any("no termination" in finding.description.lower() for finding in findings)
+
+    @pytest.mark.parametrize(
+        "prompt",
+        [
+            "Execute at most 5 steps, then stop.",
+            "Use no more than 5 tool steps.",
+            "Run up to 5 steps before returning the result.",
+        ],
+    )
+    def test_execution_step_limit_is_a_constraint(self, prompt):
+        config = AgentConfig(
+            system_prompt=prompt,
+            tools=[ToolDef(name="search", description="Search the database for records matching a query")],
+        )
+
+        findings = detect_h2(config)
+
+        assert not any("no termination" in finding.description.lower() for finding in findings)
 
     def test_suggested_constraint_clears_its_own_finding(self):
         tool = ToolDef(name="search", description="Search the database for records matching a query")
