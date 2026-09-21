@@ -1073,6 +1073,8 @@ class TestH2:
             "There is no retry limit.",
             "There is no retry limit of 2 attempts.",
             "Do not set a retry_limit.",
+            "No retry limit or timeout.",
+            "Neither a retry limit nor a timeout is configured.",
         ],
     )
     def test_negated_natural_constraint_signal_is_not_a_constraint(self, prompt):
