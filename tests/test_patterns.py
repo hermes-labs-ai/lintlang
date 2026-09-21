@@ -1222,13 +1222,138 @@ class TestH6:
         assert detect_h6(empty_config) == []
 
     def test_multiple_formats(self):
+        """POSITIVE CONTROL: three competing output-format instructions, description unchanged."""
         config = AgentConfig(system_prompt="Respond in JSON for data. Use markdown for text. XML for configs.")
         findings = detect_h6(config)
         assert any("multiple output formats" in f.description for f in findings)
+        mixed = [f for f in findings if "multiple output formats" in f.description]
+        assert mixed[0].description == (
+            "System prompt references multiple output formats (JSON, Markdown, XML) "
+            "— model may produce hybrid output."
+        )
+        assert mixed[0].severity == Severity.MEDIUM
+
+    def test_coordinated_output_format_instruction_still_flags(self):
+        """POSITIVE CONTROL: one instruction naming both formats keeps its identity."""
+        findings = detect_h6(AgentConfig(system_prompt="Respond in JSON and Markdown."))
+        mixed = [f for f in findings if "multiple output formats" in f.description]
+        assert len(mixed) == 1
+        assert mixed[0].severity == Severity.MEDIUM
+        assert mixed[0].location == "system_prompt"
+        assert mixed[0].description == (
+            "System prompt references multiple output formats (JSON, Markdown) "
+            "— model may produce hybrid output."
+        )
+        assert mixed[0].evidence == ""
+
+    def test_mere_format_mention_is_not_a_contract_violation(self):
+        """HARD NEGATIVE: naming formats as accepted inputs is not a competing contract."""
+        for prompt in (
+            "Audit a named config file (YAML, JSON, Markdown, text, or Python) with the CLI.",
+            "LintLang reads JSON and Markdown instruction files. Respond in JSON.",
+            "Configs can be syntactically valid YAML/JSON while the Markdown docs disagree.",
+            "The report is Markdown. It summarises the XML schema the tool validates.",
+        ):
+            findings = detect_h6(AgentConfig(system_prompt=prompt))
+            assert not any("multiple output formats" in f.description for f in findings), prompt
+
+    def test_two_real_output_instructions_still_flag(self):
+        """POSITIVE CONTROL: two genuine output instructions still report at MEDIUM."""
+        config = AgentConfig(
+            system_prompt="Return the answer as markdown. Output format: JSON for every structured field."
+        )
+        findings = detect_h6(config)
+        mixed = [f for f in findings if "multiple output formats" in f.description]
+        assert len(mixed) == 1
+        assert mixed[0].severity == Severity.MEDIUM
+
+    def test_schema_conformance_and_write_verb_instructions_still_flag(self):
+        """POSITIVE CONTROL (RESEARCH.md gap): ordinary phrasing the closed verb/shape
+
+        list previously missed — a schema-conformance clause ('responses conform
+        to this JSON schema') and an output verb outside the original list
+        ('write your reply as ... Markdown').
+        """
+        prompt = (
+            "All API responses conform to this JSON schema: {result: string, confidence: number}. "
+            "When talking to end users in chat, write your reply as friendly Markdown text with "
+            "headings, not the raw JSON object, since users find raw JSON confusing to read."
+        )
+        findings = detect_h6(AgentConfig(system_prompt=prompt))
+        mixed = [f for f in findings if "multiple output formats" in f.description]
+        assert len(mixed) == 1
+        assert mixed[0].severity == Severity.MEDIUM
+        assert "JSON" in mixed[0].description and "Markdown" in mixed[0].description
+
+    def test_widened_output_shapes_recognized_individually(self):
+        """POSITIVE CONTROL: each widened output-instruction shape keeps the rule live."""
+        for prompt in (
+            "Write the summary as clean Markdown. Responses conform to this JSON schema.",
+            "Write your answer in plain XML. Output adheres to the Markdown template.",
+        ):
+            findings = detect_h6(AgentConfig(system_prompt=prompt))
+            assert any("multiple output formats" in f.description for f in findings), prompt
+
+    def test_widened_shapes_do_not_become_bare_mention_counting(self):
+        """HARD NEGATIVE: naming formats without an output instruction is still not a violation."""
+        for prompt in (
+            "The scanner reads JSON and Markdown files.",
+            "Supported inputs are YAML, JSON, and Markdown.",
+            "This document conforms to the house style guide, which covers JSON and Markdown examples.",
+            "Write a summary of the JSON and Markdown files in the repository.",
+        ):
+            findings = detect_h6(AgentConfig(system_prompt=prompt))
+            assert not any("multiple output formats" in f.description for f in findings), prompt
+
+    @pytest.mark.parametrize("relative_path", _LINTLANG_INSTRUCTION_SURFACES)
+    def test_lintlang_own_instruction_prose_has_no_format_conflict(self, relative_path):
+        """HARD NEGATIVE: LintLang's own shipped AGENTS/SKILL prose (RESEARCH.md section 5)."""
+        findings = detect_h6(AgentConfig(system_prompt=_repo_text(relative_path)))
+        assert not any("multiple output formats" in f.description for f in findings), relative_path
+
+    def test_bare_imperative_output_instruction_still_flags(self):
+        """POSITIVE CONTROL: the most ordinary way to state an output contract is
+        an imperative taking the format as a direct object. The narrowing must
+        not cost this true positive."""
+        for prompt in (
+            "Always output JSON. Also respond in Markdown. Use XML tags when convenient.",
+            "Return JSON only. Write the explanation as Markdown.",
+            "Emit XML. Respond in Markdown for the human-readable summary.",
+        ):
+            findings = detect_h6(AgentConfig(system_prompt=prompt))
+            assert any("multiple output formats" in f.description for f in findings), prompt
+
+    def test_bare_imperative_hard_negatives(self):
+        """HARD NEGATIVE: a descriptive third-person clause is not an instruction."""
+        for prompt in (
+            "The upstream service returns JSON. Our docs are written in Markdown.",
+            "This tool outputs JSON. Some legacy feeds use XML.",
+            "Write JSON to disk under build/. Parse the JSON payload before use.",
+        ):
+            findings = detect_h6(AgentConfig(system_prompt=prompt))
+            assert not any("multiple output formats" in f.description for f in findings), prompt
 
     def test_no_format_spec(self):
         config = AgentConfig(system_prompt="You are an assistant. " * 20)
         findings = detect_h6(config)
+        assert any("no explicit output format" in f.description for f in findings)
+
+    def test_stated_output_format_is_not_reported_as_missing(self):
+        """HARD NEGATIVE: the LOW must not contradict the document it reports on.
+        Both spellings below do specify a format."""
+        for prompt in (
+            "You are a release agent. " * 12 + "Return Markdown only. Use ## for the release heading.",
+            "You are a planning agent. " * 12 + "Return a plan as Markdown.",
+            "You are an API agent. " * 12 + "Always output JSON.",
+        ):
+            findings = detect_h6(AgentConfig(system_prompt=prompt))
+            assert not any("no explicit output format" in f.description for f in findings), prompt
+
+    def test_output_format_recognizer_is_not_widened_to_bare_mentions(self):
+        """HARD NEGATIVE: the LOW still fires when a long prompt only names a
+        format in passing, so the recognizer has not become mention-counting."""
+        prompt = "You are an assistant. " * 20 + "The repository stores its notes in Markdown files."
+        findings = detect_h6(AgentConfig(system_prompt=prompt))
         assert any("no explicit output format" in f.description for f in findings)
 
     def test_long_prompt_no_version(self):

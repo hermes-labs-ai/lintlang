@@ -1665,6 +1665,80 @@ def detect_h5(config: AgentConfig) -> list[Finding]:
 # ── H6: Template Format Contract Violation ─────────────────────────
 
 
+_OUTPUT_FORMAT_INSTRUCTION_TEMPLATES = (
+    # "respond in JSON", "return the result as markdown", "output using XML", and
+    # the coordinated form "respond in JSON and Markdown" / "output as JSON or XML",
+    # where one instruction names both halves of the competing contract.
+    r"\b(?:respond|reply|answer|output|return|emit|print|render|produce|send|format|write)"
+    r"(?:\w+)?\s+(?:[\w'-]+\s+){{0,3}}?(?:in|as|with|using|to)\s+"
+    r"(?:(?:valid|plain|raw|pure|strict)\s+)?"
+    r"(?:[\w'-]+\s*(?:,|/|\band\b|\bor\b)\s*){{0,3}}?{fmt}\b",
+    # "write your reply as friendly Markdown text", "answer the user in plain XML" —
+    # a response verb pointed at the format through a single descriptive word
+    # ("friendly", "clean", "simple") rather than a comma/and/or coordination.
+    r"\b(?:respond|reply|answer|write)\s+(?:[\w'-]+\s+){{0,3}}?(?:as|in|using|with|to)\s+"
+    r"(?:[\w'-]+\s+){{0,1}}?{fmt}\b",
+    # "use JSON for data queries", "use markdown when it helps"
+    r"\b(?:use|using|prefer|choose)\s+{fmt}\s+(?:for|when|if|unless)\b",
+    # dispatch ellipsis at the start of a sentence: "XML for configs."
+    r"(?:^|[.;:!?\n]\s*){fmt}\s+for\s+[\w'-]+",
+    # "XML is acceptable", "Markdown is also allowed"
+    r"(?:^|[.;:!?\n]\s*){fmt}\s+(?:is|are)\s+(?:also\s+)?"
+    r"(?:acceptable|allowed|fine|ok|okay|preferred|required|expected|permitted)\b",
+    # "output format: JSON", "output format is markdown"
+    r"\boutput\s+format\s*(?:[:=]|is|must\s+be|should\s+be)\s*"
+    r"(?:[\w'-]+\s+){{0,2}}?{fmt}\b",
+    # "JSON output only", "markdown response required"
+    r"\b{fmt}\s+(?:output|response|responses|reply|replies)\s+"
+    r"(?:only|required|expected|is\s+required|is\s+expected)\b",
+    # "responses conform to this JSON schema", "output adheres to the XML format" —
+    # a schema/format-conformance contract on the response/output is itself an
+    # output-format instruction (kept narrow: the subject must name the
+    # response/output, not just any document or file conforming to a schema).
+    r"\b(?:responses?|output|reply|replies|answers?)\s+"
+    r"(?:must\s+|should\s+|will\s+|shall\s+)?"
+    r"(?:conform|conforms|conforming|adhere|adheres|adhering)\s+to\s+"
+    r"(?:(?:this|a|an|the)\s+)?(?:[\w'-]+\s+){{0,2}}?{fmt}\b",
+    # Bare imperative taking the format as a direct object: "Always output
+    # JSON.", "Return JSON only.", "Emit XML." This is the most ordinary way to
+    # state an output contract, and without it the narrowing above cut a real
+    # positive. The verb must be imperative — at a sentence start, or after a
+    # modal or one of these adverbs — so a descriptive third-person clause
+    # ("The upstream service returns JSON.") is still not a contract.
+    r"(?:(?:^|[.;:!?\n]|\b(?:always|only|just|strictly|must|should|shall|will|please|also|and)\b)\s*)"
+    r"(?:(?:always|only|just|strictly|also)\s+)?"
+    r"(?:respond|reply|answer|output|return|emit)\s+"
+    r"(?:(?:only|always|just|strictly)\s+)?"
+    r"(?:(?:valid|plain|raw|pure|strict|well-?formed)\s+)?{fmt}\b",
+)
+
+_OUTPUT_FORMAT_INSTRUCTIONS: dict[str, tuple[re.Pattern[str], ...]] = {
+    fmt: tuple(
+        re.compile(template.format(fmt=fmt), re.IGNORECASE)
+        for template in _OUTPUT_FORMAT_INSTRUCTION_TEMPLATES
+    )
+    for fmt in ("json", "markdown", "xml")
+}
+
+
+def _instructs_output_format(cleaned: str, fmt: str) -> bool:
+    """Return whether the prompt actually instructs responding in ``fmt``.
+
+    H6's competing-contract finding used to be true whenever the words "JSON",
+    "Markdown", or "XML" appeared twice over, so a document that merely listed
+    the file types a tool accepts was reported as a format contract violation.
+    A format now counts only when the prompt gives it as an output instruction:
+    a response verb pointing at it (including through a single descriptive word,
+    as in "write your reply as friendly Markdown"), a "use X for/when" dispatch,
+    a sentence-initial dispatch ellipsis ("XML for configs."), an explicit
+    acceptability statement, an "output format:" declaration, an "X output only"
+    demand, or a response/output schema-conformance clause ("responses conform
+    to this JSON schema"). The existing code-block, inline-code, filename, and
+    CLI-flag cleaning still runs first and is unchanged.
+    """
+    return any(pattern.search(cleaned) for pattern in _OUTPUT_FORMAT_INSTRUCTIONS[fmt])
+
+
 def detect_h6(config: AgentConfig) -> list[Finding]:
     """Detect template format contract violations."""
     findings: list[Finding] = []
@@ -1681,10 +1755,14 @@ def detect_h6(config: AgentConfig) -> list[Finding]:
     cleaned = re.sub(r"\w+\.(?:json|yaml|yml|xml|md|toml|csv)\b", " ", cleaned, flags=re.IGNORECASE)  # filenames
     cleaned = re.sub(r"--(?:json|format|output)(?:\s+\w+)?", " ", cleaned, flags=re.IGNORECASE)  # CLI flags
 
-    # Mixed format instructions
-    has_json = bool(re.search(r"\bjson\b", cleaned, re.IGNORECASE))
-    has_markdown = bool(re.search(r"\bmarkdown\b", cleaned, re.IGNORECASE))
-    has_xml = bool(re.search(r"\bxml\b", cleaned, re.IGNORECASE))
+    # Mixed format instructions. A bare mention is not a contract: naming JSON and
+    # Markdown while describing which file types a tool reads is ordinary prose,
+    # and it made any document that named two formats an H6 MEDIUM
+    # (RESEARCH.md section 5). Each format must carry its own output-format
+    # instruction before it counts towards a competing contract.
+    has_json = _instructs_output_format(cleaned, "json")
+    has_markdown = _instructs_output_format(cleaned, "markdown")
+    has_xml = _instructs_output_format(cleaned, "xml")
     format_count = sum([has_json, has_markdown, has_xml])
 
     if format_count > 1:
@@ -1700,10 +1778,20 @@ def detect_h6(config: AgentConfig) -> list[Finding]:
             )
         )
 
-    # No output format specification at all
+    # No output format specification at all. The recognizer has to accept the
+    # ordinary ways of stating one, or the finding contradicts the document it
+    # is reporting on: "Return Markdown only." and "Return a plan as Markdown."
+    # both specify a format, and both used to be missed because the verb had to
+    # be immediately followed by in/as/with/using. It is deliberately not
+    # widened to arbitrary words before the format name, which would reopen the
+    # mere-mention false positive that the competing-contract rule above just
+    # removed — so "Output exactly one Markdown document." is a known miss.
     has_output_format = bool(
         re.search(
-            r"(?:respond|output|return|format|reply)\s+(?:in|as|with|using)\s+(?:json|markdown|xml|yaml|text|plain|html|csv)",
+            r"\b(?:respond|output|return|reply|answer|emit|format)\s+"
+            r"(?:(?:[\w'-]+\s+){0,3}?(?:in|as|with|using)\s+)?"
+            r"(?:(?:only|valid|plain|raw|strict|well-?formed)\s+)*"
+            r"(?:json|markdown|xml|yaml|text|html|csv)\b",
             prompt,
             re.IGNORECASE,
         )
