@@ -1562,6 +1562,8 @@ class TestH5:
             "System prompt has 4 negative instructions ('don't', 'never', 'avoid'). "
             "Models follow positive instructions more reliably."
         )
+        assert density[0].evidence == "Don't"
+        assert density[0].offset == 0
 
     @pytest.mark.parametrize("relative_path", _LINTLANG_INSTRUCTION_SURFACES)
     def test_lintlang_own_instruction_prose_has_no_per_negative_notice(self, relative_path):

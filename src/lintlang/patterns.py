@@ -2186,6 +2186,8 @@ def detect_h5(config: AgentConfig) -> list[Finding]:
                 location="system_prompt",
                 description=f"System prompt has {len(problematic_negatives)} negative instructions ('don't', 'never', 'avoid'). Models follow positive instructions more reliably.",
                 suggestion="Rewrite negatives as positives. Instead of 'Don't apologize', use 'Respond directly without apologies'. Instead of 'Never make up data', use 'Only cite data from provided context'.",
+                evidence=problematic_negatives[0][1],
+                offset=problematic_negatives[0][0],
             )
         )
 
