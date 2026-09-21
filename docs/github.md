@@ -103,12 +103,19 @@ Missing, unreadable, malformed, or otherwise uninspectable requested inputs stay
 on the fatal `ERROR` channel, regardless of the verdict threshold. Another valid
 input cannot mask such an error. Invalid command arguments are also nonzero.
 
-An existing directory with no eligible files instead reports
-`No matching files found to scan.` and exits 0, even with a verdict gate. This is
-not an `ERROR`, but it is also not evidence that the intended instructions were
-reviewed. Prefer an explicit known file when that presence matters.
-`--write-baseline` is the exception: zero scanned files is an error and no baseline
-is written.
+A scan that inspects zero files — an existing directory with no eligible files,
+or `--discover` finding nothing recognized, with no other matching input — is
+an input/coverage error: it exits 1, with a matching `ERROR` result on every
+output channel (terminal, JSON, SARIF). The Action runs the same CLI over its
+`path` input and inherits that exit 1; it has no input that forwards extra CLI
+arguments, so the CLI's `--allow-empty` opt-out is not reachable through the
+Action today. In a workflow, point `path` at a file or directory that is
+expected to contain eligible files, or call the CLI directly in a `run:` step
+when the input may legitimately be empty. Prefer an explicit known file when
+eligible-file presence matters.
+`--write-baseline` keeps its own stricter, pre-existing behavior here: zero
+scanned files is always an error and no baseline is written, `--allow-empty`
+or not.
 
 ## Existing-repository baselines
 

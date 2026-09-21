@@ -74,9 +74,9 @@ LintLang does not decide whether arbitrary prose is true, predict runtime model 
 | Agent configuration | YAML and JSON tool/config structures |
 | Prompts and instructions | Markdown, text, and prompt files |
 | Python | Supported extractable pipeline patterns |
-| Invocation | Individual files, directories |
+| Invocation | Individual files, directories, repository discovery, standard input |
 
-See the [technical reference](llms-full.txt) for detector coverage and extraction behavior.
+See the [technical reference](llms-full.txt) for detector coverage, extraction behavior, and the CLI flags for repository discovery (`--discover`) and standard-input scanning (`--stdin-filename`).
 
 ## Use it where instructions change
 
@@ -133,9 +133,9 @@ See the [integrations and ecosystem guide](docs/integrations.md) for setup instr
 | `PASS` | No remaining `MEDIUM` or higher findings |
 | `REVIEW` | At least one `MEDIUM` finding remains |
 | `FAIL` | At least one `HIGH` or `CRITICAL` finding remains |
-| `ERROR` | A requested input could not be inspected |
+| `ERROR` | A requested input could not be inspected, including a scan that inspected zero files |
 
-Findings are non-blocking by default. Use `--fail-on` to choose a CI threshold. Input errors remain nonzero regardless of that threshold.
+Findings are non-blocking by default. Use `--fail-on` to choose a CI threshold. Input errors remain nonzero regardless of that threshold; a scan that inspects zero files is one of them, and `--allow-empty` is the opt-out for an input that may legitimately be empty. See the [GitHub CI guide](docs/github.md#findings-thresholds-and-input-errors) for the exact per-channel behavior.
 
 Machine-readable JSON and SARIF output are available for automation.
 

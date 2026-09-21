@@ -88,8 +88,9 @@ def test_owning_guides_match_baseline_and_scan_default_contracts():
     assert "no verdict-failure threshold by default" in reference
     assert "Action" in github and "its default is `fail`" in github
     assert "directory with no eligible files" in github
-    assert "exits 0" in github and "not an `ERROR`" in github
-    assert "`--write-baseline`" in github and "zero scanned files is an error" in github
+    assert "is an input/coverage error" in github and "exits 1" in github
+    assert "`--allow-empty`" in github
+    assert "`--write-baseline`" in github and "zero scanned files is always an error" in github
     assert "github.md#code-scanning" in baseline
     assert "README.md#machine-readable-output" not in _text("docs/baselines.md")
 

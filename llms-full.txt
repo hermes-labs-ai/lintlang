@@ -50,9 +50,36 @@ lintlang scan config.yaml --fail-on review
 lintlang scan config.yaml --min-severity high
 lintlang scan config.yaml --patterns H1 H3
 lintlang scan prompts/ --exclude 'archive/**'
+lintlang scan --discover
+lintlang scan AGENTS.md --discover subdir/
+lintlang scan config.yaml --allow-empty
+printf 'Do not stop until done.' | lintlang scan - --stdin-filename AGENTS.md
 lintlang patterns
 lintlang init --github --path AGENTS.md
 ```
+
+`--discover [ROOT]` (default `.`) additionally scans every recognized
+agent-instruction file found anywhere under `ROOT`: `AGENTS.md`, `CLAUDE.md`,
+`GEMINI.md`, `SKILL.md`, `agent.yaml`/`.yml`/`.json`,
+`.github/copilot-instructions.md`, and Markdown under
+`.github/instructions/`, matched case-sensitively. Explicit file arguments
+stay canonical; `--discover` unions its discovered set with them, deduplicated.
+`--exclude` globs and a repository's `.lintlangignore` filter discovered files
+exactly as they filter a directory scan. It does not change generic directory
+scanning (`lintlang scan <dir>`), which keeps its own broader, extension-based
+sweep. Because `ROOT` is optional, `lintlang scan --discover FILE` reads `FILE`
+as the discovery root; write `lintlang scan FILE --discover` instead.
+
+`-` scans exactly one document from standard input and requires
+`--stdin-filename <virtual-path>`, which selects the parser (including `.py`
+AST extraction) and supplies the identity used in locations, JSON/SARIF
+output, and baseline matching; the virtual path is never opened. More than
+one `-`, a `-` without `--stdin-filename`, `--stdin-filename` without a `-`
+input, and `-` combined with `--discover` are all rejected with the usage-error
+exit (2). One invocation takes one unambiguous source of files.
+
+`--allow-empty` exits 0 when the scan inspected zero files; without it, that
+case is an input/coverage error (see below).
 
 Scan arguments are files or directories, resolved from the invocation directory.
 `--patterns`/`-p` selects H1-H7 families, not individual sub-codes such as H1.6.
@@ -94,11 +121,17 @@ location/output errors are also nonzero. Invalid CLI arguments use argparse's
 nonzero usage-error exit (2). A positive `--fail-under` threshold can independently
 produce exit 1 when the HERM score is below it; baselines do not change that score.
 
-An existing directory with no eligible files prints
-`No matching files found to scan.` to stderr and exits 0. JSON output is `[]`;
-SARIF contains an empty run. This is different from an uninspectable requested
-input and does not prove that the intended instructions were scanned.
-`--write-baseline` deliberately rejects this zero-file case and writes nothing.
+A scan that inspects zero files is an input/coverage error: it exits 1, with a
+matching `ERROR` result on every output channel. JSON output is a one-entry
+array with `"verdict": "ERROR"`; SARIF carries the corresponding error tool
+result. `--allow-empty` restores the previous exit-0 behavior (a stderr note,
+`[]` for JSON, and an empty SARIF run reporting `executionSuccessful: true` to
+match the exit status) for a caller that intentionally scans an
+input that may sometimes be empty; that is different from an uninspectable
+requested input and does not prove that the intended instructions were
+scanned. `--write-baseline` keeps its own stricter, pre-existing behavior:
+zero scanned files is always an error and writes nothing, `--allow-empty` or
+not.
 
 PASS applies only to recognized content and selected checks. It does not mean
 that arbitrary nested vendor configuration was extracted, that prose is true,
