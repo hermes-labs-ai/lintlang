@@ -1035,16 +1035,13 @@ class TestH2:
         missing = [f for f in findings if "no termination" in f.description.lower()]
         assert len(missing) == 0
 
-    def test_suggested_numeric_budget_clears_missing_constraint_finding(self):
-        config = AgentConfig(
-            system_prompt=(
-                "You have a maximum of 5 tool calls per task. "
-                "If no progress after 2 attempts, stop and report the issue."
-            ),
-            tools=[ToolDef(name="search", description="Search the database for records matching a query")],
-        )
+    def test_suggested_constraint_clears_its_own_finding(self):
+        tool = ToolDef(name="search", description="Search the database for records matching a query")
+        original = detect_h2(AgentConfig(system_prompt="Use the search tool.", tools=[tool]))
+        missing = next(finding for finding in original if "no termination" in finding.description.lower())
+        recommendation = missing.suggestion.split("'", 2)[1]
 
-        findings = detect_h2(config)
+        findings = detect_h2(AgentConfig(system_prompt=recommendation, tools=[tool]))
 
         assert not any("no termination" in finding.description.lower() for finding in findings)
 

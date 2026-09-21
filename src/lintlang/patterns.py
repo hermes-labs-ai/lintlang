@@ -1003,12 +1003,6 @@ CONSTRAINT_SIGNALS = [
     "max_tokens",
 ]
 
-_EXPLICIT_NUMERIC_BUDGET = re.compile(
-    r"\b(?:max(?:imum)?(?:\s+of)?|at\s+most|no\s+more\s+than|up\s+to)\s+\d+\s+"
-    r"(?:tool\s+calls?|attempts?|retries|tries|iterations?|steps?|turns?|rounds?)\b",
-    re.IGNORECASE,
-)
-
 _RETRY_UNTIL_PATTERN = r"(?:retry(?:ing)?|try\s+again|repeat)\s+(?:until|as\s+many\s+times)"
 _LOOP_OVER_THROUGH_PATTERN = r"loop\s+(?:through|over)"
 
@@ -1342,11 +1336,9 @@ def detect_h2(config: AgentConfig) -> list[Finding]:
     prompt = config.system_prompt.lower()
     constraints = config.constraints
 
-    has_any_constraint = bool(_EXPLICIT_NUMERIC_BUDGET.search(prompt))
+    has_any_constraint = False
     constraints_str = str(constraints).lower()
     for signal in CONSTRAINT_SIGNALS:
-        if has_any_constraint:
-            break
         pattern = rf"\b{re.escape(signal)}\b"
         if re.search(pattern, prompt) or re.search(pattern, constraints_str):
             has_any_constraint = True
@@ -1360,7 +1352,10 @@ def detect_h2(config: AgentConfig) -> list[Finding]:
                 severity=Severity.HIGH,
                 location="system_prompt",
                 description="System prompt defines tools but contains no termination conditions, retry budgets, or progress checks.",
-                suggestion="Add explicit constraints: 'You have a maximum of 5 tool calls per task. If no progress after 2 attempts, stop and report the issue.'",
+                suggestion=(
+                    "Add explicit constraints: 'Retry limit: 2 attempts. "
+                    "If no progress after 2 attempts, stop and report the issue.'"
+                ),
             )
         )
 
