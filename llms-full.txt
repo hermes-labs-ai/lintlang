@@ -206,6 +206,21 @@ Tools are recognized by shape, not by file name or an allowlist of keys:
 - H1.4/H1.5/H1.6 compare tools within one container, so two MCP servers may each
   expose a `search`.
 
+A document that is itself one STRONG tool object (a per-tool snapshot file) is
+read as one tool. JSON with `//` or `/* */` comments and trailing commas is
+accepted, and YAML application tags (`!Ref`, `!!python/name:`) are read as plain
+data; nothing is constructed or executed.
+
+Prompts under nested keys are read too: a string of at least 40 characters under
+a key such as `system_template`, `instance_template`, `system_prompt`,
+`instructions`, `*_prompt`, `persona` or `backstory`, at any depth. They are
+joined and checked as templates: evidence-bearing checks (H2, H4 phrases, H5
+qualifiers, H6 conflicts) run; the chat-prompt shape heuristics do not, because
+several templates are not one prompt.
+
+Tool findings carry the line on which the tool's `name` is declared when that
+name is declared exactly once in the file and the file uses no YAML anchors.
+
 Never read as tools: `dependencies`-style maps, JSON Schema `properties`/`$defs`,
 `components`/`packages` lists, and whole documents recognized as JSON Schema
 (`$schema` with `properties`/`$defs`/`definitions`), OpenAPI, a package
@@ -226,9 +241,14 @@ validation.
 
 An explicitly named file with an unknown extension is tried as JSON, then YAML,
 then text. Directory discovery uses the listed, case-sensitive extensions only.
-Directories are traversed in sorted order; dependency/cache/build trees and
-conventional non-prompt names such as README, CHANGELOG, LICENSE, CONTRIBUTING,
-and SECURITY are skipped. Symlink files and directories are not followed during
+Directories are traversed in sorted order; dependency/cache/build trees,
+issue/pull-request template directories and conventional non-prompt names such
+as README, CHANGELOG, LICENSE (and other licence, NOTICE and third-party notice
+files), CONTRIBUTING, and SECURITY are skipped. A `.txt` file met during a walk
+is scanned only if it contains prompt language; name it explicitly to scan it
+regardless. Front matter is read as skill metadata only when it has a
+`description`, or a `name` in a `SKILL.md` or under a `skills`/`agents`/`commands`
+directory, so GitHub issue templates are not skills. Symlink files and directories are not followed during
 directory discovery. Explicit file scans do not use these directory exclusions.
 Traversal errors remain input errors rather than disappearing as clean results.
 
@@ -263,6 +283,12 @@ those checks passed. P1/P2 still run independently of that selection.
   are", "your task"), or it matches three or more prompt signals. Docstrings, bare
   string statements, and text passed to logging, argparse/click help, or an
   exception are never prompts.
+- Tool definitions written as literals are read: a call or dict literal with a
+  literal `name`, a schema keyword (`inputSchema`, `input_schema`, `parameters`,
+  `parameters_json_schema`, `args_schema`) and a literal or absent description —
+  the way Python MCP servers declare `Tool(name=..., description=...,
+  inputSchema=...)`. H1 and H3 run on them, with the call's line. Tools declared
+  by decorator and docstring, or with a computed description, are not read.
 - **P2: Embedded Scaffold.** An extracted prompt longer than 500 characters
   produces LOW; one longer than 200 and at most 500 produces INFO. It suggests
   reviewing whether the prompt should be externalized, not that embedded prompts
@@ -307,7 +333,11 @@ hit on them was a precise description ("Get the current time in a timezone").
 One-sided H1.6 (domination) additionally requires that the two tools share a
 domain term, not only a generic verb class, and open with the same action.
 
-H1.5 uses Jaccard word similarity with stopword removal. H1.6 compares analyzed
+H1.5 uses Jaccard word similarity with stopword removal. Differently named tools
+whose descriptions each carry a term the other lacks are a parallel family
+("List code scanning alerts" / "List secret scanning alerts", add / remove) and
+are not reported below 95% overlap; nor is a pair in which a description states
+the selection rule ("Prefer this tool over X"). H1.6 compares analyzed
 terms from tool names and descriptions under a finite synonym lexicon. It can
 reach some pairs missed by word overlap: "Look up an order" and "Search for
 orders in the system" have Jaccard 0.00 under H1.5 but no differentia under H1.6's
@@ -333,7 +363,10 @@ point, prefer X in new code" are not equivalent coverage promises. See
 
 Checks for selected missing termination conditions, unbounded retry language
 such as "keep trying until", negative termination such as "don't stop until",
-"continue until" without limits, and missing retry budgets. These are static
+"continue until" without limits, "retrying / try again / repeat until", and
+missing retry budgets. A match is not reported when the same sentence states a
+bound (`max_iterations`, "at most", "up to 3", "5 attempts", a timeout) or when
+"loop" is a noun being described ("block the agent loop until answered"). These are static
 indicators, not a proof that a loop will or will not terminate.
 
 ### H3: Schema-Intent Mismatch

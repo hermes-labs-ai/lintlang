@@ -101,6 +101,61 @@ class ExtractedThreshold:
 
 
 @dataclass
+class ExtractedTool:
+    """A tool definition written as a literal in Python source."""
+
+    name: str
+    description: str
+    parameters: dict
+    has_schema: bool
+    line: int
+
+
+_TOOL_SCHEMA_KEYWORDS = ("inputSchema", "input_schema", "parameters", "parameters_json_schema", "args_schema")
+
+
+def _literal_tools(tree: ast.AST) -> list[ExtractedTool]:
+    """Tools declared as `Tool(name=..., description=..., inputSchema=...)` calls
+    or as dict literals with the same keys — how MCP servers written in Python
+    declare them. Only literal names and descriptions are read; nothing runs."""
+    found: list[ExtractedTool] = []
+    for node in ast.walk(tree):
+        fields: dict[str, ast.AST] = {}
+        if isinstance(node, ast.Call):
+            fields = {kw.arg: kw.value for kw in node.keywords if kw.arg}
+        elif isinstance(node, ast.Dict):
+            fields = {
+                k.value: v for k, v in zip(node.keys, node.values, strict=False)
+                if isinstance(k, ast.Constant) and isinstance(k.value, str)
+            }
+        if "name" not in fields or not any(key in fields for key in _TOOL_SCHEMA_KEYWORDS):
+            continue
+        name = _get_string_value(fields["name"])
+        if not name and isinstance(fields["name"], ast.Attribute):
+            name = fields["name"].attr  # GitTools.STATUS
+        if not name:
+            continue
+        description = _get_string_value(fields["description"]) if "description" in fields else ""
+        if "description" in fields and description is None:
+            continue  # computed description: not readable, so not judged
+        schema_node = next(fields[key] for key in _TOOL_SCHEMA_KEYWORDS if key in fields)
+        try:
+            schema = ast.literal_eval(schema_node)
+        except (ValueError, SyntaxError, TypeError):
+            schema = {}
+        found.append(
+            ExtractedTool(
+                name=name,
+                description=description or "",
+                parameters=schema if isinstance(schema, dict) else {},
+                has_schema=True,
+                line=getattr(node, "lineno", 1),
+            )
+        )
+    return found
+
+
+@dataclass
 class ExtractionResult:
     """Result of extracting prompts and thresholds from a source file."""
 
@@ -108,6 +163,7 @@ class ExtractionResult:
     thresholds: list[ExtractedThreshold] = field(default_factory=list)
     source_file: str = ""
     parse_errors: list[str] = field(default_factory=list)
+    tools: list[ExtractedTool] = field(default_factory=list)
 
 
 def _get_string_value(node: ast.AST) -> str | None:
@@ -278,6 +334,8 @@ def extract_from_python(source: str, source_file: str = "") -> ExtractionResult:
     except SyntaxError as e:
         result.parse_errors.append(f"SyntaxError at line {e.lineno}: {e.msg}")
         return result
+
+    result.tools = _literal_tools(tree)
 
     parents: dict[ast.AST, ast.AST] = {}
     for parent in ast.walk(tree):

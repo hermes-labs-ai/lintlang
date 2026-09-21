@@ -231,3 +231,25 @@ def test_jsonc_and_tagged_yaml_parse(tmp_path):
     tagged = tmp_path / "mkdocs.yml"
     tagged.write_text("a: !!python/name:foo.bar\nb: !Ref x\n")
     assert compute_verdict(scan_file(tagged)) == "SKIPPED"
+
+
+def test_tool_findings_carry_the_line_of_the_tool(tmp_path):
+    path = tmp_path / "tools.json"
+    path.write_text(json.dumps({"tools": [
+        {"name": "alpha", "description": "Reads one record from the orders table by id", "inputSchema": {}},
+        {"name": "beta", "description": "", "inputSchema": {}},
+    ]}, indent=2))
+    finding = next(f for f in scan_file(path).structural_findings if f.code == "H1.1")
+    assert finding.source_region.start_line == 9
+
+
+def test_python_literal_tool_definitions_are_read(tmp_path):
+    path = tmp_path / "server.py"
+    path.write_text(
+        "tools = [\n    Tool(name='checkout', description='Switches', inputSchema={'type': 'object'}),\n"
+        "    Tool(name='log', description='Show the commit log of the repository, newest first', inputSchema=Log.schema()),\n]\n"
+    )
+    result = scan_file(path)
+    assert result.inspected["tools"] == 2
+    finding = next(f for f in result.structural_findings if f.code == "H1.2")
+    assert finding.source_region.start_line == 2

@@ -384,6 +384,28 @@ def scan_config(
     )
 
 
+def _locate_tool_findings(result: ScanResult, text: str) -> None:
+    """Give a tool finding the line on which the tool's name is declared.
+
+    Only when that name is declared exactly once in the file, so the line is a
+    fact and not a guess."""
+    if re.search(r"(?:^|[\s:\[,-])[&*][A-Za-z_][\w-]*\s*(?:$|[\s,\]}])", text, re.MULTILINE) and not text.lstrip().startswith(("{", "[")):
+        return  # YAML anchors/aliases: the defective text may live on another line
+    cache: dict[str, int | None] = {}
+    for finding in result.structural_findings:
+        if finding.source_region is not None or not finding.location.startswith("tool:"):
+            continue
+        name = finding.location.removeprefix("tool:").split(" vs ")[0].split(".parameters")[0]
+        if name not in cache:
+            declared = [
+                m.start()
+                for m in re.finditer(rf"""["']?name["']?\s*[:=]\s*["']?{re.escape(name)}["']?\s*(?:,|$)""", text, re.MULTILINE)
+            ]
+            cache[name] = text.count("\n", 0, declared[0]) + 1 if len(declared) == 1 else None
+        if cache[name] is not None:
+            finding.source_region = SourceRegion(cache[name], cache[name])
+
+
 def _enforce_explicit(result: ScanResult, explicit: bool) -> ScanResult:
     """Fail loudly when a NAMED file holds tool-like content none of which was read.
 
@@ -416,8 +438,11 @@ def scan_file(path: str | Path, patterns: list[str] | None = None, explicit: boo
     try:
         if path.suffix == ".py":
             return _enforce_explicit(scan_python_file(path, patterns=patterns), explicit)
-        config = parse_file(path)
-        return _enforce_explicit(scan_config(config, patterns=patterns), explicit)
+        text = path.read_text(encoding="utf-8")
+        config = parse_source(text, path)
+        result = scan_config(config, patterns=patterns)
+        _locate_tool_findings(result, text)
+        return _enforce_explicit(result, explicit)
     except Exception as error:
         return input_error_result(path, f"Failed to parse: {error}")
 
@@ -438,7 +463,9 @@ def scan_source(
         if path.suffix == ".py":
             return _enforce_explicit(scan_python_source(text, path, patterns=patterns), explicit)
         config = parse_source(text, path)
-        return _enforce_explicit(scan_config(config, patterns=patterns), explicit)
+        result = scan_config(config, patterns=patterns)
+        _locate_tool_findings(result, text)
+        return _enforce_explicit(result, explicit)
     except Exception as error:
         return input_error_result(path, f"Failed to parse: {error}")
 
@@ -634,6 +661,28 @@ def _scan_python_extraction(
                 f.source_region = config.source_region
             all_findings.extend(findings)
 
+    # Tool definitions written as literals: H1/H3 apply to them as to any tool.
+    if extraction.tools:
+        from .patterns import ToolDef
+
+        tool_config = AgentConfig(
+            tools=[
+                ToolDef(name=t.name, description=t.description, parameters=t.parameters,
+                        group="python", has_schema=t.has_schema)
+                for t in extraction.tools
+            ],
+            source_file=str(path),
+            kind="python",
+        )
+        lines = {t.name: t.line for t in extraction.tools}
+        for pid in ("H1", "H3"):
+            if pid in pattern_ids:
+                for f in PATTERNS[pid]["detect"](tool_config):
+                    first = f.location.removeprefix("tool:").split(" vs ")[0].split(".")[0]
+                    if first in lines:
+                        f.source_region = SourceRegion(lines[first], lines[first])
+                    all_findings.append(f)
+
     # HERM scoring on concatenated extracted prompts
     combined_text = "\n\n".join(prompt_texts) if prompt_texts else ""
     herm = score_text(combined_text, source_path=str(path))
@@ -647,6 +696,10 @@ def _scan_python_extraction(
         inspected["python_prompts"] = len(extraction.prompts)
     if extraction.thresholds:
         inspected["python_thresholds"] = len(extraction.thresholds)
+    if extraction.tools:
+        inspected["tools"] = len(extraction.tools)
+        inspected["tools_described"] = sum(1 for t in extraction.tools if t.description.strip())
+        inspected["tools_with_schema"] = len(extraction.tools)
 
     return ScanResult(
         file=str(path),
