@@ -211,3 +211,23 @@ class TestToolCheckPrecision:
 
 def test_document_that_is_one_tool():
     assert names({"name": "create_gist", "description": "Create a new gist", "inputSchema": SCHEMA}) == ["create_gist"]
+
+
+def test_prompts_under_nested_config_keys_are_read(tmp_path):
+    path = tmp_path / "agent.yaml"
+    path.write_text(
+        "agent:\n  templates:\n    system_template: |-\n      You are a helpful assistant that can interact with a computer.\n"
+        "    instance_template: |-\n      If the tests fail, keep trying until they pass, whatever it takes to get there.\n"
+    )
+    result = scan_file(path)
+    assert result.inspected["nested_prompts"] == 2
+    assert any(f.pattern_id == "H2" for f in result.structural_findings)
+
+
+def test_jsonc_and_tagged_yaml_parse(tmp_path):
+    jsonc = tmp_path / "t.json"
+    jsonc.write_text('{\n // comment\n "tools": [{"name": "a", "description": "Reads one record by identifier", "inputSchema": {},},],\n}\n')
+    assert scan_file(jsonc).inspected["tools"] == 1
+    tagged = tmp_path / "mkdocs.yml"
+    tagged.write_text("a: !!python/name:foo.bar\nb: !Ref x\n")
+    assert compute_verdict(scan_file(tagged)) == "SKIPPED"

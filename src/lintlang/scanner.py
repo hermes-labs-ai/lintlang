@@ -235,7 +235,9 @@ def describe_inspected(inspected: dict[str, int]) -> str:
         )
     if inspected.get("skill_description"):
         parts.append("skill front matter")
-    if inspected.get("system_prompt"):
+    if inspected.get("nested_prompts"):
+        parts.append(_plural(inspected["nested_prompts"], "prompt") + " under nested keys")
+    elif inspected.get("system_prompt"):
         parts.append("system prompt")
     if inspected.get("instructions"):
         parts.append(f"instruction text ({_plural(inspected.get('lines', 0), 'line')})")
@@ -262,6 +264,8 @@ def _coverage(config: AgentConfig) -> tuple[dict[str, int], list[str], str | Non
     if config.system_prompt.strip():
         key = "instructions" if config.kind in ("instructions", "prompt") else "system_prompt"
         inspected[key] = 1
+        if config.prompt_paths:
+            inspected["nested_prompts"] = len(config.prompt_paths)
         if key == "instructions":
             inspected["lines"] = config.system_prompt.count("\n") + 1
     messages = sum(1 for m in config.messages if isinstance(m, dict))

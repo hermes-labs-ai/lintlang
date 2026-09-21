@@ -115,6 +115,8 @@ class AgentConfig:
     """Members of a tool container the parser could not read."""
     not_agent_content: str = ""
     """Set when the document is a recognised non-agent format (JSON Schema, SBOM...)."""
+    prompt_paths: list[str] = field(default_factory=list)
+    """Paths of prompts read from nested keys of a config."""
     skill: SkillMeta | None = None
     """Front matter of a SKILL.md / agent definition, when the file has one."""
     prompt_line_offset: int = 0
@@ -1700,7 +1702,7 @@ def detect_h4(config: AgentConfig) -> list[Finding]:
         # a Markdown reference document that mentions "conversation history"
         # is describing an API, not failing to scope a session.
         if (
-            config.kind != "instructions"
+            config.kind not in ("instructions", "templates")
             and len(prompt) > 500
             and not has_boundary
             and _shows_cross_context_statefulness(prompt, scope)
@@ -2025,7 +2027,7 @@ def detect_h5(config: AgentConfig) -> list[Finding]:
     # "N instructions with no priority ordering" fired on 76% of them and named
     # no sentence in any. A finding that cannot point at its evidence, on a
     # surface it was not designed for, is noise.
-    is_chat_prompt = config.kind != "instructions"
+    is_chat_prompt = config.kind not in ("instructions", "templates")
 
     # Flag problematic negatives (those NOT near safety keywords)
     if is_chat_prompt and len(problematic_negatives) > 3:
@@ -2235,7 +2237,7 @@ def detect_h6(config: AgentConfig) -> list[Finding]:
 
     # An output contract is a property of a chat/system prompt. A Markdown
     # instruction document has no single response to contract.
-    is_chat_prompt = config.kind != "instructions"
+    is_chat_prompt = config.kind not in ("instructions", "templates")
     if is_chat_prompt and len(prompt) > 200 and not has_output_format and not has_format_example:
         findings.append(
             Finding(

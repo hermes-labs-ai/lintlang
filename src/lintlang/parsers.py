@@ -191,6 +191,20 @@ def _normalize(data: dict, source_file: str, document: object = None) -> AgentCo
             config.system_prompt = data[key]
             break
 
+    # Prompts kept under nested keys (`agent.templates.system_template`,
+    # `agents[].instructions`, `llm.system_prompt`) are prompts too.
+    if document is None:
+        nested = _nested_prompts(data)
+        if nested:
+            texts = [config.system_prompt] if config.system_prompt else []
+            texts += [text for _, text in nested if text != config.system_prompt]
+            config.system_prompt = "\n\n".join(texts)
+            config.prompt_paths = [path for path, _ in nested]
+            # Several templates joined together are not ONE chat prompt: counting
+            # "instructions" or demanding one output contract across them is
+            # meaningless. Evidence-bearing checks still run on the text.
+            config.kind = "templates"
+
     # Extract tools — by shape, wherever they sit (see ingestion.py)
     _validate_root_tool_names(data)
     found = discover_tools(document if document is not None else data)
@@ -238,6 +252,32 @@ def _normalize(data: dict, source_file: str, document: object = None) -> AgentCo
             config.constraints.update(data[key])
 
     return config
+
+
+_PROMPT_KEY = re.compile(
+    r"^(?:system|system[_-]?(?:prompt|message|template|instructions?)|instructions?|"
+    r"[\w-]*prompt(?:[_-]?template)?|(?:instance|task|user|developer)[_-]template|persona|preamble|backstory|goal)$",
+    re.IGNORECASE,
+)
+_PROMPT_MIN_CHARS = 40
+
+
+def _nested_prompts(data: object, path: str = "", depth: int = 0) -> list[tuple[str, str]]:
+    found: list[tuple[str, str]] = []
+    if depth > 8:
+        return found
+    if isinstance(data, dict):
+        for key, value in data.items():
+            child = f"{path}.{key}" if path else str(key)
+            if isinstance(value, str):
+                if depth > 0 and _PROMPT_KEY.match(str(key)) and len(value.strip()) >= _PROMPT_MIN_CHARS:
+                    found.append((child, value))
+            elif str(key) not in ("properties", "inputSchema", "input_schema", "parameters", "messages"):
+                found.extend(_nested_prompts(value, child, depth + 1))
+    elif isinstance(data, list):
+        for index, member in enumerate(data):
+            found.extend(_nested_prompts(member, f"{path}[{index}]", depth + 1))
+    return found
 
 
 def _validate_root_tool_names(data: dict) -> None:
