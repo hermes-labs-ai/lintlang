@@ -244,7 +244,8 @@ then text. Directory discovery uses the listed, case-sensitive extensions only.
 Directories are traversed in sorted order; dependency/cache/build trees,
 issue/pull-request template directories and conventional non-prompt names such
 as README, CHANGELOG, LICENSE (and other licence, NOTICE and third-party notice
-files), CONTRIBUTING, and SECURITY are skipped. A `.txt` file met during a walk
+files), CONTRIBUTING, and SECURITY are skipped. Python test code (`tests/`, `test_*.py`, `*_test.py`, `conftest.py`) is skipped
+during a walk: it holds fixtures, not what an agent is given. A `.txt` file met during a walk
 is scanned only if it contains prompt language; name it explicitly to scan it
 regardless. Front matter is read as skill metadata only when it has a
 `description`, or a `name` in a `SKILL.md` or under a `skills`/`agents`/`commands`
@@ -327,7 +328,9 @@ when", "if the user", "before", a description written as the situation); it is a
 finite vocabulary, which is why a long description is only LOW. H1.9's directory
 comparison runs only for a file named `SKILL.md`.
 
-H1.3's vague verbs are handle, process, manage, do, perform, deal, work. `get`,
+H1.3's vague verbs are handle, process, manage, do, perform, deal, work, and it
+reports only a description under 60 characters: a vague opener followed by the
+specifics has said what the tool does. `get`,
 `set`, `run`, `execute`, `use` and `make` were removed: on real MCP manifests every
 hit on them was a precise description ("Get the current time in a timezone").
 One-sided H1.6 (domination) additionally requires that the two tools share a
@@ -385,7 +388,8 @@ history, or context; unbounded always-remember language; and, for chat prompts
 only, long prompts without recognized boundary markers. It does not inspect a
 host's actual context window.
 
-H4.5 (MEDIUM, Markdown instruction documents read from disk only) reports a
+H4.5 (MEDIUM; only `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `SKILL.md`, Copilot
+instruction files and files with skill front matter, read from disk) reports a
 referenced project file that does not exist. It needs all of: a literal relative
 path with a directory part and a known file extension, in backticks or a Markdown
 link, outside fenced code; a first segment that exists beside the document or at
@@ -398,7 +402,9 @@ directories, globs, placeholders and paths into other projects are never reporte
 
 Checks selected vague qualifiers ("be concise", "be helpful", "use common sense"),
 ambiguous conditionals ("as needed", "when appropriate"), figurative verbs
-("lean into", "err on the side of", "keep it simple"). For chat prompts only
+("lean into", "err on the side of", "keep it simple"). The instruction-count finding is LOW for a literal extracted from Python. In a
+Markdown document, H2 does not report "loop / repeat / continue until <condition>"
+(a stated termination condition) or text inside a quoted example. For chat prompts only
 (`.txt`, `.prompt`, a config's system prompt, an extracted Python literal) it also
 checks negative-instruction density and high instruction count without priority
 ordering; those two judge the shape of a single prompt and do not run on Markdown

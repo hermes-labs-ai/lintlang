@@ -699,7 +699,9 @@ def detect_h1(config: AgentConfig) -> list[Finding]:
         # Vague leading verbs (strip punctuation)
         first_match = re.match(r"\w+", desc.lower()) if desc else None
         first_word = first_match.group() if first_match else ""
-        if first_word in VAGUE_WORDS:
+        # A vague opener followed by the specifics ("Manage a subscription: ignore,
+        # watch, or delete ...") has said what it does; only a short one has not.
+        if first_word in VAGUE_WORDS and len(desc) < 60:
             findings.append(
                 Finding(
                     pattern_id="H1",
@@ -1612,6 +1614,11 @@ _HYPOTHETICAL_LINE = re.compile(
 )
 
 
+_AGENT_DOCUMENT_NAMES = frozenset(
+    {"AGENTS.md", "CLAUDE.md", "GEMINI.md", "SKILL.md", "copilot-instructions.md", ".cursorrules", ".windsurfrules"}
+)
+
+
 def _repository_root(start: Path) -> Path | None:
     for candidate in (start, *start.parents):
         if (candidate / ".git").exists():
@@ -1638,6 +1645,12 @@ def _detect_dangling_references(config: AgentConfig) -> list[Finding]:
     if config.kind != "instructions" or not config.source_file:
         return []
     source = Path(config.source_file)
+    # Only documents written FOR an agent. A user guide that tells a person to
+    # create `.vscode/mcp.json` is not an instruction pointing at a missing file.
+    if config.skill is None and source.name not in _AGENT_DOCUMENT_NAMES and not source.name.endswith(
+        ".instructions.md"
+    ):
+        return []
     try:
         if not source.is_file():
             return []
@@ -2109,7 +2122,10 @@ def detect_h5(config: AgentConfig) -> list[Finding]:
             Finding(
                 pattern_id="H5",
                 pattern_name="Implicit Instruction Failure",
-                severity=Severity.MEDIUM,
+                # A sentence count is not evidence of a conflict. It stays MEDIUM
+                # where it was designed (a standalone prompt file or a config's
+                # system prompt) and is advice for a literal extracted from code.
+                severity=Severity.LOW if config.kind == "python" else Severity.MEDIUM,
                 location="system_prompt",
                 description=f"System prompt has ~{instruction_count} instructions with no explicit priority ordering.",
                 suggestion="Add priority ordering: 'PRIORITY 1: Always cite sources. PRIORITY 2: Be concise. When these conflict, prioritize accuracy over brevity.'",
