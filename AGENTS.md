@@ -1,15 +1,21 @@
 # AGENTS.md
 
+<!-- Prompt v1.0 — 2026-09-21 -->
+
 `lintlang` is a static linter for AI agent configs, tool definitions, and system prompts.
+
+Instruction priority: preserve deterministic behavior and public output contracts first;
+satisfy the definition of done second; keep documentation and packaging aligned third.
+When these conflict, preserve behavior and output contracts.
 
 ## Workspace identity
 
 - The canonical upstream is `https://github.com/hermes-labs-ai/lintlang.git`.
 - Treat `git worktree list` as the authority for active linked worktrees.
 - Never assume the checked-out local branch matches public `origin/main`; verify the remote, branch, status, and intended base before editing.
-- Maintainers: `WORKSPACE.md` in the git checkout records which local clone is
-  canonical. It is not part of the published package and is not needed to work
-  on the code.
+- Maintainers: `.hermes/WORKSPACE.md` in the git checkout records which local
+  clone is canonical. It is not part of the published package and is not
+  needed to work on the code.
 
 ## Use it for
 
