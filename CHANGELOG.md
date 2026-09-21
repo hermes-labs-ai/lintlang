@@ -134,8 +134,15 @@
   reported); an earlier negative counts with or without its apostrophe (`wont`
   as well as `won't`); and a condition introduced after the phrase
   (`…, if the queue is non-empty`) defeats the prohibition exactly as an
-  unpunctuated one does. Finding descriptions and
-  evidence text are unchanged, so existing baseline entries still match.
+  unpunctuated one does, whether the condition is introduced by a comma, a
+  dash, or a parenthesis (`Do not retry until it works (if the queue is
+  non-empty).` is reported, as its comma form is). A parenthesis that opens
+  anything other than an `if` / `when` / `whenever` condition is an aside or
+  the author's own bound and leaves the prohibition whole
+  (`Do not retry indefinitely (see the runbook).`,
+  `Do not continue indefinitely (stop after ten items).`). Finding
+  descriptions and evidence text are unchanged, so existing baseline entries
+  still match.
 - **Verdict change carried over from unreleased work after the 0.6.0 tag.** H2
   no longer reports a `loop over` / `loop through` traversal that carries no
   indefinite-continuation word: `Loop through all search results and analyze

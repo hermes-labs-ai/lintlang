@@ -808,6 +808,34 @@ class TestH2:
         ):
             assert not self._critical(prompt), prompt
 
+    def test_a_parenthesised_trailing_condition_reads_like_its_comma_form(self):
+        """A condition in parentheses qualifies the behavior just as a comma does.
+
+        Reported: the opening parenthesis closed the right-hand clause and
+        nothing reopened it, so "(if ...)" never reached the conditional check
+        while ", if ..." did.
+        """
+        for prompt in (
+            "Do not retry until it works (if the queue is non-empty).",
+            "Do not continue indefinitely (when the queue is non-empty).",
+            "Do not retry until it works (whenever the queue is non-empty).",
+            "Never continue indefinitely (if the operator is away).",
+        ):
+            assert self._critical(prompt), prompt
+
+        # HARD NEGATIVES: a parenthesis that opens an aside or the author's own
+        # bound is not a condition, so it must not reopen the clause. An `e.g.`
+        # parenthesis exemplifies a case in which the prohibition holds rather
+        # than restricting it, so it belongs here and not with `(only if …)`.
+        for prompt in (
+            "Do not retry indefinitely (see the runbook).",
+            "Do not continue indefinitely (stop after ten items).",
+            "Do not continue indefinitely (report when you stop).",
+            "Do not retry until it works (three attempts) and then stop.",
+            "Do not continue indefinitely (e.g. when the queue is non-empty).",
+        ):
+            assert not self._critical(prompt), prompt
+
     def test_only_listed_adverbs_may_sit_between_negator_and_behavior(self):
         for prompt in (
             "Don't continuously loop over the queue indefinitely.",

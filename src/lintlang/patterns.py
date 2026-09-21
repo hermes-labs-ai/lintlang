@@ -853,12 +853,15 @@ _RIGHT_CLAUSE_BOUNDARY = re.compile(
     r"[,(]|\s[-\u2013\u2014]\s|\s(?:and|but|or|then)\s",
     re.IGNORECASE,
 )
-# ...except when the comma or dash introduces a condition of its own ("do not
-# retry until it works, if the queue is non-empty"). That condition qualifies
+# ...except when the comma, dash, or opening parenthesis introduces a condition
+# of its own ("do not retry until it works, if the queue is non-empty", "do not
+# retry until it works (if the queue is non-empty)"). That condition qualifies
 # the prohibited behavior rather than stating the author's stop condition, so
-# the right-hand search must see it.
+# the right-hand search must see it. A parenthesis that opens anything else
+# ("... (see the runbook)", "... (stop after ten items)") still closes the
+# clause, because it is an aside or the author's own bound, not a condition.
 _TRAILING_CONDITION = re.compile(
-    r"(?:[,\u2013\u2014]|\s[-\u2013\u2014])\s*(?:if|when|whenever)\b",
+    r"(?:[,(\u2013\u2014]|\s[-\u2013\u2014])\s*(?:if|when|whenever)\b",
     re.IGNORECASE,
 )
 # A comma only starts a new clause to the left of the negator when it closes a
@@ -936,7 +939,8 @@ def _is_negated_prohibition(text: str, position: int) -> bool:
       author's own stop condition in a coordinated clause ("do not continue
       indefinitely and stop when the queue drains") does not defeat the
       prohibition — unless that boundary itself introduces a condition on the
-      behavior ("..., if the queue is non-empty"), which does.
+      behavior ("..., if the queue is non-empty", "... (if the queue is
+      non-empty)"), which does.
 
     Known limitations, reported rather than guessed at: an interrupted negator
     ("Do not, under any circumstances, ...", "Never, ever ..."), a delegated
