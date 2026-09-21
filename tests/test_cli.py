@@ -566,6 +566,142 @@ class TestCLI:
         assert "confidence" in result["herm"]
 
 
+class TestRepositoryDiscovery:
+    """`--discover` is an opt-in repository mode over recognized instruction
+    surfaces. Explicit inputs stay canonical and generic directory scanning
+    keeps its broad extension sweep."""
+
+    @staticmethod
+    def _repository(root: Path) -> None:
+        (root / "AGENTS.md").write_text("You are an agent. Follow the steps.\n", encoding="utf-8")
+        (root / "README.md").write_text("# Readme\n", encoding="utf-8")
+        (root / "docs").mkdir()
+        (root / "docs" / "notes.md").write_text("Some prose about the project.\n", encoding="utf-8")
+        skill = root / "skills" / "audit"
+        skill.mkdir(parents=True)
+        (skill / "SKILL.md").write_text("Audit the config carefully.\n", encoding="utf-8")
+
+    def test_discover_selects_only_recognized_instruction_files(self, tmp_path, monkeypatch, capsys):
+        self._repository(tmp_path)
+        monkeypatch.chdir(tmp_path)
+
+        exit_code = main(["scan", "--discover", "--format", "json"])
+
+        assert exit_code == 0
+        data = json.loads(capsys.readouterr().out)
+        assert sorted(Path(item["file"]).name for item in data) == ["AGENTS.md", "SKILL.md"]
+
+    def test_discover_accepts_an_explicit_root(self, tmp_path, capsys):
+        self._repository(tmp_path)
+
+        exit_code = main(["scan", "--discover", str(tmp_path), "--format", "json"])
+
+        assert exit_code == 0
+        data = json.loads(capsys.readouterr().out)
+        assert sorted(Path(item["file"]).name for item in data) == ["AGENTS.md", "SKILL.md"]
+
+    def test_generic_directory_scan_is_unchanged_by_discovery(self, tmp_path, capsys):
+        """A plain directory argument keeps the broad extension sweep: it still
+        inspects docs/notes.md, which discovery deliberately never selects."""
+        self._repository(tmp_path)
+
+        exit_code = main(["scan", str(tmp_path), "--format", "json"])
+
+        assert exit_code == 0
+        data = json.loads(capsys.readouterr().out)
+        names = sorted(Path(item["file"]).name for item in data)
+        assert names == ["AGENTS.md", "SKILL.md", "notes.md"]
+
+    def test_discover_unions_and_dedupes_with_explicit_files(self, tmp_path, monkeypatch, capsys):
+        self._repository(tmp_path)
+        monkeypatch.chdir(tmp_path)
+
+        exit_code = main(["scan", "AGENTS.md", "docs/notes.md", "--discover", "--format", "json"])
+
+        assert exit_code == 0
+        data = json.loads(capsys.readouterr().out)
+        files = [item["file"] for item in data]
+        assert files.count("AGENTS.md") == 1
+        assert sorted(Path(f).name for f in files) == ["AGENTS.md", "SKILL.md", "notes.md"]
+
+    def test_discover_root_must_exist(self, tmp_path, capsys):
+        exit_code = main(["scan", "--discover", str(tmp_path / "absent")])
+
+        assert exit_code == 1
+        assert "Error:" in capsys.readouterr().err
+
+    def test_discover_with_no_recognized_files_is_an_empty_scan_error(self, tmp_path, capsys):
+        (tmp_path / "README.md").write_text("# Readme\n", encoding="utf-8")
+
+        exit_code = main(["scan", "--discover", str(tmp_path)])
+
+        assert exit_code == 1
+        assert "No files were inspected" in capsys.readouterr().err
+
+    def test_scan_without_files_or_discover_fails_clearly(self, capsys):
+        exit_code = main(["scan"])
+
+        assert exit_code != 0
+        captured = capsys.readouterr()
+        assert "Error:" in captured.err
+        assert "--discover" in captured.err
+
+    def test_discover_root_that_is_a_file_explains_the_spelling(self, tmp_path, capsys):
+        """`--discover` takes an optional ROOT, so `scan --discover FILE` reads
+        FILE as that root. Say so rather than reporting a bare type error."""
+        target = tmp_path / "AGENTS.md"
+        target.write_text("You are an agent.\n", encoding="utf-8")
+
+        exit_code = main(["scan", "--discover", str(target)])
+
+        assert exit_code == 1
+        captured = capsys.readouterr()
+        assert "not a directory" in captured.err
+        assert "scan FILE --discover" in captured.err
+
+    def test_discover_honours_exclude_globs(self, tmp_path, monkeypatch, capsys):
+        """Discovery is an input source, not a separate filtering contract: a
+        repository that keeps deliberately broken instruction fixtures must be
+        able to keep them out of its own repository-mode gate."""
+        self._repository(tmp_path)
+        fixtures = tmp_path / "tests" / "fixtures"
+        fixtures.mkdir(parents=True)
+        (fixtures / "AGENTS.md").write_text("Loop over the queue indefinitely.\n", encoding="utf-8")
+        monkeypatch.chdir(tmp_path)
+
+        exit_code = main(["scan", "--discover", "--exclude", "tests/**", "--format", "json"])
+
+        assert exit_code == 0
+        data = json.loads(capsys.readouterr().out)
+        assert all("fixtures" not in item["file"] for item in data)
+        assert sorted(Path(item["file"]).name for item in data) == ["AGENTS.md", "SKILL.md"]
+
+    def test_discover_honours_lintlangignore(self, tmp_path, monkeypatch, capsys):
+        self._repository(tmp_path)
+        vendored = tmp_path / "vendor" / "pkg"
+        vendored.mkdir(parents=True)
+        (vendored / "AGENTS.md").write_text("Loop over the queue indefinitely.\n", encoding="utf-8")
+        (tmp_path / ".lintlangignore").write_text("vendor/**\n", encoding="utf-8")
+        monkeypatch.chdir(tmp_path)
+
+        exit_code = main(["scan", "--discover", "--format", "json"])
+
+        assert exit_code == 0
+        data = json.loads(capsys.readouterr().out)
+        assert all("vendor" not in item["file"] for item in data)
+
+    def test_discover_is_rejected_together_with_stdin(self, tmp_path, capsys):
+        """One invocation, one unambiguous source of files. A union would have
+        to define what happens when the virtual stdin path and a discovered
+        path name the same document; rejecting is the smaller contract."""
+        self._repository(tmp_path)
+
+        exit_code = main(["scan", "-", "--stdin-filename", "AGENTS.md", "--discover", str(tmp_path)])
+
+        assert exit_code == 2
+        assert "cannot be combined with --discover" in capsys.readouterr().err
+
+
 class TestEmptyScanIsNonzero:
     """An invoked scan that inspects zero files is an input/coverage error at
     every boundary: terminal, JSON, SARIF, and process status."""

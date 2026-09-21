@@ -14,6 +14,7 @@ from .report import compute_verdict, format_markdown, format_summary_table, form
 from .scanner import (
     PYTHON_EXTRACTION_EXCLUDED_PATTERNS,
     ScanResult,
+    build_input_filter,
     input_error_result,
     scan_directory,
     scan_file,
@@ -37,12 +38,26 @@ def main(argv: list[str] | None = None) -> int:
     )
     scan_parser.add_argument(
         "files",
-        nargs="+",
+        nargs="*",
         help=(
             "Language-bearing inputs: YAML, JSON, text, or Python "
             "(.py uses AST extraction for embedded prompts/pipeline artifacts; "
             "not general Python code linting). Use '-' exactly once with "
             "--stdin-filename to scan one document from standard input."
+        ),
+    )
+    scan_parser.add_argument(
+        "--discover",
+        nargs="?",
+        const=".",
+        default=None,
+        metavar="ROOT",
+        help=(
+            "Also scan recognized agent instruction files found under ROOT "
+            "(default: '.'): AGENTS.md, CLAUDE.md, GEMINI.md, SKILL.md, "
+            "agent.yaml/.yml/.json, .github/copilot-instructions.md, and "
+            "Markdown under .github/instructions/. Explicit inputs still win "
+            "and are unioned with the discovered set."
         ),
     )
     scan_parser.add_argument(
@@ -159,6 +174,14 @@ def _cmd_scan(args: argparse.Namespace) -> int:
 
     t_start = time.monotonic()
 
+    if not args.files and args.discover is None:
+        print(
+            "Error: scan requires at least one input path, or --discover [ROOT] to "
+            "scan recognized instruction files in a repository.",
+            file=sys.stderr,
+        )
+        return 2
+
     # Exactly one stdin document, always under an explicit virtual path. Any
     # ambiguous combination is rejected rather than guessed, so a generator
     # can never silently scan the wrong identity.
@@ -179,6 +202,18 @@ def _cmd_scan(args: argparse.Namespace) -> int:
     if args.stdin_filename and not stdin_requests:
         print(
             "Error: --stdin-filename only applies to standard input; pass '-' as an input.",
+            file=sys.stderr,
+        )
+        return 2
+    if stdin_requests and args.discover is not None:
+        # One invocation, one unambiguous source of files. A union of the two
+        # would have to define what happens when the virtual path and a
+        # discovered path name the same document, and nothing needs that: a
+        # generator scans what it generated, a repository gate scans the
+        # repository. Rejecting is the smaller deterministic contract.
+        print(
+            "Error: '-' cannot be combined with --discover; run them as separate scans "
+            "so each one has a single unambiguous source of files.",
             file=sys.stderr,
         )
         return 2
@@ -204,6 +239,46 @@ def _cmd_scan(args: argparse.Namespace) -> int:
     results: dict[str, ScanResult] = {}
 
     inputs = list(args.files)
+    if args.discover is not None:
+        from .instructions import discover_instruction_files
+
+        discovery_root = Path(args.discover)
+        if discovery_root.is_dir():
+            # Discovery is an input source like any other, so the filters a
+            # directory scan already honours apply to it too. Without this,
+            # --exclude and .lintlangignore silently do nothing under
+            # --discover, and a repository that keeps deliberately broken
+            # instruction fixtures has no way to keep them out of its own gate.
+            is_filtered = build_input_filter(discovery_root, args.exclude)
+            # Explicit inputs stay canonical: discovery only appends recognized
+            # files that were not already requested, keeping the user's own
+            # spelling of any shared path.
+            seen: set[Path] = set()
+            for requested in inputs:
+                try:
+                    seen.add(Path(requested).resolve())
+                except OSError:
+                    continue
+            for discovered in discover_instruction_files(discovery_root):
+                if is_filtered(discovered):
+                    continue
+                try:
+                    resolved = discovered.resolve()
+                except OSError:
+                    resolved = discovered
+                if resolved in seen:
+                    continue
+                seen.add(resolved)
+                inputs.append(str(discovered))
+        elif not discovery_root.exists():
+            results[str(discovery_root)] = input_error_result(discovery_root, "Discovery root not found")
+        else:
+            results[str(discovery_root)] = input_error_result(
+                discovery_root,
+                "Discovery root is not a directory. '--discover' takes an optional ROOT "
+                "directory, so 'scan --discover FILE' reads FILE as that root; write "
+                "'scan FILE --discover' or 'scan --discover . FILE' instead.",
+            )
 
     for filepath in inputs:
         if filepath == "-":
@@ -313,12 +388,12 @@ def _cmd_scan(args: argparse.Namespace) -> int:
     # exit status) must say so. --allow-empty is the only opt-out, and
     # --write-baseline keeps its own stricter pre-existing error below.
     if not results and not args.write_baseline and not args.allow_empty:
-        requested = " ".join(inputs)
+        requested = " ".join(inputs) if inputs else str(args.discover)
         return _empty_scan_failure(
             args,
             requested,
             f"No files were inspected: {requested} matched no eligible input. "
-            "Pass an explicit file, or use --allow-empty.",
+            "Pass an explicit file, widen --discover, or use --allow-empty.",
         )
 
     # Output
