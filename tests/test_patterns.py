@@ -1085,6 +1085,16 @@ class TestH2:
 
         assert any("no termination" in finding.description.lower() for finding in findings)
 
+    def test_affirmative_constraint_after_negated_one_is_recognized(self):
+        config = AgentConfig(
+            system_prompt="No retry limit but a timeout of 30 seconds.",
+            tools=[ToolDef(name="search", description="Search the database for records matching a query")],
+        )
+
+        findings = detect_h2(config)
+
+        assert not any("no termination" in finding.description.lower() for finding in findings)
+
     def test_output_step_limit_is_not_an_execution_budget(self):
         config = AgentConfig(
             system_prompt="Use the search tool as needed. Present the result in at most 5 steps.",

@@ -1024,7 +1024,9 @@ _NEGATED_NUMERIC_BUDGET_PREFIX = re.compile(
     re.IGNORECASE,
 )
 _NEGATED_CONSTRAINT_PREFIX = re.compile(
-    r"(?:\b(?:no|without)\b(?:\s+\w+){0,4}|"
+    r"(?:\b(?:no|without)\b(?:\s+(?:an?|any|the))?"
+    r"(?:\s+(?:explicit|fixed|hard|retry|iteration|turn|step|token|time|tool|"
+    r"call|execution|action|max(?:imum)?)){0,3}|"
     r"\b(?:do|does|did)\s+not(?:\s+(?:have|use|set|enforce|apply))?"
     r"(?:\s+(?:an?|any|the))?|"
     r"\b(?:not|never)(?:\s+(?:have|use|set|enforce|apply))?"
