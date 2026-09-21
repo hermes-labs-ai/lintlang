@@ -56,6 +56,11 @@ def main(argv: list[str] | None = None) -> int:
         ),
     )
     scan_parser.add_argument(
+        "--allow-empty",
+        action="store_true",
+        help="Exit 0 when the scan inspected zero files (default: that is an input error)",
+    )
+    scan_parser.add_argument(
         "--patterns",
         "-p",
         nargs="+",
@@ -303,6 +308,19 @@ def _cmd_scan(args: argparse.Namespace) -> int:
                 file=sys.stderr,
             )
 
+    # An invoked scan that inspected zero files is an input/coverage failure,
+    # not a silent success: every process boundary (terminal, JSON, SARIF,
+    # exit status) must say so. --allow-empty is the only opt-out, and
+    # --write-baseline keeps its own stricter pre-existing error below.
+    if not results and not args.write_baseline and not args.allow_empty:
+        requested = " ".join(inputs)
+        return _empty_scan_failure(
+            args,
+            requested,
+            f"No files were inspected: {requested} matched no eligible input. "
+            "Pass an explicit file, or use --allow-empty.",
+        )
+
     # Output
     if args.format == "terminal":
         for key, result in results.items():
@@ -384,6 +402,7 @@ def _cmd_scan(args: argparse.Namespace) -> int:
                 repository_root=repository_root,
                 source_base=invocation_root,
                 show_suggestions=not args.no_suggestions,
+                allow_empty=args.allow_empty,
             )
             if args.baseline:
                 parsed = json_mod.loads(document)
@@ -430,6 +449,8 @@ def _cmd_scan(args: argparse.Namespace) -> int:
                 file=sys.stderr,
             )
             return 1
+        # Only reachable with --allow-empty: the caller explicitly accepted a
+        # scan that inspected nothing.
         print("No matching files found to scan.", file=sys.stderr)
         return 0
 
@@ -468,6 +489,33 @@ def _cmd_scan(args: argparse.Namespace) -> int:
             return 1
 
     return 0
+
+
+def _empty_scan_failure(args: argparse.Namespace, requested: str, message: str) -> int:
+    """Report a zero-file scan identically on every output channel."""
+    import json
+
+    print(f"Error: {message}", file=sys.stderr)
+    if args.format == "sarif":
+        from .sarif import format_sarif_error
+
+        print(format_sarif_error(message), end="")
+    elif args.format == "json":
+        print(
+            json.dumps(
+                [
+                    {
+                        "file": requested,
+                        "verdict": "ERROR",
+                        "input_error": message,
+                        "structural_findings": [],
+                        "herm": None,
+                    }
+                ],
+                indent=2,
+            )
+        )
+    return 1
 
 
 def _baseline_failure(args: argparse.Namespace, message: str) -> int:

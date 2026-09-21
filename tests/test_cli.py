@@ -394,20 +394,25 @@ class TestCLI:
         exit_code = main(["scan", "/nonexistent/file.yaml"])
         assert exit_code == 1
 
-    def test_directory_scan_with_no_matching_files_is_not_an_error(self, tmp_path, capsys):
+    def test_directory_scan_with_no_matching_files_is_an_input_error(self, tmp_path, capsys):
         """A valid directory containing only non-prompt files (README, LICENSE)
-        has zero scannable candidates. That is a legitimate "nothing to
-        lint" outcome, not a scan failure, and must not exit 1 or print an
-        "Error:"-prefixed line — unlike a genuinely missing/malformed input.
+        has zero scannable candidates. An invoked scan that inspected nothing
+        proves no coverage, so it is an input error at the process boundary
+        (previously: exit 0 with a bare stderr note). ``--allow-empty`` is the
+        only opt-out; see TestEmptyScanIsNonzero.
         """
         (tmp_path / "README.md").write_text("# hi\n")
         (tmp_path / "LICENSE").write_text("MIT\n")
 
         exit_code = main(["scan", str(tmp_path)])
 
-        assert exit_code == 0
+        assert exit_code == 1
         captured = capsys.readouterr()
-        assert "Error:" not in captured.err
+        assert "Error: No files were inspected" in captured.err
+        assert "--allow-empty" in captured.err
+
+        assert main(["scan", str(tmp_path), "--allow-empty"]) == 0
+        assert "Error:" not in capsys.readouterr().err
 
     def test_python_scan_with_only_python_excluded_patterns_warns(self, tmp_path, capsys):
         """scan_python_file() never runs H1/H3/H7 against extracted prompts —
@@ -559,3 +564,81 @@ class TestCLI:
         assert "signal_counts" in result["herm"]
         assert "coverage" in result["herm"]
         assert "confidence" in result["herm"]
+
+
+class TestEmptyScanIsNonzero:
+    """An invoked scan that inspects zero files is an input/coverage error at
+    every boundary: terminal, JSON, SARIF, and process status."""
+
+    def test_directory_scan_with_no_matching_files_is_an_error(self, tmp_path, capsys):
+        (tmp_path / "README.md").write_text("# hi\n", encoding="utf-8")
+        (tmp_path / "LICENSE").write_text("MIT\n", encoding="utf-8")
+
+        exit_code = main(["scan", str(tmp_path)])
+
+        assert exit_code == 1
+        captured = capsys.readouterr()
+        assert "Error: No files were inspected" in captured.err
+        assert "--allow-empty" in captured.err
+
+    def test_empty_scan_json_reports_the_error(self, tmp_path, capsys):
+        (tmp_path / "README.md").write_text("# hi\n", encoding="utf-8")
+
+        exit_code = main(["scan", str(tmp_path), "--format", "json"])
+
+        assert exit_code == 1
+        data = json.loads(capsys.readouterr().out)
+        assert len(data) == 1
+        assert data[0]["verdict"] == "ERROR"
+        assert "No files were inspected" in data[0]["input_error"]
+        assert data[0]["structural_findings"] == []
+        assert data[0]["herm"] is None
+
+    def test_empty_scan_sarif_is_unsuccessful_and_nonzero(self, tmp_path, capsys):
+        (tmp_path / "README.md").write_text("# hi\n", encoding="utf-8")
+
+        exit_code = main(["scan", str(tmp_path), "--format", "sarif"])
+
+        assert exit_code == 1
+        document = json.loads(capsys.readouterr().out)
+        invocation = document["runs"][0]["invocations"][0]
+        assert invocation["executionSuccessful"] is False
+        assert "No files were inspected" in invocation["toolExecutionNotifications"][0]["message"]["text"]
+
+    def test_allow_empty_restores_exit_zero(self, tmp_path, capsys):
+        (tmp_path / "README.md").write_text("# hi\n", encoding="utf-8")
+
+        exit_code = main(["scan", str(tmp_path), "--allow-empty", "--format", "json"])
+
+        assert exit_code == 0
+        captured = capsys.readouterr()
+        assert json.loads(captured.out) == []
+        assert "No matching files found to scan." in captured.err
+        assert "Error:" not in captured.err
+
+    def test_allow_empty_sarif_agrees_with_the_exit_status(self, tmp_path, capsys):
+        """The whole point of the zero-file contract is that the report and the
+        process status never disagree. `--allow-empty` is an accepted outcome,
+        so SARIF must not declare the run unsuccessful at exit 0."""
+        (tmp_path / "README.md").write_text("# hi\n", encoding="utf-8")
+
+        exit_code = main(["scan", str(tmp_path), "--allow-empty", "--format", "sarif"])
+
+        assert exit_code == 0
+        document = json.loads(capsys.readouterr().out)
+        invocation = document["runs"][0]["invocations"][0]
+        assert invocation["executionSuccessful"] is True
+        assert "toolExecutionNotifications" not in invocation
+
+    def test_write_baseline_empty_scan_error_is_unchanged(self, tmp_path, capsys):
+        (tmp_path / "README.md").write_text("# hi\n", encoding="utf-8")
+        baseline = tmp_path / "baseline.json"
+
+        exit_code = main(["scan", str(tmp_path), "--format", "json", "--write-baseline", str(baseline)])
+
+        assert exit_code == 1
+        captured = capsys.readouterr()
+        assert json.loads(captured.out) == []
+        assert "No files were successfully scanned" in captured.err
+        assert f"baseline {baseline} was not written." in captured.err
+        assert not baseline.exists()
