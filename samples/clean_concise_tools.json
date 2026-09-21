@@ -5,28 +5,35 @@
   "instructions": "The service exposes deterministic file operations. Each call returns a structured result or error.",
   "tools": [
     {
-      "name": "read_file",
-      "description": "Read a UTF-8 file from disk",
+      "name": "read_workspace_file",
+      "description": "Read UTF-8 text from a path inside the configured workspace; absolute paths and traversal are rejected",
       "inputSchema": {
         "type": "object",
         "properties": {
           "path": {
-            "type": "string"
+            "type": "string",
+            "description": "Path relative to the configured workspace root"
           }
-        }
+        },
+        "required": [
+          "path"
+        ]
       }
     },
     {
-      "name": "execute_python",
-      "description": "Execute Python code",
+      "name": "evaluate_arithmetic",
+      "description": "Evaluate a basic arithmetic expression with a deterministic offline evaluator",
       "inputSchema": {
         "type": "object",
         "properties": {
-          "code": {
+          "expression": {
             "type": "string",
-            "description": "Python source to execute in the sandbox"
+            "description": "Arithmetic expression using numbers, parentheses, and basic operators"
           }
-        }
+        },
+        "required": [
+          "expression"
+        ]
       }
     },
     {
