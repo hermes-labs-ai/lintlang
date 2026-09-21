@@ -35,6 +35,17 @@ def test_distinct_input_schemas_disambiguate_one_sided_overlap():
     assert not any(f.code == "H1.6" for f in detect_h1(AgentConfig(tools=tools)))
 
 
+def test_non_mapping_parameters_do_not_crash_pairwise_checks():
+    tools = [
+        ToolDef("create_user", "Create a user record", []),
+        ToolDef("add_user", "Create a user account", {}),
+    ]
+
+    findings = detect_h1(AgentConfig(tools=tools))
+
+    assert any(f.code == "H1.6" for f in findings)
+
+
 def test_schema_and_context_explain_parameters_but_not_arbitrary_role():
     tool = ToolDef("write_file", "Write text content to a file on disk", {"properties": {
         "path": {"type": "string"}, "content": {"type": "string"},

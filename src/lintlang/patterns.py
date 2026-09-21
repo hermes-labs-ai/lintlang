@@ -535,6 +535,8 @@ def _leading_verb(tool: ToolDef) -> str:
 
 def _distinct_input_shapes(a: ToolDef, b: ToolDef) -> bool:
     """Different input names or types/choices can explain a narrower operation."""
+    if not isinstance(a.parameters, dict) or not isinstance(b.parameters, dict):
+        return False
     left, right = a.parameters.get("properties", {}), b.parameters.get("properties", {})
     if not isinstance(left, dict) or not isinstance(right, dict) or not left or not right:
         return False
