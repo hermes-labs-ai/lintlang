@@ -1198,6 +1198,45 @@ class TestH4:
         findings = detect_h4(AgentConfig(system_prompt=prompt))
         assert not any("no context boundary" in f.description.lower() for f in findings)
 
+    def test_length_alone_never_reports(self):
+        """HARD NEGATIVE: length is not sufficient evidence of boundary erosion.
+
+        The CHANGELOG records that this finding now requires demonstrated
+        cross-context statefulness. A long, single-shot prompt that never asks
+        the agent to carry anything between turns has nothing to erode, so
+        silence here is the rule working, not a miss. Changing this assertion
+        is a decision to widen the rule again, not a fix.
+        """
+        prompt = "Summarize the attached invoice line by line. " * 40
+        assert len(prompt) > 500
+        assert "\n" not in prompt  # no headings, no separators, no boundary vocabulary
+        findings = detect_h4(AgentConfig(system_prompt=prompt))
+        assert not any("no context boundary" in f.description.lower() for f in findings)
+
+    @pytest.mark.xfail(
+        strict=True,
+        reason="documented limitation: the statefulness gate is a recognizer and misses unlisted wording",
+    )
+    def test_unrecognized_statefulness_phrasing_should_be_reported(self):
+        """DESIRED BEHAVIOUR, not today's behaviour.
+
+        These prompts do ask the agent to carry something between turns, but
+        they say so in wording the gate does not recognize, so the finding is
+        missed. Each is an ordinary way to write the risky instruction, so the
+        rule should report them. The day it does, this test passes, strict
+        xfail turns that into a suite failure, and the marker and the changelog
+        note both come off — a visible decision rather than a silent drift.
+        """
+        for tail in (
+            "Keep the running tally from earlier questions in mind.",
+            "Build on what the customer told you a moment ago.",
+            "Your notes from the last ticket stay relevant.",
+        ):
+            prompt = ("Answer support questions about billing. " * 20) + tail
+            assert len(prompt) > 500
+            findings = detect_h4(AgentConfig(system_prompt=prompt))
+            assert any("no context boundary" in f.description.lower() for f in findings), tail
+
     @pytest.mark.parametrize("relative_path", _LINTLANG_INSTRUCTION_SURFACES)
     def test_lintlang_own_instruction_prose_is_not_boundary_erosion(self, relative_path):
         """HARD NEGATIVE: LintLang's own shipped AGENTS/SKILL prose (RESEARCH.md section 5)."""
@@ -1461,7 +1500,13 @@ class TestH6:
             assert any("multiple output formats" in f.description for f in findings), prompt
 
     def test_bare_imperative_hard_negatives(self):
-        """HARD NEGATIVE: a descriptive third-person clause is not an instruction."""
+        """HARD NEGATIVE: a third-person clause about ANOTHER system's output.
+
+        None of these describes the agent's own reply, so there is no competing
+        contract to surface. The third person alone is not what makes them
+        silent — see the xfail below, where the third person does describe the
+        agent's own delivery and the miss is real.
+        """
         for prompt in (
             "The upstream service returns JSON. Our docs are written in Markdown.",
             "This tool outputs JSON. Some legacy feeds use XML.",
@@ -1469,6 +1514,30 @@ class TestH6:
         ):
             findings = detect_h6(AgentConfig(system_prompt=prompt))
             assert not any("multiple output formats" in f.description for f in findings), prompt
+
+    @pytest.mark.xfail(
+        strict=True,
+        reason="documented limitation: a two-format delivery of the agent's own reply is missed in the third person",
+    )
+    def test_descriptive_two_format_delivery_should_be_reported(self):
+        """DESIRED BEHAVIOUR, not today's behaviour.
+
+        Both prompts describe two delivery formats for the AGENT'S OWN reply,
+        which is the competing contract the rule exists to surface, but they
+        describe it in the third person instead of instructing it, so the
+        narrowed rule misses them. That is the line: a third-person clause
+        about another system's output is a correct hard negative above; a
+        third-person clause about the agent's own output is this miss. The
+        changelog states it as a known limitation. The day the rule reports
+        them, this test passes, strict xfail turns that into a suite failure,
+        and the marker and the changelog note both come off.
+        """
+        for prompt in (
+            "The agent's reply is delivered as JSON to the API and as Markdown to the UI.",
+            "Responses are serialized to JSON. The changelog entry is Markdown.",
+        ):
+            findings = detect_h6(AgentConfig(system_prompt=prompt))
+            assert any("multiple output formats" in f.description for f in findings), prompt
 
     def test_no_format_spec(self):
         config = AgentConfig(system_prompt="You are an assistant. " * 20)
@@ -1492,6 +1561,31 @@ class TestH6:
         prompt = "You are an assistant. " * 20 + "The repository stores its notes in Markdown files."
         findings = detect_h6(AgentConfig(system_prompt=prompt))
         assert any("no explicit output format" in f.description for f in findings)
+
+    @pytest.mark.xfail(
+        strict=True,
+        reason="documented limitation: a stated output format is missed when an unlisted word or verb carries it",
+    )
+    def test_words_between_verb_and_format_should_not_report_a_missing_format(self):
+        """DESIRED BEHAVIOUR, not today's behaviour.
+
+        The recognizer takes a listed verb followed by the format name,
+        optionally through `in`/`as`/`with`/`using` and a short list of
+        adjectives. Each prompt below does state an output format and is still
+        reported as stating none: an unlisted word sits between the connector
+        and the format name (`exactly one`, `the ... shape`), or the verb
+        itself is not listed (`produce`). The LOW should not contradict the
+        document it reports on. Any widening must keep the mere-mention hard
+        negative above silent, which is why this is a decision and not a
+        one-line change.
+        """
+        for prompt in (
+            "You are a release agent. " * 12 + "Output exactly one Markdown document.",
+            "You are a release agent. " * 12 + "Produce a single JSON object.",
+            "You are a release agent. " * 12 + "Reply using the YAML shape below.",
+        ):
+            findings = detect_h6(AgentConfig(system_prompt=prompt))
+            assert not any("no explicit output format" in f.description for f in findings), prompt
 
     def test_long_prompt_no_version(self):
         config = AgentConfig(system_prompt="Some instructions. " * 40)

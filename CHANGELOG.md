@@ -140,21 +140,36 @@
   state, memory, or history across turns, tasks, or sessions — before it
   reports. A long, single-shot reference prompt that never asks the agent to
   carry anything between turns no longer reports this finding on length
-  alone; the other H4 erosion patterns are unchanged.
+  alone; the other H4 erosion patterns are unchanged. The statefulness signal
+  is a recognizer, so a prompt that asks for carry-over in wording it does not
+  list (`Keep the running tally from earlier questions in mind.`) is a known
+  miss.
 - H6's `System prompt references multiple output formats (…)` (MEDIUM) now
   requires each named format to carry its own output-format instruction, not
   a bare mention. A prompt that names two formats only while describing which
   file types a tool reads no longer reports this finding. An imperative taking
   the format as a direct object (`Always output JSON.`, `Return JSON only.`,
   `Emit XML.`) counts as an output instruction; a descriptive third-person
-  clause (`The upstream service returns JSON.`) does not.
+  clause (`The upstream service returns JSON.`) does not. That negative is
+  correct only when the clause describes what some other system emits. A
+  two-format *delivery of the agent's own reply* stated in the third person
+  (`The agent's reply is delivered as JSON to the API and as Markdown to the
+  UI.`) is exactly the competing contract this rule exists to surface, and the
+  narrowing misses it: that is a known limitation, recorded by a test that
+  asserts the behaviour the rule should have and is expected to fail until it
+  does.
 - H6's `System prompt has no explicit output format specification or example.`
   (LOW) no longer reports on a prompt that does specify one in an ordinary
   spelling. `Return Markdown only.` and `Return a plan as Markdown.` were both
   missed because the verb had to be immediately followed by `in`/`as`/`with`/
   `using`. The recognizer is deliberately not widened to arbitrary words before
   the format name, so `Output exactly one Markdown document.` is a known
-  remaining miss.
+  remaining miss — as is any wording that puts an unlisted word between the
+  connector and the format name (`Reply using the YAML shape below.`) or uses
+  an unlisted verb (`Produce a single JSON object.`). Each documented miss for
+  the narrowed H4 and H6 rules now has a test that asserts the behaviour the
+  rule should have and is expected to fail until the miss is fixed, so closing
+  one of these gaps is a visible decision rather than a silent change.
 - HERM recognizes explicit prose priority statements such as
   `Priority order is: … then …` without treating absence or uncertainty
   language as an ordering. A public-safe machine-readable case and scanner
