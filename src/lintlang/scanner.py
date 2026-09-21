@@ -10,7 +10,7 @@ from pathlib import Path
 
 from .herm import HermResult, score_text
 from .parsers import parse_file, parse_source
-from .patterns import PATTERNS, AgentConfig, Finding
+from .patterns import PATTERNS, AgentConfig, Finding, SourceRegion
 
 # Pipeline detectors (P-series) — registered lazily to avoid circular imports
 _PIPELINE_DETECTORS_LOADED = False
@@ -348,6 +348,22 @@ def scan_config(
 
     severity_order = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
     structural.sort(key=lambda f: severity_order.get(f.severity.value, 5))
+
+    # Give every finding that knows where its evidence sits a file line. Only
+    # text inputs: a prompt embedded in YAML/JSON has no recoverable line here.
+    if config.kind in ("instructions", "prompt"):
+        for finding in structural:
+            if finding.offset is not None and finding.source_region is None:
+                line = config.prompt_line_offset + config.system_prompt.count("\n", 0, finding.offset) + 1
+                finding.source_region = SourceRegion(line, line)
+                # Quote the offending line, whole: a fixed character window cuts
+                # words in half and drags in the neighbouring lines.
+                prompt = config.system_prompt
+                start = prompt.rfind("\n", 0, finding.offset) + 1
+                end = prompt.find("\n", finding.offset)
+                text_line = prompt[start : end if end != -1 else len(prompt)].strip()
+                if text_line:
+                    finding.evidence = text_line if len(text_line) <= 200 else text_line[:197] + "..."
 
     inspected, notes, skipped = _coverage(config)
     return ScanResult(

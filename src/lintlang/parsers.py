@@ -11,12 +11,13 @@ All parsers normalize to AgentConfig.
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 import yaml
 
 from .ingestion import discover_tools
-from .patterns import AgentConfig, ToolDef
+from .patterns import AgentConfig, SkillMeta, ToolDef
 
 
 def parse_file(path: str | Path) -> AgentConfig:
@@ -74,12 +75,69 @@ def parse_json(text: str, source_file: str = "") -> AgentConfig:
     return _normalize(data, source_file)
 
 
+_FRONT_MATTER = re.compile(r"\A(?:\ufeff)?---[ \t]*\r?\n(.*?)\r?\n---[ \t]*(?:\r?\n|\Z)", re.DOTALL)
+
+
 def parse_text(text: str, source_file: str = "") -> AgentConfig:
-    """Parse plain text as a system prompt."""
+    """Parse a text file an agent reads.
+
+    Markdown is an instruction DOCUMENT (AGENTS.md, CLAUDE.md, a SKILL.md body),
+    not a chat system prompt, and is marked so: detectors that judge a chat
+    prompt's shape (output contract, priority ordering) do not apply to it.
+
+    YAML front matter carrying ``name`` / ``description`` is the selection-time
+    metadata of a skill or sub-agent. It is read as such and kept out of the
+    body, so its keys are neither linted as prose nor silently ignored.
+    """
+    suffix = Path(source_file).suffix.lower()
+    kind = "instructions" if suffix in (".md", ".markdown", ".mdc") else "prompt"
+    body = text
+    skill = None
+    offset = 0
+
+    match = _FRONT_MATTER.match(text)
+    if match:
+        try:
+            meta = yaml.safe_load(match.group(1))
+        except yaml.YAMLError:
+            meta = None
+        if isinstance(meta, dict):
+            offset = text[: match.end()].count("\n")
+            body = text[match.end() :]
+            if "name" in meta or "description" in meta:
+                skill = _skill_meta(meta, match.group(1), source_file)
+
+    leading = len(body) - len(body.lstrip())
+    offset += body[:leading].count("\n")
+    stripped = body.strip()
     return AgentConfig(
-        system_prompt=text.strip(),
+        system_prompt=stripped,
         source_file=source_file,
-        raw={"system_prompt": text.strip()},
+        raw={"system_prompt": stripped},
+        kind=kind,
+        skill=skill,
+        prompt_line_offset=offset,
+    )
+
+
+def _skill_meta(meta: dict, raw_front_matter: str, source_file: str) -> SkillMeta:
+    def line_of(key: str) -> int:
+        for number, line in enumerate(raw_front_matter.splitlines(), start=2):
+            if re.match(rf"{re.escape(key)}\s*:", line):
+                return number
+        return 1
+
+    name = meta.get("name")
+    description = meta.get("description")
+    path = Path(source_file)
+    return SkillMeta(
+        name=name if isinstance(name, str) else "",
+        description=description if isinstance(description, str) else "",
+        has_name="name" in meta,
+        has_description="description" in meta,
+        name_line=line_of("name"),
+        description_line=line_of("description"),
+        dir_name=path.parent.name if path.name == "SKILL.md" else "",
     )
 
 

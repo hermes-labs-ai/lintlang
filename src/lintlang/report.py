@@ -168,9 +168,12 @@ def format_terminal(
                 # verb" — and a code documented as citable ("that's an H1.6")
                 # never actually appears anywhere a human reads.
                 code = f"{f.sub_id} " if f.sub_id else ""
+                where = f.location
+                if f.source_region is not None and result.file:
+                    where = f"{result.file}:{f.source_region.start_line}  {DIM}{f.location}{RESET}"
                 lines.append(
                     f"    {color}{icon_f} [{f.severity.value.upper()}]{RESET} "
-                    f"{BOLD}{code}{RESET}{f.location}"
+                    f"{BOLD}{code}{RESET}{where}"
                 )
                 lines.append(f"      {f.description}")
                 if f.evidence:
@@ -255,7 +258,8 @@ def format_markdown(
             for f in pattern_findings:
                 severity_badge = f"**[{f.severity.value.upper()}]**"
                 code = f"{f.sub_id} " if f.sub_id else ""
-                lines.append(f"#### {severity_badge} {code}`{f.location}`")
+                line_md = f" (line {f.source_region.start_line})" if f.source_region is not None else ""
+                lines.append(f"#### {severity_badge} {code}`{f.location}`{line_md}")
                 lines.append("")
                 lines.append(f"{f.description}")
                 lines.append("")

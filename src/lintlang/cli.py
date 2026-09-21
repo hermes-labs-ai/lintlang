@@ -479,6 +479,7 @@ def _cmd_scan(args: argparse.Namespace) -> int:
                             "pattern_name": f.pattern_name,
                             "severity": f.severity.value,
                             "location": f.location,
+                            "line": f.source_region.start_line if f.source_region is not None else None,
                             "description": f.description,
                             "suggestion": f.suggestion,
                             "evidence": f.evidence,

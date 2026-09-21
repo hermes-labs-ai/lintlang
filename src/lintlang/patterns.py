@@ -10,6 +10,7 @@ Each pattern has:
 from __future__ import annotations
 
 import re
+from pathlib import Path
 from dataclasses import dataclass, field
 from enum import Enum
 
@@ -64,6 +65,9 @@ class Finding:
     citable root; the sub-code narrows it.
     """
     source_region: SourceRegion | None = None
+    offset: int | None = None
+    """Character offset of the evidence inside ``AgentConfig.system_prompt``.
+    The scanner turns it into a file line for text inputs."""
 
     @property
     def code(self) -> str:
@@ -539,9 +543,115 @@ def _domination_is_meaningful(dominated: ToolDef, dominant: ToolDef) -> bool:
     return not (verb_a and verb_b and verb_a != verb_b)
 
 
+_SKILL_NAME = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+_SKILL_DESCRIPTION_LIMIT = 1024
+_SKILL_NAME_LIMIT = 64
+
+# Words with which a description tells a model WHEN to load the skill, as
+# opposed to only what the skill contains.
+_SKILL_TRIGGER = re.compile(
+    r"\b(?:when(?:ever)?|if\s+(?:the\s+)?(?:user|you|a|an)|use\s+(?:this|it|for|to|when|before|after|whenever|if|on)|"
+    r"used\s+(?:for|to|when)|trigger(?:s|ed)?|invoke[ds]?|before|after|asks?|asked|requests?|mentions?|"
+    r"needs?\s+to|wants?\s+to|should\s+be\s+used|for\s+(?:any|all|every)\b|"
+    # a description written AS the situation: "About to cite a number ...",
+    # "User compares X to Y", "A launchd service fails with ...", "Saving a rule ..."
+    r"about\s+to|users?\b|fails?|returns?|appears?|reports?|exceeds?|approach(?:es|ing)?|"
+    r"^\s*[a-z]+ing\b)",
+    re.IGNORECASE,
+)
+
+
+def _detect_skill_metadata(config: AgentConfig) -> list[Finding]:
+    """H1 for a skill / sub-agent: its front matter is its tool description.
+
+    A model decides whether to load a skill from ``name`` and ``description``
+    alone, exactly as it picks a tool. The limits are the published Agent Skills
+    ones: ``name`` at most 64 characters of lowercase letters, digits and
+    hyphens; ``description`` non-empty and at most 1024 characters.
+    """
+    skill = config.skill
+    if skill is None:
+        return []
+    findings: list[Finding] = []
+
+    def add(sub_id: str, severity: Severity, field_name: str, line: int, description: str, suggestion: str,
+            evidence: str = "") -> None:
+        findings.append(
+            Finding(
+                pattern_id="H1",
+                sub_id=sub_id,
+                pattern_name="Tool Description Ambiguity",
+                severity=severity,
+                location=f"frontmatter.{field_name}",
+                description=description,
+                suggestion=suggestion,
+                evidence=evidence,
+                source_region=SourceRegion(max(line, 1), max(line, 1)),
+            )
+        )
+
+    label = skill.name or skill.dir_name or "this file"
+    description = skill.description.strip()
+    if not description:
+        add(
+            "H1.1", Severity.HIGH, "description", skill.description_line,
+            f"Skill '{label}' has front matter but no description. The description is the only text a model "
+            "sees when deciding whether to load this skill.",
+            "Add a 'description:' that says what the skill does AND when to use it.",
+        )
+    else:
+        if len(description) > _SKILL_DESCRIPTION_LIMIT:
+            add(
+                "H1.7", Severity.HIGH, "description", skill.description_line,
+                f"Skill '{label}' description is {len(description)} characters; the Agent Skills limit is "
+                f"{_SKILL_DESCRIPTION_LIMIT}. Hosts reject or truncate longer descriptions.",
+                "Move detail into the body. Keep the description to what the skill does and when to use it.",
+            )
+        if len(description) < 20:
+            add(
+                "H1.2", Severity.MEDIUM, "description", skill.description_line,
+                f"Skill '{label}' has a very short description ({len(description)} chars): \"{description}\"",
+                "Say what the skill does and the situations that should trigger it.",
+                evidence=description,
+            )
+        elif not _SKILL_TRIGGER.search(description):
+            add(
+                # MEDIUM only for a short description, where a missing trigger
+                # is unmistakable; a long one may state its trigger in words
+                # this vocabulary does not know, so it is advice, not a verdict.
+                "H1.8", Severity.MEDIUM if len(description) < 120 else Severity.LOW, "description",
+                skill.description_line,
+                f"Skill '{label}' description says what the skill is but not when to use it. A model selects "
+                "a skill from its description alone.",
+                "Add the trigger: 'Use when the user asks to ...', 'Use before ...', or the phrases that "
+                "should select it.",
+                evidence=description[:120],
+            )
+
+    if skill.has_name and skill.dir_name:
+        name = skill.name
+        if not name or len(name) > _SKILL_NAME_LIMIT or not _SKILL_NAME.match(name):
+            add(
+                "H1.9", Severity.MEDIUM, "name", skill.name_line,
+                f"Skill name '{name}' is not a valid Agent Skills name (1-{_SKILL_NAME_LIMIT} characters: "
+                "lowercase letters, digits and single hyphens).",
+                "Rename it, for example 'pdf-form-filler'.",
+                evidence=name,
+            )
+        elif name != skill.dir_name:
+            add(
+                "H1.9", Severity.MEDIUM, "name", skill.name_line,
+                f"Skill name '{name}' does not match its directory '{skill.dir_name}'. The Agent Skills "
+                "format requires them to be identical, and hosts resolve the skill by directory.",
+                f"Set 'name: {skill.dir_name}' or rename the directory.",
+                evidence=name,
+            )
+    return findings
+
+
 def detect_h1(config: AgentConfig) -> list[Finding]:
     """Detect tool description ambiguity."""
-    findings: list[Finding] = []
+    findings: list[Finding] = _detect_skill_metadata(config)
     tools = config.tools
     if not tools:
         return findings
@@ -1156,6 +1266,7 @@ def detect_h2(config: AgentConfig) -> list[Finding]:
                     description=message,
                     suggestion="Add an explicit bound: max iterations, timeout, or fallback behavior.",
                     evidence=text[start:end].strip(),
+                    offset=match.start(),
                 )
             )
 
@@ -1405,9 +1516,117 @@ def _shows_cross_context_statefulness(prompt: str, scope: ScopeAnalysis) -> bool
     )
 
 
+_FENCE = re.compile(r"^[ \t]*(```|~~~)")
+_PATH_CANDIDATE = re.compile(r"`([^`\n]+)`|\]\(([^)\s]+)\)")
+_PATH_EXTENSION = re.compile(
+    r"\.(?:md|mdc|txt|json|ya?ml|toml|ini|cfg|py|pyi|js|jsx|mjs|cjs|ts|tsx|go|rs|rb|java|kt|swift|c|h|cc|cpp|hpp|"
+    r"cs|php|sh|bash|zsh|ps1|sql|html|css|scss|vue|svelte|lock|env|proto|graphql|tf|gradle|xml|ipynb)$",
+    re.IGNORECASE,
+)
+_NOT_A_LITERAL_PATH = re.compile(r"[\s*?\[\]{}<>$|=,;'\"\\%#]|\.\.\.|://|^[-~/@.]?$|^[-~/@]|^\.\./")
+_HYPOTHETICAL_LINE = re.compile(
+    r"\b(?:e\.g\.|for example|examples?|such as|like|would|could|append(?:s|ed)?|create[sd]?|creating|generate[sd]?|generating|"
+    r"will (?:be|write|create)|writes? (?:to|a|the)|written to|outputs?|produces?|add a|new file|rename[sd]?|"
+    r"moved?|deleted?|removed?|formerly|used to|instead of|not|never|don't|do not|if (?:it|there|a|the)|"
+    r"optional(?:ly)?|may|might|when present|if present|ignored?)\b",
+    re.IGNORECASE,
+)
+
+
+def _repository_root(start: Path) -> Path | None:
+    for candidate in (start, *start.parents):
+        if (candidate / ".git").exists():
+            return candidate
+    return None
+
+
+def _detect_dangling_references(config: AgentConfig) -> list[Finding]:
+    """Report file paths an instruction document names that are not there.
+
+    Agents act on AGENTS.md / CLAUDE.md literally: a path that no longer exists
+    after a refactor sends them searching, or makes them recreate the file. This
+    is context that points nowhere. The check is deliberately narrow — a finding
+    needs ALL of:
+
+    - a literal relative path with a directory part, in backticks or a Markdown
+      link, outside fenced code blocks;
+    - whose FIRST segment exists beside the document or at the repository root
+      (so it is a path into this project, not an illustration from another one);
+    - that resolves from neither place;
+    - on a line that does not talk about creating, renaming, removing or
+      exemplifying it.
+    """
+    if config.kind != "instructions" or not config.source_file:
+        return []
+    source = Path(config.source_file)
+    try:
+        if not source.is_file():
+            return []
+        base = source.resolve().parent
+    except OSError:
+        return []
+    roots = [base]
+    repo = _repository_root(base)
+    if repo is not None and repo != base:
+        roots.append(repo)
+
+    findings: list[Finding] = []
+    seen: set[str] = set()
+    in_fence = False
+    offset = 0
+    for line in config.system_prompt.split("\n"):
+        line_offset = offset
+        offset += len(line) + 1
+        if _FENCE.match(line):
+            in_fence = not in_fence
+            continue
+        if in_fence or _HYPOTHETICAL_LINE.search(line):
+            continue
+        for match in _PATH_CANDIDATE.finditer(line):
+            token = (match.group(1) or match.group(2) or "").strip()
+            token = re.sub(r"(?::\d+(?:-\d+)?|#[\w-]+)$", "", token)
+            if token.startswith("./"):
+                token = token[2:]
+            if "/" not in token.strip("/") or _NOT_A_LITERAL_PATH.search(token):
+                continue
+            # Files only: a named directory is as often a build output or a
+            # runtime location as a checked-in one.
+            if not _PATH_EXTENSION.search(token):
+                continue
+            if re.search(r"(?:^|[/_.-])(?:your|my|foo|bar|baz|example|sample|name|xxx|placeholder)(?:[/_.-]|$)", token, re.I):
+                continue
+            if token in seen:
+                continue
+            first = token.split("/", 1)[0]
+            try:
+                anchored = [root for root in roots if (root / first).is_dir()]
+                if not anchored or any((root / token).exists() for root in roots):
+                    continue
+            except OSError:
+                continue
+            seen.add(token)
+            findings.append(
+                Finding(
+                    pattern_id="H4",
+                    sub_id="H4.5",
+                    pattern_name="Context Boundary Erosion",
+                    severity=Severity.MEDIUM,
+                    location=f"reference:{token}",
+                    description=(
+                        f"Referenced path '{token}' does not exist, although '{first}/' does. An agent "
+                        "following this instruction is sent to a file that is not there."
+                    ),
+                    suggestion="Update the path, or remove the reference if the file is gone.",
+                    evidence=line.strip()[:160],
+                    offset=line_offset + match.start(),
+                )
+            )
+    return findings
+
+
 def detect_h4(config: AgentConfig) -> list[Finding]:
     """Detect context boundary erosion risks."""
-    findings: list[Finding] = []
+    findings: list[Finding] = _detect_dangling_references(config)
     prompt = config.system_prompt
 
     if prompt:
@@ -1451,6 +1670,7 @@ def detect_h4(config: AgentConfig) -> list[Finding]:
                         description=message,
                         suggestion="Scope what should be remembered: 'Remember the user's name for this session. Do not carry tool results between tasks.'",
                         evidence=prompt[start:end].strip(),
+                        offset=match.start(),
                     )
                 )
 
@@ -1734,8 +1954,16 @@ def detect_h5(config: AgentConfig) -> list[Finding]:
         else:
             problematic_negatives.append((neg_start, neg_text))
 
+    # The two density heuristics below judge the SHAPE of a chat system prompt.
+    # An instruction document (AGENTS.md, CLAUDE.md, a SKILL.md body) is a
+    # reference an agent consults, not one prompt: on 204 real instruction files
+    # "N instructions with no priority ordering" fired on 76% of them and named
+    # no sentence in any. A finding that cannot point at its evidence, on a
+    # surface it was not designed for, is noise.
+    is_chat_prompt = config.kind != "instructions"
+
     # Flag problematic negatives (those NOT near safety keywords)
-    if len(problematic_negatives) > 3:
+    if is_chat_prompt and len(problematic_negatives) > 3:
         findings.append(
             Finding(
                 pattern_id="H5",
@@ -1776,6 +2004,7 @@ def detect_h5(config: AgentConfig) -> list[Finding]:
                     description=f"{category}: '{match.group()}'",
                     suggestion="Make it procedural. Instead of 'be concise', specify 'Respond in 2-3 sentences maximum'. Instead of 'as needed', specify the exact condition.",
                     evidence=prompt[start:end].strip(),
+                    offset=match.start(),
                 )
             )
 
@@ -1788,7 +2017,7 @@ def detect_h5(config: AgentConfig) -> list[Finding]:
     instruction_count = (
         len(re.findall(r"[.!?]\s+[A-Z]", prompt)) + prompt.count("\n-") + prompt.count("\n*") + prompt.count("\n1")
     )
-    if instruction_count > 10 and not has_priority:
+    if is_chat_prompt and instruction_count > 10 and not has_priority:
         findings.append(
             Finding(
                 pattern_id="H5",
@@ -1939,7 +2168,10 @@ def detect_h6(config: AgentConfig) -> list[Finding]:
     )
     has_format_example = bool(re.search(r"```|example\s*(?:output|response)", prompt, re.IGNORECASE))
 
-    if len(prompt) > 200 and not has_output_format and not has_format_example:
+    # An output contract is a property of a chat/system prompt. A Markdown
+    # instruction document has no single response to contract.
+    is_chat_prompt = config.kind != "instructions"
+    if is_chat_prompt and len(prompt) > 200 and not has_output_format and not has_format_example:
         findings.append(
             Finding(
                 pattern_id="H6",
@@ -1955,7 +2187,7 @@ def detect_h6(config: AgentConfig) -> list[Finding]:
     has_version = bool(
         re.search(r"(?:^|\s)v\d+\.\d|version\s*[:\d]|prompt\s*v\d", prompt, re.IGNORECASE | re.MULTILINE)
     )
-    if len(prompt) > 500 and not has_version:
+    if is_chat_prompt and len(prompt) > 500 and not has_version:
         findings.append(
             Finding(
                 pattern_id="H6",
