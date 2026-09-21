@@ -98,7 +98,11 @@ MARKETPLACE = Path(
     os.path.expanduser("~/.claude/plugins/marketplaces/claude-plugins-official")
 )
 
-EXPECTED_PAIR_FINDINGS = 5
+# Was 5. The fifth was H1.5 on `agent-sdk-verifier-py` vs `-ts`, which the note
+# above already calls a real distinction ("differ only by language"). H1.5 no
+# longer reports differently-named tools whose descriptions each carry a term
+# the other lacks (parallel families). The remaining 4 are same-name pairs.
+EXPECTED_PAIR_FINDINGS = 4
 EXPECTED_WITHIN_1 = 7
 EXPECTED_WITHIN_2 = 14
 MIN_CORPUS_SIZE = 60

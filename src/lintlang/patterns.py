@@ -536,8 +536,13 @@ def _domination_is_meaningful(dominated: ToolDef, dominant: ToolDef) -> bool:
       "Shows changes that are staged for commit" differ in the verb, which is
       the first thing a model reads.
     """
-    shared = _meaning_terms(dominated) & _meaning_terms(dominant)
+    terms_a, terms_b = _meaning_terms(dominated), _meaning_terms(dominant)
+    shared = terms_a & terms_b
     if not (shared - _GENERIC_CANONICALS):
+        return False
+    # A long description mentions many things in passing. Containment in a term
+    # set several times one's own size is coverage by accident, not redundancy.
+    if len(terms_b) > 2 * len(terms_a):
         return False
     verb_a, verb_b = _leading_verb(dominated), _leading_verb(dominant)
     return not (verb_a and verb_b and verb_a != verb_b)
@@ -802,7 +807,24 @@ def detect_h1(config: AgentConfig) -> list[Finding]:
             # loud even when a name carries the distinction, because then the
             # description is doing no work. Name-awareness belongs in H1.6,
             # which asks a different question.
-            if overlap > 0.7:
+            # Parallel families are good design, not ambiguity: "List code scanning
+            # alerts" / "List secret scanning alerts", "Add a reaction" / "Remove a
+            # reaction". High overlap is a defect only when the words that differ
+            # distinguish nothing on at least one side, and the pair does not name
+            # its own selection rule ("Prefer this tool over X").
+            desc_a = _meaning_terms(ToolDef(name="", description=t1.description))
+            desc_b = _meaning_terms(ToolDef(name="", description=t2.description))
+            each_side_distinct = bool(desc_a - desc_b) and bool(desc_b - desc_a)
+            states_preference = self_disambiguating and bool(
+                re.search(r"\b(?:prefer|instead\s+of|rather\s+than|in\s+place\s+of|supersedes?)\b",
+                          f"{t1.description} {t2.description}", re.IGNORECASE)
+            )
+            is_parallel_family = (
+                t1.name.lower() != t2.name.lower()
+                and overlap < 0.95
+                and (each_side_distinct or states_preference)
+            )
+            if overlap > 0.7 and not is_parallel_family:
                 findings.append(
                     Finding(
                         pattern_id="H1",
