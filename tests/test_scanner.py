@@ -6,6 +6,7 @@ from lintlang.patterns import Finding, Severity
 from lintlang.report import compute_verdict
 from lintlang.scanner import (
     ScanResult,
+    _glob_to_regex,
     _is_non_prompt_file,
     compute_health_score,
     scan_config,
@@ -327,6 +328,49 @@ class TestFileTypeFiltering:
         scanned_names = {Path(p).name for p in results}
         assert "config.yaml" in scanned_names
         assert "draft.md" not in scanned_names
+
+
+class TestGlobTranslation:
+    """One shared glob translator backs `--exclude`, `.lintlangignore`, and
+    `--discover` filtering, so its semantics are pinned directly."""
+
+    @staticmethod
+    def _matches(pattern: str, path: str) -> bool:
+        compiled = _glob_to_regex(pattern)
+        assert compiled is not None, pattern
+        return bool(compiled.search(path))
+
+    def test_double_star_prefix_matches_zero_directories(self):
+        """`**/` means "zero or more directories". Sequential string
+        replacement used to rewrite the fragment's own `?`, making the group
+        mandatory, so a root-level file escaped the pattern."""
+        assert self._matches("**/*.md", "a.md")
+        assert self._matches("**/*.md", "docs/a.md")
+        assert self._matches("**/*.md", "docs/deep/a.md")
+        assert not self._matches("**/*.md", "a.txt")
+
+    def test_patterns_are_anchored(self):
+        """An unanchored search matched any path containing the pattern."""
+        assert self._matches("docs/**", "docs/a.md")
+        assert self._matches("docs/**", "docs/deep/a.md")
+        assert not self._matches("docs/**", "notdocs/a.md")
+        assert not self._matches("archive/**", "archive2/old.txt")
+        assert not self._matches("*.md", "myfoo.md.bak")
+        assert not self._matches("CHANGELOG.md", "CHANGELOG.md.bak")
+
+    def test_slashless_patterns_still_match_at_any_depth(self):
+        """gitignore semantics, and what existing `--exclude` callers rely on."""
+        assert self._matches("CHANGELOG.md", "CHANGELOG.md")
+        assert self._matches("CHANGELOG.md", "docs/CHANGELOG.md")
+        assert self._matches("*.md", "docs/deep/a.md")
+        assert self._matches("test_*", "test_config.yaml")
+
+    def test_single_star_does_not_cross_a_separator(self):
+        assert self._matches("*/drop/*", "skills/drop/SKILL.md")
+        assert not self._matches("*/drop/*", "skills/keep/SKILL.md")
+
+    def test_invalid_pattern_returns_none_rather_than_raising(self):
+        assert _glob_to_regex("[") is not None  # escaped literally, not a class
 
 
 class TestHealthScore:

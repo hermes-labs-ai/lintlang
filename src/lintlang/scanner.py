@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import re
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -103,6 +104,48 @@ def _is_non_prompt_file(filepath: Path) -> bool:
     return any(part.lower() in NON_PROMPT_DIRS or part.lower().endswith(".egg-info") for part in filepath.parts)
 
 
+def _glob_to_regex(pattern: str) -> re.Pattern | None:
+    """Compile one gitignore-style glob into an anchored regex.
+
+    Translated in a single pass over the pattern rather than by sequential
+    string replacement. Substituting ``**/`` with a regex fragment first and
+    then rewriting every remaining ``*`` and ``?`` also rewrote that fragment's
+    own metacharacters, which silently turned the optional ``(.*/)?`` into a
+    mandatory group — so ``**/*.md`` matched ``docs/a.md`` but not a
+    root-level ``a.md``.
+
+    The result is anchored, because an unanchored search made ``docs/**``
+    match ``notdocs/a.md`` and ``*.md`` match ``myfoo.md.bak``. Following
+    gitignore, a pattern containing no ``/`` matches at any depth, so
+    ``CHANGELOG.md`` and ``*.md`` keep excluding nested files as before.
+    """
+    parts: list[str] = []
+    index = 0
+    while index < len(pattern):
+        if pattern.startswith("**/", index):
+            parts.append("(?:[^/]+/)*")
+            index += 3
+        elif pattern.startswith("**", index):
+            parts.append(".*")
+            index += 2
+        elif pattern[index] == "*":
+            parts.append("[^/]*")
+            index += 1
+        elif pattern[index] == "?":
+            parts.append("[^/]")
+            index += 1
+        else:
+            parts.append(re.escape(pattern[index]))
+            index += 1
+
+    body = "".join(parts)
+    prefix = "" if "/" in pattern else "(?:.*/)?"
+    try:
+        return re.compile(rf"\A{prefix}{body}\Z")
+    except re.error:
+        return None
+
+
 def _load_ignore_patterns(directory: Path) -> list[re.Pattern]:
     """Load .lintlangignore from directory (gitignore-style globs)."""
     ignore_file = directory / ".lintlangignore"
@@ -114,21 +157,44 @@ def _load_ignore_patterns(directory: Path) -> list[re.Pattern]:
         line = line.strip()
         if not line or line.startswith("#"):
             continue
-        # Convert glob to regex
-        regex = line.replace(".", r"\.").replace("**/", "(.*/)?").replace("*", "[^/]*").replace("?", "[^/]")
-        try:
-            patterns.append(re.compile(regex))
-        except re.error:
-            continue
+        compiled = _glob_to_regex(line)
+        if compiled is not None:
+            patterns.append(compiled)
     return patterns
+
+
+def _matches(filepath: Path, base_dir: Path, patterns: list[re.Pattern]) -> bool:
+    """Check if filepath, relative to base_dir, matches any compiled pattern."""
+    if not patterns:
+        return False
+    try:
+        relative = str(filepath.relative_to(base_dir))
+    except ValueError:
+        relative = str(filepath)
+    return any(p.search(relative) for p in patterns)
 
 
 def _is_ignored(filepath: Path, base_dir: Path, patterns: list[re.Pattern]) -> bool:
     """Check if filepath matches any .lintlangignore pattern."""
-    if not patterns:
-        return False
-    relative = str(filepath.relative_to(base_dir))
-    return any(p.search(relative) for p in patterns)
+    return _matches(filepath, base_dir, patterns)
+
+
+def build_input_filter(base_dir: Path, exclude: list[str] | None = None) -> Callable[[Path], bool]:
+    """Return a predicate answering "should this input be filtered out?".
+
+    ``--exclude`` globs and a repository's ``.lintlangignore`` describe which
+    files a user does not want inspected. That is a property of the input, not
+    of how the input was found, so generic directory scanning and opt-in
+    repository discovery (``--discover``) share this one filter instead of each
+    converting globs for themselves.
+    """
+    ignore_patterns = _load_ignore_patterns(base_dir)
+    exclude_patterns = [compiled for pattern in (exclude or []) if (compiled := _glob_to_regex(pattern)) is not None]
+
+    def filtered(filepath: Path) -> bool:
+        return _matches(filepath, base_dir, ignore_patterns) or _matches(filepath, base_dir, exclude_patterns)
+
+    return filtered
 
 
 @dataclass
@@ -274,18 +340,8 @@ def scan_directory(
 
     results: dict[str, ScanResult] = {}
 
-    # Load .lintlangignore
-    ignore_patterns = _load_ignore_patterns(directory)
-
-    # Compile --exclude patterns
-    exclude_patterns: list[re.Pattern] = []
-    if exclude:
-        for pattern in exclude:
-            regex = pattern.replace(".", r"\.").replace("**/", "(.*/)?").replace("*", "[^/]*").replace("?", "[^/]")
-            try:
-                exclude_patterns.append(re.compile(regex))
-            except re.error:
-                continue
+    # .lintlangignore plus --exclude, compiled once and shared with --discover
+    is_filtered = build_input_filter(directory, exclude)
 
     extension_set = set(extensions)
     candidates: list[Path] = []
@@ -314,15 +370,9 @@ def scan_directory(
         if _is_non_prompt_file(filepath):
             continue
 
-        # Skip .lintlangignore matches
-        if _is_ignored(filepath, directory, ignore_patterns):
+        # Skip .lintlangignore and --exclude matches
+        if is_filtered(filepath):
             continue
-
-        # Skip --exclude matches
-        if exclude_patterns:
-            relative = str(filepath.relative_to(directory))
-            if any(p.search(relative) for p in exclude_patterns):
-                continue
 
         try:
             if filepath.suffix == ".py":
