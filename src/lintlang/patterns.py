@@ -1588,7 +1588,9 @@ def _check_properties(
 
         # Recurse into nested object properties
         if prop_def.get("type") == "object" and "properties" in prop_def:
-            _check_properties(findings, tool_name, prop_def["properties"], full_path)
+            _check_properties(
+                findings, tool_name, prop_def["properties"], full_path, tool_description
+            )
 
 
 # ── H4: Context Boundary Erosion ───────────────────────────────────

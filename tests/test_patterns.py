@@ -1239,6 +1239,30 @@ class TestH3:
         assert any("data" in f.description and "generic" in f.description for f in findings)
         assert any("data" in f.description and "no description" in f.description for f in findings)
 
+    def test_nested_property_named_in_tool_prose_is_explained(self):
+        config = AgentConfig(
+            tools=[
+                ToolDef(
+                    name="search",
+                    description="Search records by customer ID.",
+                    parameters={
+                        "type": "object",
+                        "properties": {
+                            "filter": {
+                                "type": "object",
+                                "description": "Filter criteria",
+                                "properties": {"customer_id": {"type": "string"}},
+                            },
+                        },
+                    },
+                ),
+            ]
+        )
+
+        findings = detect_h3(config)
+
+        assert not any("customer_id" in finding.description for finding in findings)
+
     def test_phantom_required_field(self):
         """Required field not in properties should be flagged."""
         config = AgentConfig(
