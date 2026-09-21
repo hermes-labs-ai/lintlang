@@ -6,6 +6,10 @@
 
 **Static analysis for the instructions your AI agents execute.**
 
+LintLang is developed by [Hermes Labs](https://hermes-labs.ai).
+
+Hermes Labs studies failure modes in agent and LLM systems, develops open-source tools that treat language as part of the runtime, and works with teams to remediate reliability failures in production.
+
 [![CI](https://github.com/hermes-labs-ai/lintlang/actions/workflows/ci.yml/badge.svg)](https://github.com/hermes-labs-ai/lintlang/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/lintlang)](https://pypi.org/project/lintlang/)
 [![Downloads](https://img.shields.io/pypi/dm/lintlang?label=downloads%2Fmonth)](https://pypistats.org/packages/lintlang)
@@ -201,5 +205,3 @@ Bug reports, disputed findings, reproducible false positives, documentation corr
 ## License
 
 [Apache License 2.0](LICENSE)
-
-LintLang is maintained by [Hermes Labs](https://hermes-labs.ai).
