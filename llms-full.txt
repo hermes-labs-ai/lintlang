@@ -304,14 +304,14 @@ text/configuration loading uses strict UTF-8. Neither path executes source code.
 
 ### H1: Tool Description Ambiguity
 
-Checks empty and very short descriptions, selected vague opening verbs, duplicate
+Checks empty and underspecified short descriptions, selected vague opening verbs, duplicate
 tool names, high word overlap, and relational nondistinction. Findings keep
 `pattern_id: H1`; `code` provides the more specific stable identifier.
 
 | Code | Reports | Severity |
 | --- | --- | --- |
 | H1.1 | Tool has no description | CRITICAL |
-| H1.2 | Description shorter than 20 characters | HIGH |
+| H1.2 | Description shorter than 20 characters without a recognized concrete action and domain object | HIGH |
 | H1.3 | Description opens with a selected vague verb | MEDIUM |
 | H1.4 | Two tools share a name | CRITICAL |
 | H1.5 | Near-duplicate descriptions under the word-overlap model | HIGH |
@@ -319,6 +319,23 @@ tool names, high word overlap, and relational nondistinction. Findings keep
 | H1.7 | Skill description longer than 1024 characters | HIGH |
 | H1.8 | Skill description does not say when to use the skill | MEDIUM under 120 characters, else LOW |
 | H1.9 | Skill `name` invalid, or different from its `SKILL.md` directory | MEDIUM |
+
+One-sided H1.6 containment and non-identical H1.5 overlap are suppressed when
+both tools declare different input names, types, or choices in nonempty property
+schemas: those inputs provide a selection distinction. Descriptions that are
+nearly identical (95% or greater word overlap) still receive H1.5.
+H3 does not demand duplicate descriptions for scalar parameters explained by an
+enum, const, format, a named boolean switch, or the tool description. Ambiguous
+parameters such as an unconstrained role or line/column coordinates still need
+semantics. These are bounded heuristics, not proof of semantic completeness.
+
+Server manifests with `server`, `tools`, and root `instructions` retain their
+instruction text for evidence-bearing checks, but do not inherit host-agent
+requirements for a retry budget, output format, version, or priority ordering.
+Percent-delimited localization references are not counted as inspected tool
+prose; `not_inspected` names unresolved tool and schema descriptions. No sibling
+files or remote localization resources are fetched. Skill source catalogs with
+`repo` and `skillPath` are explicitly skipped; their bodies are not present.
 
 For a Markdown file with `name`/`description` front matter (a skill or sub-agent
 definition) the description is the selection-time text, so H1.1 (no description,

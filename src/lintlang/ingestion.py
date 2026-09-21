@@ -116,6 +116,12 @@ def is_strong(node: Any) -> bool:
 
 def root_veto(data: Any) -> str:
     """Name the well-known non-agent document type, or return ''."""
+    if isinstance(data, list) and data and all(
+        isinstance(item, dict) and isinstance(item.get("repo"), str)
+        and isinstance(item.get("skillPath"), str) and not is_strong(item)
+        for item in data
+    ):
+        return "a skill source catalog (skill bodies are not present)"
     if not isinstance(data, dict):
         return ""
     if "$schema" in data and any(k in data for k in ("properties", "$defs", "definitions")):

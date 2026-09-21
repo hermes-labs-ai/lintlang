@@ -111,6 +111,8 @@ class AgentConfig:
     system prompt."""
     unclaimed: list[str] = field(default_factory=list)
     """Paths of tool-like objects the parser saw and did not inspect."""
+    uninspected_text: list[str] = field(default_factory=list)
+    """Description paths whose localization keys could not be resolved offline."""
     dropped: list[str] = field(default_factory=list)
     """Members of a tool container the parser could not read."""
     not_agent_content: str = ""
@@ -135,6 +137,11 @@ class ToolDef:
     two MCP servers may each legitimately expose a tool called ``search``."""
     owner: str = ""
     has_schema: bool = False
+
+
+def is_localization_reference(text: str) -> bool:
+    """VS Code percent-delimited message keys are not model-facing prose."""
+    return bool(re.fullmatch(r"%[A-Za-z0-9_.-]+%", text.strip()))
 
 
 def _is_direct_match(scope: ScopeAnalysis, start: int, end: int) -> bool:
@@ -526,6 +533,20 @@ def _leading_verb(tool: ToolDef) -> str:
     return _stem_candidates(word)[-1] if _stem_candidates(word) else word
 
 
+def _distinct_input_shapes(a: ToolDef, b: ToolDef) -> bool:
+    """Different input names or types/choices can explain a narrower operation."""
+    left, right = a.parameters.get("properties", {}), b.parameters.get("properties", {})
+    if not isinstance(left, dict) or not isinstance(right, dict) or not left or not right:
+        return False
+    if left.keys() != right.keys():
+        return True
+    return any(
+        isinstance(left[key], dict) and isinstance(right[key], dict)
+        and any(left[key].get(field) != right[key].get(field) for field in ("type", "enum", "const"))
+        for key in left
+    )
+
+
 def _domination_is_meaningful(dominated: ToolDef, dominant: ToolDef) -> bool:
     """Guard the one-sided H1.6 verdict against artefacts of the term filter.
 
@@ -545,6 +566,10 @@ def _domination_is_meaningful(dominated: ToolDef, dominant: ToolDef) -> bool:
     # A long description mentions many things in passing. Containment in a term
     # set several times one's own size is coverage by accident, not redundancy.
     if len(terms_b) > 2 * len(terms_a):
+        return False
+    # Different inputs give a reason to select one tool even when its
+    # vocabulary contains the other's.
+    if _distinct_input_shapes(dominated, dominant):
         return False
     verb_a, verb_b = _leading_verb(dominated), _leading_verb(dominant)
     return not (verb_a and verb_b and verb_a != verb_b)
@@ -680,9 +705,21 @@ def detect_h1(config: AgentConfig) -> list[Finding]:
             continue
 
         desc = tool.description.strip()
+        if is_localization_reference(desc):
+            continue
 
-        # Very short description
-        if len(desc) < 20:
+        # Length alone is not ambiguity: "Execute Python code" says more than
+        # "Handle all the necessary things". Keep the short-description check
+        # for text without a concrete action and domain object.
+        concrete_action = re.match(
+            r"(?:get|list|create|delete|read|write|execute|find|search|fetch|update|send|count|validate)\b",
+            desc, re.IGNORECASE,
+        )
+        object_text = desc[concrete_action.end():] if concrete_action else ""
+        domain_terms = _meaning_terms(ToolDef("", object_text)) - _GENERIC_CANONICALS - {
+            "all", "any", "anything", "everything", "something", "nothing", "this", "that", "these", "those",
+        }
+        if len(desc) < 20 and not (concrete_action and domain_terms):
             findings.append(
                 Finding(
                     pattern_id="H1",
@@ -741,7 +778,8 @@ def detect_h1(config: AgentConfig) -> list[Finding]:
     # duplicate findings are how a linter loses trust.
     for i, t1 in enumerate(tools):
         for t2 in tools[i + 1 :]:
-            if not t1.description or not t2.description:
+            if (not t1.description or not t2.description
+                    or is_localization_reference(t1.description) or is_localization_reference(t2.description)):
                 continue
             if t1.group != t2.group:
                 continue
@@ -826,7 +864,7 @@ def detect_h1(config: AgentConfig) -> list[Finding]:
             is_parallel_family = (
                 t1.name.lower() != t2.name.lower()
                 and overlap < 0.95
-                and (each_side_distinct or states_preference)
+                and (each_side_distinct or states_preference or _distinct_input_shapes(t1, t2))
             )
             if overlap > 0.7 and not is_parallel_family:
                 findings.append(
@@ -1304,7 +1342,7 @@ def detect_h2(config: AgentConfig) -> list[Finding]:
             has_any_constraint = True
             break
 
-    if config.system_prompt and not has_any_constraint and len(config.tools) > 0:
+    if config.system_prompt and config.kind != "server" and not has_any_constraint and len(config.tools) > 0:
         findings.append(
             Finding(
                 pattern_id="H2",
@@ -1387,7 +1425,7 @@ def detect_h3(config: AgentConfig) -> list[Finding]:
                     )
                 )
 
-        _check_properties(findings, tool.name, properties, "parameters")
+        _check_properties(findings, tool.name, properties, "parameters", tool.description)
 
     # Check schemas list too
     for i, schema in enumerate(config.schemas):
@@ -1412,15 +1450,28 @@ def detect_h3(config: AgentConfig) -> list[Finding]:
     return findings
 
 
-def _check_properties(findings: list[Finding], tool_name: str, properties: dict, path: str) -> None:
+def _check_properties(
+    findings: list[Finding], tool_name: str, properties: dict, path: str, tool_description: str = "",
+) -> None:
     """Check properties for schema-intent issues, including nested objects."""
     for prop_name, prop_def in properties.items():
         full_path = f"{path}.{prop_name}"
         if not isinstance(prop_def, dict):
             continue  # `true` / `false` are valid JSON Schema and say nothing to lint
 
-        # Missing description on parameter
-        if "description" not in prop_def:
+        # A schema constraint or the tool's own prose can explain a scalar
+        # parameter. Do not demand a duplicate sentence for a format, enum,
+        # named boolean switch, or an input explicitly named in that prose.
+        explained = bool(prop_def.get("enum") or "const" in prop_def or prop_def.get("format"))
+        scalar = prop_def.get("type") in ("string", "boolean", "integer", "number")
+        words = _split_identifiers(prop_name).lower().split()
+        prose = set(re.findall(r"\w+", tool_description.lower()))
+        if scalar and prop_name.lower() not in GENERIC_PROP_NAMES:
+            explained |= bool(words and set(words) <= prose)
+            explained |= prop_def.get("type") == "boolean" and len(words) > 1
+            explained |= prop_name.lower() == "password" and prop_def.get("type") == "string"
+            explained |= prop_name.lower() == "path" and bool(prose & {"file", "files", "disk"})
+        if "description" not in prop_def and not explained:
             findings.append(
                 Finding(
                     pattern_id="H3",
@@ -1735,7 +1786,7 @@ def detect_h4(config: AgentConfig) -> list[Finding]:
         # a Markdown reference document that mentions "conversation history"
         # is describing an API, not failing to scope a session.
         if (
-            config.kind not in ("instructions", "templates")
+            config.kind not in ("instructions", "templates", "server")
             and len(prompt) > 500
             and not has_boundary
             and _shows_cross_context_statefulness(prompt, scope)
@@ -2060,7 +2111,7 @@ def detect_h5(config: AgentConfig) -> list[Finding]:
     # "N instructions with no priority ordering" fired on 76% of them and named
     # no sentence in any. A finding that cannot point at its evidence, on a
     # surface it was not designed for, is noise.
-    is_chat_prompt = config.kind not in ("instructions", "templates")
+    is_chat_prompt = config.kind not in ("instructions", "templates", "server")
 
     # Flag problematic negatives (those NOT near safety keywords)
     if is_chat_prompt and len(problematic_negatives) > 3:
@@ -2273,7 +2324,7 @@ def detect_h6(config: AgentConfig) -> list[Finding]:
 
     # An output contract is a property of a chat/system prompt. A Markdown
     # instruction document has no single response to contract.
-    is_chat_prompt = config.kind not in ("instructions", "templates")
+    is_chat_prompt = config.kind not in ("instructions", "templates", "server")
     if is_chat_prompt and len(prompt) > 200 and not has_output_format and not has_format_example:
         findings.append(
             Finding(

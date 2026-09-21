@@ -1,0 +1,62 @@
+{
+  "server": {
+    "command": "file-service"
+  },
+  "instructions": "The service exposes deterministic file operations. Each call returns a structured result or error.",
+  "tools": [
+    {
+      "name": "read_file",
+      "description": "Read a UTF-8 file from disk",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    {
+      "name": "execute_python",
+      "description": "Execute Python code",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "Python source to execute in the sandbox"
+          }
+        }
+      }
+    },
+    {
+      "name": "create_rule",
+      "description": "Create a firewall rule",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "port": {
+            "type": "integer",
+            "description": "Destination port to allow"
+          }
+        }
+      }
+    },
+    {
+      "name": "create_rule_preset",
+      "description": "Create a firewall rule from a preset",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "preset": {
+            "type": "string",
+            "enum": [
+              "web",
+              "ssh"
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

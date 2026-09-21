@@ -17,7 +17,7 @@ from pathlib import Path
 import yaml
 
 from .ingestion import discover_tools
-from .patterns import AgentConfig, SkillMeta, ToolDef
+from .patterns import AgentConfig, SkillMeta, ToolDef, is_localization_reference
 
 
 def parse_file(path: str | Path) -> AgentConfig:
@@ -189,6 +189,10 @@ def _normalize(data: dict, source_file: str, document: object = None) -> AgentCo
     for key in ("system_prompt", "system", "systemPrompt", "instructions", "prompt"):
         if key in data and isinstance(data[key], str):
             config.system_prompt = data[key]
+            # An MCP server's instructions describe its interface; they are
+            # not the host agent's complete system prompt or execution budget.
+            if key == "instructions" and isinstance(data.get("server"), dict) and "tools" in data:
+                config.kind = "server"
             break
 
     # Prompts kept under nested keys (`agent.templates.system_template`,
@@ -223,6 +227,11 @@ def _normalize(data: dict, source_file: str, document: object = None) -> AgentCo
                 has_schema=item.has_schema,
             )
         )
+
+    for item in found.tools:
+        if is_localization_reference(item.description):
+            config.uninspected_text.append(f"{item.path}.description")
+        config.uninspected_text.extend(_localized_descriptions(item.parameters, f"{item.path}.parameters"))
 
     # Extract messages
     messages_data = data.get("messages", [])
@@ -300,3 +309,19 @@ def _validate_root_tool_names(data: dict) -> None:
             dict: "object",
         }.get(type(name), type(name).__name__)
         raise ValueError(f"tools[{index}].name must be a string, got {yaml_type}")
+
+
+def _localized_descriptions(value: object, path: str) -> list[str]:
+    """List unresolved schema-description keys without fetching sibling files."""
+    paths: list[str] = []
+    if isinstance(value, dict):
+        for key, member in value.items():
+            child = f"{path}.{key}"
+            if key == "description" and isinstance(member, str) and is_localization_reference(member):
+                paths.append(child)
+            elif isinstance(member, (dict, list)):
+                paths.extend(_localized_descriptions(member, child))
+    elif isinstance(value, list):
+        for index, member in enumerate(value):
+            paths.extend(_localized_descriptions(member, f"{path}[{index}]"))
+    return paths

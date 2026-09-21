@@ -30,6 +30,14 @@
 
 ### Changed
 
+- Concrete short tool descriptions no longer fail solely on length. One-sided
+  tool-description containment respects distinct input property schemas.
+- Parameter descriptions are not required to repeat explicit scalar schema or
+  tool-description context. Unexplained parameters still produce H3 findings.
+- Server manifest instructions no longer inherit host-agent shape requirements.
+  Unresolved localization keys are disclosed as uninspected text, and skill
+  source catalogs are skipped with an explicit reason.
+
 - The chat-prompt shape heuristics no longer run on Markdown instruction
   documents: H5 instruction count without priority ordering, H5 negative
   density, H6 missing output format, H6 missing version marker, H4 missing

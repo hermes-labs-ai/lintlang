@@ -9,8 +9,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from .herm import HermResult, score_text
-from .parsers import parse_file, parse_source
-from .patterns import PATTERNS, AgentConfig, Finding, SourceRegion
+from .parsers import parse_source
+from .patterns import PATTERNS, AgentConfig, Finding, SourceRegion, is_localization_reference
 
 # Pipeline detectors (P-series) — registered lazily to avoid circular imports
 _PIPELINE_DETECTORS_LOADED = False
@@ -257,7 +257,7 @@ def _coverage(config: AgentConfig) -> tuple[dict[str, int], list[str], str | Non
     inspected: dict[str, int] = {}
     if config.tools:
         inspected["tools"] = len(config.tools)
-        inspected["tools_described"] = sum(1 for t in config.tools if t.description.strip())
+        inspected["tools_described"] = sum(1 for t in config.tools if t.description.strip() and not is_localization_reference(t.description))
         inspected["tools_with_schema"] = sum(1 for t in config.tools if t.has_schema or t.parameters)
     if config.skill is not None:
         inspected["skill_description"] = 1
@@ -274,7 +274,7 @@ def _coverage(config: AgentConfig) -> tuple[dict[str, int], list[str], str | Non
     if config.schemas:
         inspected["schemas"] = len(config.schemas)
 
-    notes: list[str] = []
+    notes = [f"Localized description not inspected (unresolved message key): {path}" for path in config.uninspected_text]
     # Only when no tool was read: beside real tools, a stray {name, description}
     # object (an MCP resource, a chat participant) is not an unread tool.
     if config.unclaimed and not config.tools:
@@ -318,7 +318,7 @@ def _build_scoring_text(config: AgentConfig) -> str:
     if config.system_prompt:
         parts.append(config.system_prompt)
     for tool in config.tools:
-        if tool.description:
+        if tool.description and not is_localization_reference(tool.description):
             parts.append(tool.description)
     for msg in config.messages:
         content = msg.get("content", "")
