@@ -1,5 +1,8 @@
 """Tests for H1-H7 pattern detectors."""
 
+import json
+from pathlib import Path
+
 from lintlang.patterns import (
     AgentConfig,
     Severity,
@@ -12,6 +15,11 @@ from lintlang.patterns import (
     detect_h6,
     detect_h7,
 )
+from lintlang.scanner import scan_file
+
+ROOT = Path(__file__).parent.parent
+CORPUS_PATH = ROOT / "evals" / "corpus" / "cases.jsonl"
+SAMPLES_DIR = ROOT / "samples"
 
 # ── H1: Tool Description Ambiguity ─────────────────────────────────
 
@@ -559,6 +567,266 @@ class TestH2:
         ):
             findings = detect_h2(AgentConfig(system_prompt=prompt))
             assert any(f.severity == Severity.CRITICAL for f in findings), prompt
+
+    # ── One negation guard for every unbounded-behavior pattern ────
+    #
+    # H2 findings are CRITICAL, so these tests hold the guard to one rule: a
+    # prohibition it can positively recognize becomes clean, and everything it
+    # cannot stays reported.
+
+    @staticmethod
+    def _critical(prompt: str) -> list:
+        return [f for f in detect_h2(AgentConfig(system_prompt=prompt)) if f.severity == Severity.CRITICAL]
+
+    def test_reported_false_positive_a_prohibition_is_not_an_unbounded_instruction(self):
+        """Regression: this prompt forbids unbounded continuation and scanned FAIL."""
+        prompt = "You are a queue monitor. Do not continue indefinitely; stop at the first terminal result."
+
+        assert detect_h2(AgentConfig(system_prompt=prompt)) == []
+
+    def test_each_pattern_is_clean_when_negated_and_reported_when_not(self):
+        """Every ``DANGEROUS_PATTERNS`` entry, once negated and once as an instruction."""
+        for negated, instructed in (
+            ("Do not keep trying until it works; make one attempt and report.", "Keep trying until it works."),
+            ("Never retry until success.", "Retry until success."),
+            ("Do not retry as many times as you like.", "Retry as many times as it takes."),
+            ("Don't loop until the API responds. Poll at most three times.", "Loop until the API responds."),
+            ("Do not loop over the queue indefinitely.", "Loop over the queue indefinitely."),
+            ("Never loop through the task list forever.", "Loop through the task list forever."),
+            ("Pause and do not continue until the operator approves.", "Continue until every ticket is closed."),
+            ("Never continue indefinitely.", "Continue indefinitely."),
+        ):
+            assert not self._critical(negated), negated
+            assert self._critical(instructed), instructed
+
+        # ``don't stop until`` is itself a negative instruction to keep going.
+        # A negator in front of it is a double negation, not a prohibition.
+        assert self._critical("Don't stop until the queue is empty.")
+        assert self._critical("Never don't stop until the queue is empty.")
+
+    def test_negated_prohibition_corpus_boundary(self):
+        cases = [json.loads(line) for line in CORPUS_PATH.read_text(encoding="utf-8").splitlines() if line.strip()]
+        case = next(case for case in cases if case["case_id"] == "LL-H2-NEGATION-001")
+
+        for variant in case["variants"]:
+            assert len(self._critical(variant["text"])) == variant["expect"]["h2_critical"], variant["variant_id"]
+
+    def test_negated_prohibition_scanner_fixture(self):
+        result = scan_file(SAMPLES_DIR / "h2_negated_prohibition.yaml")
+
+        assert result.input_error is None
+        assert [f for f in result.structural_findings if f.pattern_id == "H2"] == []
+
+    def test_negator_vocabulary_case_and_apostrophes(self):
+        for prompt in (
+            "Never continue indefinitely.",
+            "Do not continue indefinitely.",
+            "Don't continue indefinitely.",
+            "Dont continue indefinitely.",
+            "DON’T continue indefinitely.",
+            "DO NOT CONTINUE INDEFINITELY.",
+            "You should not continue until every record is processed; stop after 50 records.",
+            "The agent shouldn't keep trying until it works.",
+            "The agent shouldn’t keep trying until it works.",
+            "You must not continue indefinitely.",
+            "MUST NOT continue indefinitely.",
+            "You mustn't retry until success.",
+            "You cannot continue indefinitely.",
+            "The worker can't loop until the API responds.",
+        ):
+            assert not self._critical(prompt), prompt
+
+    def test_unbounded_instruction_with_a_negation_elsewhere_still_flags(self):
+        """A negator that does not sit directly on the behavior forbids something else."""
+        for prompt in (
+            "Do not stop; continue indefinitely.",
+            "Never stop retrying. Keep trying until it works.",
+            "Never give up and keep trying until the deploy succeeds.",
+            "Do not pause, continue until every ticket is closed.",
+            "Do not skip records and continue indefinitely.",
+            "Never idle\ncontinue indefinitely",
+            "You should not hesitate to keep trying until it works.",
+            "never mind the limit, continue indefinitely",
+            "I said never. Continue until done.",
+            "Never reveal credentials. Keep trying until the deployment succeeds.",
+            "Never assume failure is final: retry until the service answers.",
+            "If the user says never mind, continue until finished anyway.",
+            "Do not quietly abort - really keep trying until it succeeds.",
+            "Never stop: loop until done.",
+        ):
+            assert self._critical(prompt), prompt
+
+    def test_double_negation_still_flags(self):
+        for prompt in (
+            "Do not refuse to keep trying until it works.",
+            "Do not fail to continue until completion.",
+            "Never not continue until done.",
+            "Do not never retry until success.",
+            "You can't not keep trying until it works.",
+            "There is no reason you should not continue indefinitely.",
+            "It is not true that you must not continue indefinitely.",
+            "Nobody said you can't; you cannot not retry until success.",
+        ):
+            assert self._critical(prompt), prompt
+
+        # Sibling prohibitions in separate clauses are each still a prohibition,
+        # and "without" in the subject does not negate the prohibition.
+        assert not self._critical("Do not continue indefinitely, and do not retry until success.")
+        assert not self._critical("Agents without approval must not continue indefinitely.")
+
+    def test_only_listed_adverbs_may_sit_between_negator_and_behavior(self):
+        for prompt in (
+            "Don't continuously loop over the queue indefinitely.",
+            "Never ever retry until success.",
+            "Do NOT ever continue until told otherwise; ask after each step.",
+            "You should not blindly loop until the API responds.",
+            "Never ever endlessly keep trying until it works.",
+        ):
+            assert not self._critical(prompt), prompt
+
+        # Verbs that merely end in "ly", restrictive adverbs, and a third modifier.
+        for prompt in (
+            "Never reply early keep trying until it works",
+            "Do not comply partially continue until all items are handled",
+            "Never reply\nKeep trying until the user answers.",
+            "Do not apply retry until success",
+            "Do not rely continue until done",
+            "Do not supply continue indefinitely",
+            "Do not only continue until the first error; process everything.",
+            "Do not merely continue until the first error; process everything.",
+            "Do not simply loop until done - verify as well, however long it takes.",
+            "Do not solely retry until success; also alert the operator.",
+            "Don't just keep trying until it works; log each try.",
+            "Do not ever blindly repeatedly retry until success.",
+        ):
+            assert self._critical(prompt), prompt
+
+    def test_conditional_or_interrogative_negation_still_flags(self):
+        """An exception licenses the unbounded run; a question is not a prohibition."""
+        for prompt in (
+            "Do not continue indefinitely unless the operator sets RUN_FOREVER.",
+            "Do not continue indefinitely, unless the operator sets RUN_FOREVER.",
+            "Unless the operator sets RUN_FOREVER, do not continue indefinitely.",
+            "Except for idempotent calls, never retry until success.",
+            "Do not continue indefinitely; except when directed otherwise.",
+            "Do not continue indefinitely. Unless the operator sets RUN_FOREVER.",
+            "Do not retry until success except for idempotent calls.",
+            "Data is lost if you don't keep trying until it succeeds.",
+            "If you do not continue until the end, the job is lost, so keep going.",
+            "Why don't you keep trying until it works?",
+            "Why should you never retry until it works?",
+            "Is it true that you must not continue indefinitely?",
+            "Should the agent never retry until success?",
+        ):
+            assert self._critical(prompt), prompt
+
+        # A licensing exception belonging to a neighbouring sentence does not
+        # reach the prohibition.
+        for prompt in (
+            "Escalate unless the operator declines. Do not continue indefinitely.",
+            "Retry twice, except on 5xx. Never loop over the queue indefinitely.",
+        ):
+            assert not self._critical(prompt), prompt
+
+    def test_stop_condition_in_a_coordinated_clause_does_not_defeat_the_prohibition(self):
+        """The corrected wording a user writes after being flagged — a
+        prohibition plus their own stop condition — must not stay CRITICAL."""
+        for prompt in (
+            "Do not continue indefinitely and stop when the queue drains.",
+            "Never loop over the queue indefinitely, and escalate if the backlog grows.",
+            "You must not retry until success, even if the operator asks.",
+            "Do not continue indefinitely - report when you stop.",
+            "Do not continue indefinitely (report when you stop).",
+            "- Never continue indefinitely, and say why when you stop",
+        ):
+            assert not self._critical(prompt), prompt
+
+        # A condition attached to the prohibited behaviour itself still makes
+        # the prohibition conditional, so it stays reported.
+        for prompt in (
+            "Do not keep trying until it works when the credentials are wrong.",
+            "Never continue indefinitely if the operator is watching.",
+        ):
+            assert self._critical(prompt), prompt
+
+    def test_line_breaks_between_negator_and_behavior(self):
+        """Hard-wrapped prose is one sentence; a blank line, list marker, or tab is not."""
+        for prompt in (
+            "The deploy agent should never\nretry until the endpoint answers.",
+            "Do not\n  continue indefinitely.",
+            "Do not\r\ncontinue indefinitely.",
+            "- Do not keep trying until it works\n- Make one attempt",
+        ):
+            assert not self._critical(prompt), prompt
+
+        for prompt in (
+            "Do not\n\nContinue until the user is satisfied.",
+            "- Do not\n- continue indefinitely",
+            "Do not\tcontinue indefinitely",
+        ):
+            assert self._critical(prompt), prompt
+
+    def test_second_unbounded_match_in_the_same_sentence_still_flags(self):
+        for prompt in (
+            "Do not continue until the operator approves, then continue indefinitely.",
+            "Do not continue indefinitely, but keep trying until the lock is acquired.",
+        ):
+            assert len(self._critical(prompt)) == 1, prompt
+
+        assert not self._critical("Do not continue indefinitely, and do not retry until success.")
+
+    def test_negated_continuation_signal_uses_the_same_guard(self):
+        assert not self._critical("Loop over the items but never indefinitely.")
+        # Words between the negator and the signal leave the meaning open.
+        assert self._critical("Loop over the queue and do not stop processing forever.")
+
+    def test_known_limitations_stay_reported(self):
+        """Prohibitions the guard does not recognize. They stay CRITICAL by design.
+
+        An interrupted negator, a delegated one, and a subjectless "Cannot" are
+        left reported rather than guessed at. Rewording them with the negator
+        directly on the behavior ("Never continue indefinitely.") scans clean.
+        """
+        for prompt in (
+            "Do not, under any circumstances, continue indefinitely.",
+            "Never, ever continue indefinitely.",
+            "Do not let the agent continue indefinitely.",
+            "Do not allow it to keep trying until it works.",
+            "Cannot continue indefinitely: cap the run at 10 steps.",
+        ):
+            assert self._critical(prompt), prompt
+
+    def test_reported_description_and_evidence_are_unchanged(self):
+        """Baselines fingerprint description and evidence; the guard must not move them."""
+        expected = {
+            "If the task fails, keep trying until it succeeds.": (
+                "Unbounded retry loop — 'keep trying until' needs an explicit limit.",
+                "If the task fails, keep trying until it succeeds.",
+            ),
+            "If push fails, resolve and retry until it succeeds.": (
+                "Unbounded retry — add max_retries or a fallback.",
+                "fails, resolve and retry until it succeeds.",
+            ),
+            "Don't stop until the analysis is complete.": (
+                "Negative termination condition — rephrase as a positive bound.",
+                "Don't stop until the analysis is complete.",
+            ),
+            "Define success criteria. Loop until verified.": (
+                "Potential infinite loop — ensure a max iteration count.",
+                "e success criteria. Loop until verified.",
+            ),
+            "Loop over the queue indefinitely, processing new items as they arrive.": (
+                "Potential infinite loop — ensure a max iteration count.",
+                "Loop over the queue indefinitely, processing new",
+            ),
+            "Do not stop; continue indefinitely.": (
+                "Unbounded continuation — add an explicit termination condition.",
+                "Do not stop; continue indefinitely.",
+            ),
+        }
+        for prompt, (description, evidence) in expected.items():
+            (finding,) = self._critical(prompt)
+            assert (finding.description, finding.evidence) == (description, evidence), prompt
 
     def test_missing_constraints_with_tools(self):
         config = AgentConfig(
