@@ -1,0 +1,17 @@
+{
+  "name": "lintlang",
+  "owner": {
+    "name": "Hermes Labs",
+    "email": "roli@hermes-labs.ai"
+  },
+  "metadata": {
+    "description": "LintLang plugins maintained by Hermes Labs."
+  },
+  "plugins": [
+    {
+      "name": "lintlang",
+      "source": "integrations/claude-code",
+      "description": "Audit agent configs, system prompts, and tool definitions on demand with deterministic local static analysis."
+    }
+  ]
+}
