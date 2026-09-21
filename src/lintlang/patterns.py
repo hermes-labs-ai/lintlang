@@ -937,12 +937,12 @@ CONSTRAINT_SIGNALS = [
     "max_tokens",
 ]
 
-_RETRY_UNTIL_PATTERN = r"retry\s+(?:until|as\s+many\s+times)"
+_RETRY_UNTIL_PATTERN = r"(?:retry(?:ing)?|try\s+again|repeat)\s+(?:until|as\s+many\s+times)"
 _LOOP_OVER_THROUGH_PATTERN = r"loop\s+(?:through|over)"
 
 
 DANGEROUS_PATTERNS = [
-    (r"keep\s+trying\s+until", "Unbounded retry loop — 'keep trying until' needs an explicit limit."),
+    (r"keep\s+(?:on\s+)?trying\s+until", "Unbounded retry loop — 'keep trying until' needs an explicit limit."),
     (_RETRY_UNTIL_PATTERN, "Unbounded retry — add max_retries or a fallback."),
     (r"don'?t\s+stop\s+until", "Negative termination condition — rephrase as a positive bound."),
     (r"loop\s+until", "Potential infinite loop — ensure a max iteration count."),
@@ -1213,6 +1213,37 @@ def _is_bounded_verification_loop(text: str, match: re.Match[str]) -> bool:
     return bool(_SUCCESS_CRITERIA_PREFIX.search(prefix) and _VERIFICATION_GUIDANCE.search(guidance))
 
 
+_STATED_BOUND = re.compile(
+    r"\bmax(?:imum)?\b|\bmax[_A-Za-z]\w*|\bat\s+most\b|\bup\s+to\s+\d|\bno\s+more\s+than\b|"
+    r"\b\d+\s*(?:x|times?|attempts?|retries|tries|iterations?|rounds?|minutes?|seconds?|s|ms)\b|"
+    r"\btime(?:s)?\s*out\b|\btimeout\b|\blimit(?:ed)?\s+(?:of|to)\b|\bbudget\b|\bthen\s+stop\b|\bor\s+stop\b",
+    re.IGNORECASE,
+)
+_LOOP_AS_NOUN = re.compile(
+    r"(?:\b(?:a|an|the|this|that|its|their|your|each|every|agent|agentic|run|event|main|outer|inner|"
+    r"feedback|control|tool|game|while|for|revise|retry|review)\s+|[-=]>\s*\w+\s+|\w-)$",
+    re.IGNORECASE,
+)
+
+
+def _sentence_around(text: str, start: int, end: int) -> str:
+    left = max(text.rfind(".", 0, start), text.rfind("\n\n", 0, start), text.rfind("!", 0, start), text.rfind("?", 0, start))
+    rights = [i for i in (text.find(". ", end), text.find(".\n", end), text.find("\n\n", end)) if i != -1]
+    return text[left + 1 : (min(rights) if rights else len(text))]
+
+
+def _is_bounded_or_descriptive(text: str, match: re.Match[str]) -> bool:
+    """The same sentence states the bound, or 'loop' is a noun being described.
+
+    "... runs a revise loop until the artifact meets the rubric, hits
+    `max_iterations`, or is interrupted" names its limit. "block the agent loop
+    until answered" describes a loop; it does not instruct one.
+    """
+    if _STATED_BOUND.search(_sentence_around(text, match.start(), match.end())):
+        return True
+    return match.group().lower().startswith("loop") and bool(_LOOP_AS_NOUN.search(text[max(0, match.start() - 24) : match.start()]))
+
+
 def detect_h2(config: AgentConfig) -> list[Finding]:
     """Detect missing constraint scaffolding."""
     findings: list[Finding] = []
@@ -1252,6 +1283,8 @@ def detect_h2(config: AgentConfig) -> list[Finding]:
             if _is_bounded_verification_loop(text, match):
                 continue
             if _is_negated_prohibition(text, match.start()):
+                continue
+            if _is_bounded_or_descriptive(text, match):
                 continue
             if pattern == _LOOP_OVER_THROUGH_PATTERN and not _is_unbounded_loop_traversal(text, match):
                 continue
