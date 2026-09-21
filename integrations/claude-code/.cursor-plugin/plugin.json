@@ -1,0 +1,27 @@
+{
+  "name": "lintlang",
+  "displayName": "LintLang",
+  "description": "Audit agent configs, system prompts, and tool definitions on demand with deterministic local static analysis.",
+  "version": "0.2.0",
+  "author": {
+    "name": "Hermes Labs",
+    "email": "roli@hermes-labs.ai"
+  },
+  "publisher": "Hermes Labs",
+  "homepage": "https://lintlang.ai/",
+  "repository": "https://github.com/hermes-labs-ai/lintlang",
+  "license": "Apache-2.0",
+  "logo": "assets/lintlang-mark.svg",
+  "keywords": [
+    "linting",
+    "agent-configs",
+    "system-prompts",
+    "developer-tools"
+  ],
+  "category": "Developer Tools",
+  "tags": [
+    "linting",
+    "developer-tools"
+  ],
+  "skills": "skills/*/SKILL.md"
+}

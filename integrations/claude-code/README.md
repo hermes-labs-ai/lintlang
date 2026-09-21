@@ -1,12 +1,12 @@
-# LintLang for Claude Code
+# LintLang agent plugin
 
-This native Claude Code plugin ships two separate surfaces. Neither rewrites a
-file or blocks a tool call.
+The package contains one portable Agent Plugins skill plus a Claude Code
+post-edit adapter. Neither rewrites a file or blocks a tool call.
 
-| Surface | Kind | Runs | Scope |
+| Surface | Hosts | Runs | Scope |
 | --- | --- | --- | --- |
-| `lintlang-audit` skill | On-demand skill | When you ask for an audit | The file you name |
-| `PostToolUse` adapter | Automatic hook | After supported `Write` or `Edit` | The file just changed |
+| `lintlang-audit` skill | Agent Plugins hosts, including Cursor; Claude Code | When you ask for an audit | The file you name |
+| `PostToolUse` adapter | Claude Code only | After supported `Write` or `Edit` | The file just changed |
 
 The skill is not the hook. Disabling one does not disable the other; installing
 the plugin provides both. Scanning `CLAUDE.md` with the standalone CLI does not
@@ -30,7 +30,7 @@ That fallback uses an isolated cached environment, not a persistent LintLang
 installation; it can download packages on a cache miss. Neither installed route
 needs a checkout of this repository.
 
-## Install from the marketplace
+## Install in Claude Code from the marketplace
 
 The repository root is a Claude Code marketplace
 (`.claude-plugin/marketplace.json`) that catalogs this plugin directory:
@@ -47,7 +47,27 @@ claude plugin marketplace add hermes-labs-ai/lintlang
 claude plugin install lintlang@lintlang
 ```
 
-## Try and validate a local checkout
+## Use in Cursor
+
+The repository-level `.cursor-plugin/marketplace.json` points Cursor at this
+package. Cursor resolves `.cursor-plugin/plugin.json` there, whose `skills`
+field exposes the existing `lintlang-audit` skill rather than copying it.
+The root Agent Plugins manifest remains the portable package contract.
+
+For a local checkout, copy the package into Cursor's local plugin directory,
+reload Cursor, and confirm that `lintlang-audit` appears under Customize:
+
+```bash
+mkdir -p ~/.cursor/plugins/local
+cp -R integrations/claude-code ~/.cursor/plugins/local/lintlang
+```
+
+Then ask Cursor to `audit AGENTS.md with lintlang`. Cursor's Agent Plugins
+support covers skills and MCP servers, not hooks. It therefore loads the audit
+skill but does not run the Claude-specific `PostToolUse` adapter automatically.
+The published Cursor listing uses that narrower, demonstrated capability.
+
+## Try and validate a local checkout with Claude Code
 
 From this repository's root:
 
