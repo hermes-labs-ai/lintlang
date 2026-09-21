@@ -140,7 +140,24 @@
   anything other than an `if` / `when` / `whenever` condition is an aside or
   the author's own bound and leaves the prohibition whole
   (`Do not retry indefinitely (see the runbook).`,
-  `Do not continue indefinitely (stop after ten items).`). Finding
+  `Do not continue indefinitely (stop after ten items).`). Only a *trailing*
+  condition does this. A condition **fronted** before the negator is read as
+  closing its own clause, so the prohibition stays whole and H2 stays silent:
+  `If the queue is non-empty, do not retry until it works.` and
+  `When the queue is non-empty, do not continue indefinitely.` carry no H2
+  finding, while the same conditions placed after the phrase are reported. This
+  asymmetry is a known limitation rather than a judgement that a fronted
+  condition bounds the behaviour, and a test asserts the behaviour H2 should
+  have and is expected to fail until it does. It is
+  also a verdict change relative to 0.6.0 in the silent direction:
+  `When the queue is non-empty, do not continue indefinitely.` was CRITICAL in
+  released 0.6.0 and now reports nothing, so a file relying on that form to
+  fail a gate can move from FAIL to REVIEW or PASS. A second known limitation
+  sits next to it: a trailing condition is only recognized when its `if` /
+  `when` / `whenever` is the first word after the comma, dash, or parenthesis,
+  so a modifier in front of it (`Do not retry until it works, only if the
+  queue is non-empty.`) hides the condition and the prohibition is read as a
+  bound, and a test asserts the behaviour H2 should have there too. Finding
   descriptions and evidence text are unchanged, so existing baseline entries
   still match.
 - **Verdict change carried over from unreleased work after the 0.6.0 tag.** H2

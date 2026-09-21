@@ -836,6 +836,34 @@ class TestH2:
         ):
             assert not self._critical(prompt), prompt
 
+    @pytest.mark.xfail(
+        strict=True,
+        reason="documented limitation: a condition fronted before the negator does not defeat the prohibition",
+    )
+    def test_a_fronted_condition_should_defeat_the_prohibition(self):
+        """DESIRED BEHAVIOUR, not today's behaviour.
+
+        A condition placed after the behaviour makes the prohibition
+        conditional and is reported; the same condition moved in front of the
+        negator is read as closing its own clause and reports nothing. The two
+        say the same thing, so both should be reported. The changelog records
+        the asymmetry as a known limitation and as a verdict change relative to
+        0.6.0, which reported the fronted form. The day it is reported again,
+        this test passes, strict xfail turns that into a suite failure, and the
+        marker and the changelog note come off together.
+
+        This covers every fronted condition, whichever negator follows it. A
+        coordinated sibling clause (`Do not continue indefinitely, and do not
+        retry until success.`) is a different shape and stays a hard negative.
+        """
+        for prompt in (
+            "If the queue is non-empty, do not retry until it works.",
+            "When the queue is non-empty, do not continue indefinitely.",
+            "When the push fails, do not retry until the conflict is resolved.",
+            "If the queue is empty, never continue indefinitely.",
+        ):
+            assert self._critical(prompt), prompt
+
     def test_only_listed_adverbs_may_sit_between_negator_and_behavior(self):
         for prompt in (
             "Don't continuously loop over the queue indefinitely.",
