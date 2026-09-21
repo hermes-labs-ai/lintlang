@@ -56,8 +56,9 @@ def main(argv: list[str] | None = None) -> int:
             "Also scan recognized agent instruction files found under ROOT "
             "(default: '.'): AGENTS.md, CLAUDE.md, GEMINI.md, SKILL.md, "
             "agent.yaml/.yml/.json, .github/copilot-instructions.md, and "
-            "Markdown under .github/instructions/. Explicit inputs still win "
-            "and are unioned with the discovered set."
+            "*.instructions.md under .github/instructions/. Symlinks are not "
+            "followed; a skipped one is named on stderr. Explicit inputs still "
+            "win and are unioned with the discovered set."
         ),
     )
     scan_parser.add_argument(
@@ -259,7 +260,13 @@ def _cmd_scan(args: argparse.Namespace) -> int:
                     seen.add(Path(requested).resolve())
                 except OSError:
                     continue
-            for discovered in discover_instruction_files(discovery_root):
+            # Discovery does not follow symlinks, for the same reason a
+            # directory scan does not: a link can leave the tree or name the
+            # same document twice. A recognized instruction file skipped for
+            # that reason is a coverage gap, and a gap the user cannot see is
+            # the one failure mode this tool exists to prevent, so name it.
+            skipped_symlinks: list[Path] = []
+            for discovered in discover_instruction_files(discovery_root, skipped_symlinks=skipped_symlinks):
                 if is_filtered(discovered):
                     continue
                 try:
@@ -270,6 +277,14 @@ def _cmd_scan(args: argparse.Namespace) -> int:
                     continue
                 seen.add(resolved)
                 inputs.append(str(discovered))
+            for link in skipped_symlinks:
+                if is_filtered(link):
+                    continue
+                print(
+                    f"Warning: --discover skipped {link}: it is a symlink, and discovery "
+                    "does not follow symlinks. Pass its target as an explicit file to scan it.",
+                    file=sys.stderr,
+                )
         elif not discovery_root.exists():
             results[str(discovery_root)] = input_error_result(discovery_root, "Discovery root not found")
         else:

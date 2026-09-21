@@ -3,5 +3,5 @@
   description: Statically lint selected AI agent configs, tool definitions, and prompts.
   entry: lintlang scan
   language: python
-  files: '(^|/)(AGENTS|CLAUDE|GEMINI|SKILL)\.md$|(^|/)agent\.(yaml|yml|json)$|(^|/)\.github/copilot-instructions\.md$|(^|/)\.github/instructions/.*\.md$'
+  files: '(^|/)(AGENTS|CLAUDE|GEMINI|SKILL)\.md$|(^|/)agent\.(yaml|yml|json)$|(^|/)\.github/copilot-instructions\.md$|(^|/)\.github/instructions/.*[^/]\.instructions\.md$'
   verbose: true

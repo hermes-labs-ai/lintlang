@@ -45,7 +45,8 @@ RECOGNIZED_PATHS = [
     "agent.yml",
     "agent.json",
     ".github/copilot-instructions.md",
-    ".github/instructions/foo.md",
+    ".github/instructions/foo.instructions.md",
+    ".github/instructions/nested/foo.instructions.md",
 ]
 
 # Paths that must NOT be selected by the hook's `files:` regex.
@@ -57,6 +58,11 @@ UNRECOGNIZED_PATHS = [
     "agents.md",
     "AGENTS.txt",
     ".github/instructions/foo.txt",
+    # HARD NEGATIVE: the layout's documented spelling is `*.instructions.md`;
+    # a plain Markdown file kept in that directory is not an instruction file.
+    ".github/instructions/foo.md",
+    ".github/instructions/README.md",
+    ".github/instructions/.instructions.md",
     "pyproject.toml",
 ]
 

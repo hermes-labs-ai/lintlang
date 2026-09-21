@@ -208,6 +208,7 @@ def test_init_github_candidate_order_covers_the_recognized_primitive():
     from lintlang.instructions import (
         RECOGNIZED_INSTRUCTION_BASENAMES,
         RECOGNIZED_INSTRUCTION_DIRECTORIES,
+        RECOGNIZED_INSTRUCTION_DIRECTORY_SUFFIXES,
         RECOGNIZED_INSTRUCTION_RELATIVE_PATHS,
         is_recognized_instruction_path,
     )
@@ -228,8 +229,13 @@ def test_init_github_candidate_order_covers_the_recognized_primitive():
         | set(RECOGNIZED_INSTRUCTION_RELATIVE_PATHS)
         | set(RECOGNIZED_INSTRUCTION_DIRECTORIES)
     )
+    # A recognized directory is itself a candidate; the primitive answers for
+    # the files inside it, in that directory's documented spelling.
     assert all(
-        is_recognized_instruction_path(candidate / "x.md")
+        any(
+            is_recognized_instruction_path(candidate / f"x{suffix}")
+            for suffix in RECOGNIZED_INSTRUCTION_DIRECTORY_SUFFIXES
+        )
         if candidate.as_posix() in RECOGNIZED_INSTRUCTION_DIRECTORIES
         else is_recognized_instruction_path(candidate)
         for candidate in DEFAULT_INPUT_ORDER

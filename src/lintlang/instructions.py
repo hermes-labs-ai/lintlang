@@ -12,8 +12,9 @@ Only exact, documented instruction surfaces:
 * root-or-nested basenames: ``AGENTS.md``, ``CLAUDE.md``, ``GEMINI.md``,
   ``SKILL.md``, ``agent.yaml``, ``agent.yml``, ``agent.json``
 * the two-segment layout ``.github/copilot-instructions.md``
-* Markdown files directly or indirectly under a ``.github/instructions``
-  directory
+* ``*.instructions.md`` files directly or indirectly under a
+  ``.github/instructions`` directory — the spelling the vendor documents for
+  that layout, not every Markdown file that happens to live there
 
 Case policy
 -----------
@@ -30,6 +31,15 @@ Arbitrary Markdown, prose documentation, prompts with other names, and any
 file that merely has a supported extension. Generic directory scanning
 (``scanner.scan_directory``) keeps its separate, broader extension sweep; this
 module never changes it.
+
+Known omissions
+---------------
+Editor and host layouts that are not recognized, deliberately: ``.cursor/rules``,
+``.claude/agents``, and ``.windsurfrules``. Each would need its own file-shape
+decision (a rules directory is not one instruction document, and an agent
+definition is not a prompt file), and adding a surface here widens discovery,
+the pre-commit ``files:`` regex, and ``lintlang init`` at once. Pass such a file
+as an explicit scan argument, which is always canonical.
 """
 
 from __future__ import annotations
@@ -68,8 +78,11 @@ RECOGNIZED_INSTRUCTION_RELATIVE_PATHS = frozenset({".github/copilot-instructions
 #: Directory layouts whose contained files are instruction surfaces.
 RECOGNIZED_INSTRUCTION_DIRECTORIES = frozenset({".github/instructions"})
 
-#: File suffixes accepted inside :data:`RECOGNIZED_INSTRUCTION_DIRECTORIES`.
-RECOGNIZED_INSTRUCTION_DIRECTORY_SUFFIXES = frozenset({".md"})
+#: Filename suffixes accepted inside :data:`RECOGNIZED_INSTRUCTION_DIRECTORIES`.
+#: Matched against the whole basename, so a bare ``notes.md`` sitting in that
+#: directory is not an instruction file; ``.instructions.md`` is the spelling
+#: the layout documents.
+RECOGNIZED_INSTRUCTION_DIRECTORY_SUFFIXES = frozenset({".instructions.md"})
 
 
 def _parts(path: str | os.PathLike[str]) -> tuple[str, ...]:
@@ -114,7 +127,9 @@ def is_recognized_instruction_path(path: str | os.PathLike[str]) -> bool:
     if tail in RECOGNIZED_INSTRUCTION_RELATIVE_PATHS:
         return True
 
-    if Path(name).suffix in RECOGNIZED_INSTRUCTION_DIRECTORY_SUFFIXES:
+    if any(
+        len(name) > len(suffix) and name.endswith(suffix) for suffix in RECOGNIZED_INSTRUCTION_DIRECTORY_SUFFIXES
+    ):
         directories = {tuple(entry.split("/")) for entry in RECOGNIZED_INSTRUCTION_DIRECTORIES}
         for directory in directories:
             width = len(directory)
@@ -126,20 +141,34 @@ def is_recognized_instruction_path(path: str | os.PathLike[str]) -> bool:
     return False
 
 
-def discover_instruction_files(root: str | os.PathLike[str]) -> list[Path]:
+def discover_instruction_files(
+    root: str | os.PathLike[str],
+    *,
+    skipped_symlinks: list[Path] | None = None,
+) -> list[Path]:
     """Return every recognized instruction file under ``root``, sorted.
 
     Traversal reuses :data:`lintlang.scanner.NON_PROMPT_DIRS` pruning (caches,
     vendored dependencies, ``.git``, build output) and never follows symlinked
     directories or scans symlinked files, so discovery cannot escape the tree
-    or report the same document twice. A missing or non-directory ``root``
-    yields an empty list; callers decide whether that is an error.
+    or report the same document twice — the same rule
+    :func:`lintlang.scanner.scan_directory` applies to a directory scan. A
+    missing or non-directory ``root`` yields an empty list; callers decide
+    whether that is an error.
+
+    Not following a symlink is a coverage gap the caller cannot see in the
+    returned list. Pass ``skipped_symlinks`` to collect the recognized
+    instruction files that were skipped for that reason, sorted, so the caller
+    can say so instead of reporting a silently smaller scan. A symlinked
+    *directory* is pruned without inspection and is therefore not collected:
+    deciding whether it holds instruction files would mean following it.
     """
     root_path = Path(root)
     if not root_path.is_dir():
         return []
 
     found: list[Path] = []
+    skipped: list[Path] = []
     for current, dirnames, filenames in os.walk(root_path, followlinks=False):
         dirnames[:] = sorted(
             name
@@ -150,9 +179,13 @@ def discover_instruction_files(root: str | os.PathLike[str]) -> list[Path]:
         )
         for filename in sorted(filenames):
             candidate = Path(current) / filename
-            if candidate.is_symlink():
+            if not is_recognized_instruction_path(candidate):
                 continue
-            if is_recognized_instruction_path(candidate):
-                found.append(candidate)
+            if candidate.is_symlink():
+                skipped.append(candidate)
+                continue
+            found.append(candidate)
 
+    if skipped_symlinks is not None:
+        skipped_symlinks.extend(sorted(skipped, key=str))
     return sorted(found, key=str)

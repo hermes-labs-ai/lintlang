@@ -624,6 +624,43 @@ class TestRepositoryDiscovery:
         assert files.count("AGENTS.md") == 1
         assert sorted(Path(f).name for f in files) == ["AGENTS.md", "SKILL.md", "notes.md"]
 
+    def test_discover_names_the_instruction_symlinks_it_skipped(self, tmp_path, capsys):
+        """Discovery does not follow symlinks, and it must not hide that.
+
+        A recognized instruction file that is a symlink is a coverage gap: it
+        is not scanned, and nothing in the scan output says so. The scan
+        continues and stays exit 0; only the gap is named, on stderr.
+        """
+        self._repository(tmp_path)
+        (tmp_path / "CLAUDE.md").symlink_to(tmp_path / "AGENTS.md")
+        (tmp_path / "LICENSE.md").symlink_to(tmp_path / "README.md")
+
+        exit_code = main(["scan", "--discover", str(tmp_path), "--format", "json"])
+
+        assert exit_code == 0
+        captured = capsys.readouterr()
+        assert sorted(Path(item["file"]).name for item in json.loads(captured.out)) == ["AGENTS.md", "SKILL.md"]
+        assert "CLAUDE.md: it is a symlink" in captured.err
+        assert "does not follow symlinks" in captured.err
+        # An unrecognized symlink was never a discovery target, so it is not a gap.
+        assert "LICENSE.md" not in captured.err
+
+    def test_discover_is_silent_when_no_instruction_symlink_was_skipped(self, tmp_path, capsys):
+        self._repository(tmp_path)
+
+        assert main(["scan", "--discover", str(tmp_path), "--format", "json"]) == 0
+        assert "symlink" not in capsys.readouterr().err
+
+    def test_discover_symlink_notice_honours_exclude_globs(self, tmp_path, capsys):
+        """An excluded path is not a coverage gap: the caller said so."""
+        self._repository(tmp_path)
+        (tmp_path / "docs" / "CLAUDE.md").symlink_to(tmp_path / "AGENTS.md")
+
+        exit_code = main(["scan", "--discover", str(tmp_path), "--exclude", "docs/**", "--format", "json"])
+
+        assert exit_code == 0
+        assert "symlink" not in capsys.readouterr().err
+
     def test_discover_root_must_exist(self, tmp_path, capsys):
         exit_code = main(["scan", "--discover", str(tmp_path / "absent")])
 

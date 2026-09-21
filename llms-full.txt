@@ -61,11 +61,19 @@ lintlang init --github --path AGENTS.md
 `--discover [ROOT]` (default `.`) additionally scans every recognized
 agent-instruction file found anywhere under `ROOT`: `AGENTS.md`, `CLAUDE.md`,
 `GEMINI.md`, `SKILL.md`, `agent.yaml`/`.yml`/`.json`,
-`.github/copilot-instructions.md`, and Markdown under
-`.github/instructions/`, matched case-sensitively. Explicit file arguments
+`.github/copilot-instructions.md`, and `*.instructions.md` under
+`.github/instructions/`, matched case-sensitively. A plain Markdown file kept
+in that directory is not an instruction surface. Editor and host layouts are
+not discovery targets — `.cursor/rules`, `.claude/agents` and `.windsurfrules`
+are known omissions; pass such a file as an explicit argument. Explicit file
+arguments
 stay canonical; `--discover` unions its discovered set with them, deduplicated.
+Symlinks are not followed, as in a directory scan; a recognized instruction
+file skipped for that reason is named on stderr, because an unscanned
+instruction file is a coverage gap rather than a clean result.
 `--exclude` globs and a repository's `.lintlangignore` filter discovered files
-exactly as they filter a directory scan. It does not change generic directory
+exactly as they filter a directory scan, and an excluded symlink is not
+reported. It does not change generic directory
 scanning (`lintlang scan <dir>`), which keeps its own broader, extension-based
 sweep. Because `ROOT` is optional, `lintlang scan --discover FILE` reads `FILE`
 as the discovery root; write `lintlang scan FILE --discover` instead.
