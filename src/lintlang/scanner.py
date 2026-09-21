@@ -206,6 +206,96 @@ class ScanResult:
     herm: HermResult  # Full HERM result
     structural_findings: list[Finding] = field(default_factory=list)
     input_error: str | None = None  # Fatal load/parse failure, separate from lint severity
+    inspected: dict[str, int] = field(default_factory=dict)
+    """What the scan actually read: counts of tools, prompts, messages, schemas.
+
+    A verdict only covers this content. It is reported beside every verdict so a
+    clean result on an unread file cannot look like a clean result on a read one."""
+    notes: list[str] = field(default_factory=list)
+    """Coverage notices: tool-like content the parser saw and did not inspect."""
+    skipped: str | None = None
+    """Why nothing was inspected, when nothing was (never a PASS)."""
+
+
+def _plural(count: int, noun: str) -> str:
+    return f"{count} {noun}" + ("" if count == 1 else "s")
+
+
+def describe_inspected(inspected: dict[str, int]) -> str:
+    """One line naming what a verdict covers, e.g. '12 tools (11 described, 12 with a schema)'."""
+    parts: list[str] = []
+    tools = inspected.get("tools", 0)
+    if tools:
+        parts.append(
+            f"{_plural(tools, 'tool')} ({inspected.get('tools_described', 0)} described, "
+            f"{inspected.get('tools_with_schema', 0)} with a schema)"
+        )
+    if inspected.get("skill_description"):
+        parts.append("skill front matter")
+    if inspected.get("system_prompt"):
+        parts.append("system prompt")
+    if inspected.get("instructions"):
+        parts.append(f"instruction text ({_plural(inspected.get('lines', 0), 'line')})")
+    if inspected.get("messages"):
+        parts.append(_plural(inspected["messages"], "message"))
+    if inspected.get("schemas"):
+        parts.append(_plural(inspected["schemas"], "output schema"))
+    if inspected.get("python_prompts"):
+        parts.append(_plural(inspected["python_prompts"], "embedded prompt"))
+    if inspected.get("python_thresholds"):
+        parts.append(_plural(inspected["python_thresholds"], "threshold"))
+    return ", ".join(parts) if parts else "nothing"
+
+
+def _coverage(config: AgentConfig) -> tuple[dict[str, int], list[str], str | None]:
+    """Return (inspected counts, notices, skip reason) for a parsed config."""
+    inspected: dict[str, int] = {}
+    if config.tools:
+        inspected["tools"] = len(config.tools)
+        inspected["tools_described"] = sum(1 for t in config.tools if t.description.strip())
+        inspected["tools_with_schema"] = sum(1 for t in config.tools if t.has_schema or t.parameters)
+    if config.skill is not None:
+        inspected["skill_description"] = 1
+    if config.system_prompt.strip():
+        key = "instructions" if config.kind in ("instructions", "prompt") else "system_prompt"
+        inspected[key] = 1
+        if key == "instructions":
+            inspected["lines"] = config.system_prompt.count("\n") + 1
+    messages = sum(1 for m in config.messages if isinstance(m, dict))
+    if messages:
+        inspected["messages"] = messages
+    if config.schemas:
+        inspected["schemas"] = len(config.schemas)
+
+    notes: list[str] = []
+    # Only when no tool was read: beside real tools, a stray {name, description}
+    # object (an MCP resource, a chat participant) is not an unread tool.
+    if config.unclaimed and not config.tools:
+        shown = ", ".join(config.unclaimed[:3]) + (", ..." if len(config.unclaimed) > 3 else "")
+        notes.append(
+            f"{_plural(len(config.unclaimed), 'named, described object')} not inspected as tools "
+            f"(no parameter schema, and not under a 'tools' key): {shown}"
+        )
+    if config.dropped:
+        shown = ", ".join(config.dropped[:3]) + (", ..." if len(config.dropped) > 3 else "")
+        notes.append(f"{_plural(len(config.dropped), 'entry')} in a tool container could not be read as a tool: {shown}")
+
+    skipped = None
+    if not inspected:
+        if config.not_agent_content:
+            skipped = f"this is {config.not_agent_content}, not agent-facing content"
+        elif config.kind in ("instructions", "prompt"):
+            skipped = "the file is empty"
+        else:
+            skipped = "no tool definitions, system prompt, messages or output schema were recognised"
+    return inspected, notes, skipped
+
+
+NOTHING_INSPECTED_HINT = (
+    "LintLang reads a tool when it has a string 'name' plus a parameter schema (inputSchema, "
+    "input_schema, parameters), or sits under a 'tools' / 'functions' key. Pass "
+    "--allow-uninspected to report this file as SKIPPED instead of failing."
+)
 
 
 def input_error_result(path: str | Path, message: str) -> ScanResult:
@@ -259,15 +349,35 @@ def scan_config(
     severity_order = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
     structural.sort(key=lambda f: severity_order.get(f.severity.value, 5))
 
+    inspected, notes, skipped = _coverage(config)
     return ScanResult(
         file=config.source_file,
         score=herm.score,
         herm=herm,
         structural_findings=structural,
+        inspected=inspected,
+        notes=notes,
+        skipped=skipped,
     )
 
 
-def scan_file(path: str | Path, patterns: list[str] | None = None) -> ScanResult:
+def _enforce_explicit(result: ScanResult, explicit: bool) -> ScanResult:
+    """Fail loudly when a NAMED file holds tool-like content none of which was read.
+
+    A named file with nothing agent-facing in it (a package.json handed over by a
+    batch wrapper) is SKIPPED, which is visible and is never a PASS. A named file
+    that does hold tool-like objects, none of which could be inspected, is the
+    dangerous case — the author believes it is covered — so it is an input error.
+    """
+    if explicit and result.skipped and result.notes and result.input_error is None:
+        result.input_error = (
+            f"Tool-like content was found but none of it could be inspected: {'; '.join(result.notes)}. "
+            f"{NOTHING_INSPECTED_HINT}"
+        )
+    return result
+
+
+def scan_file(path: str | Path, patterns: list[str] | None = None, explicit: bool = False) -> ScanResult:
     """Parse a file and produce a full scan result.
 
     Uses HERM v1.1 as the primary scorer with structural detectors
@@ -282,14 +392,16 @@ def scan_file(path: str | Path, patterns: list[str] | None = None) -> ScanResult
 
     try:
         if path.suffix == ".py":
-            return scan_python_file(path, patterns=patterns)
+            return _enforce_explicit(scan_python_file(path, patterns=patterns), explicit)
         config = parse_file(path)
-        return scan_config(config, patterns=patterns)
+        return _enforce_explicit(scan_config(config, patterns=patterns), explicit)
     except Exception as error:
         return input_error_result(path, f"Failed to parse: {error}")
 
 
-def scan_source(text: str, path: str | Path, patterns: list[str] | None = None) -> ScanResult:
+def scan_source(
+    text: str, path: str | Path, patterns: list[str] | None = None, explicit: bool = False
+) -> ScanResult:
     """Scan in-memory source text as if it had been read from ``path``.
 
     ``path`` is never opened: it selects the parser (or Python extraction) and
@@ -301,9 +413,9 @@ def scan_source(text: str, path: str | Path, patterns: list[str] | None = None) 
     path = Path(path)
     try:
         if path.suffix == ".py":
-            return scan_python_source(text, path, patterns=patterns)
+            return _enforce_explicit(scan_python_source(text, path, patterns=patterns), explicit)
         config = parse_source(text, path)
-        return scan_config(config, patterns=patterns)
+        return _enforce_explicit(scan_config(config, patterns=patterns), explicit)
     except Exception as error:
         return input_error_result(path, f"Failed to parse: {error}")
 
@@ -488,11 +600,23 @@ def _scan_python_extraction(
     severity_order = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
     all_findings.sort(key=lambda f: severity_order.get(f.severity.value, 5))
 
+    inspected: dict[str, int] = {}
+    if extraction.prompts:
+        inspected["python_prompts"] = len(extraction.prompts)
+    if extraction.thresholds:
+        inspected["python_thresholds"] = len(extraction.thresholds)
+
     return ScanResult(
         file=str(path),
         score=herm.score,
         herm=herm,
         structural_findings=all_findings,
+        inspected=inspected,
+        skipped=(
+            None
+            if inspected or extraction.parse_errors
+            else "no embedded prompt literals or threshold assignments were found in this Python file"
+        ),
         input_error=(
             "; ".join(f"Python parse error: {err}" for err in extraction.parse_errors)
             if extraction.parse_errors

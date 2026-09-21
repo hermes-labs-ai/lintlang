@@ -14,7 +14,7 @@ import re
 
 from . import __version__
 from .patterns import Finding, Severity
-from .scanner import ScanResult
+from .scanner import ScanResult, describe_inspected
 
 _ANSI_ESCAPE = re.compile(r"\033\[[0-9;]*m")
 
@@ -66,6 +66,8 @@ def compute_verdict(value: ScanResult | list[Finding]) -> str:
     if isinstance(value, ScanResult):
         if value.input_error is not None:
             return "ERROR"
+        if value.skipped is not None:
+            return "SKIPPED"
         findings = value.structural_findings
     else:
         findings = value
@@ -83,6 +85,8 @@ def _verdict_display(verdict: str) -> tuple[str, str]:
     """Return (icon, color) for a verdict."""
     if verdict == "PASS":
         return "✅", GREEN
+    elif verdict == "SKIPPED":
+        return "⏭️", DIM
     elif verdict == "REVIEW":
         return "⚠️", YELLOW
     else:
@@ -125,13 +129,23 @@ def format_terminal(
     lines.append("")
 
     # Verdict
-    lines.append(f"  {icon} {BOLD}{vcolor}{verdict}{RESET} — {_severity_summary(findings)}")
+    if verdict == "SKIPPED":
+        lines.append(f"  {icon} {BOLD}{verdict}{RESET} — nothing inspected (this is not a PASS)")
+    else:
+        lines.append(f"  {icon} {BOLD}{vcolor}{verdict}{RESET} — {_severity_summary(findings)}")
+    if result.input_error is None and result.skipped is None:
+        lines.append(f"  {DIM}Inspected: {describe_inspected(result.inspected)}{RESET}")
+    for note in result.notes:
+        lines.append(f"  {YELLOW}Not inspected: {note}{RESET}")
     if baseline_count is not None:
         lines.append(f"  Baseline: {baseline_count} recorded finding(s) acknowledged; verdict covers remaining findings.")
     lines.append("")
 
     if result.input_error is not None:
         lines.append(f"  {BRIGHT_RED}Input error: {result.input_error}{RESET}")
+        lines.append("")
+    elif result.skipped is not None:
+        lines.append(f"  Nothing to inspect: {result.skipped}.")
         lines.append("")
     # Structural findings (H1-H7) — the main output
     elif findings:
@@ -194,6 +208,8 @@ def format_markdown(
         verdict_md = "⚠️ **REVIEW**"
     elif verdict == "FAIL":
         verdict_md = "❌ **FAIL**"
+    elif verdict == "SKIPPED":
+        verdict_md = "⏭️ **SKIPPED** (nothing inspected; not a PASS)"
     else:
         verdict_md = "❌ **ERROR**"
 
@@ -205,6 +221,12 @@ def format_markdown(
 
     # Verdict
     lines.append(f"**Verdict:** {verdict_md} — {_severity_summary(findings)}")
+    if result.input_error is None and result.skipped is None:
+        lines.append("")
+        lines.append(f"**Inspected:** {describe_inspected(result.inspected)}")
+    for note in result.notes:
+        lines.append("")
+        lines.append(f"**Not inspected:** {note}")
     if baseline_count is not None:
         lines.append(f"**Baseline:** {baseline_count} recorded finding(s) acknowledged; verdict covers remaining findings.")
     lines.append("")
@@ -212,6 +234,9 @@ def format_markdown(
     # Structural findings
     if result.input_error is not None:
         lines.append(f"**Input error:** {result.input_error}")
+        lines.append("")
+    elif result.skipped is not None:
+        lines.append(f"Nothing to inspect: {result.skipped}.")
         lines.append("")
     elif findings:
         lines.append("## Findings")
@@ -274,6 +299,7 @@ def _verdict_short(verdict: str) -> tuple[str, str]:
         "REVIEW": ("\u26a0\ufe0f  REV", YELLOW),
         "FAIL": ("\u274c FAIL", BRIGHT_RED),
         "ERROR": ("\u274c ERROR", BRIGHT_RED),
+        "SKIPPED": ("-  SKIP", DIM),
     }.get(verdict, ("\u274c ERROR", BRIGHT_RED))
 
 
@@ -286,15 +312,18 @@ def format_summary_table(results: dict[str, ScanResult], elapsed: float) -> str:
         return ""
 
     rows: list[tuple[str, str, str, str]] = []  # (file, verdict, color, findings)
-    verdict_counts = {"PASS": 0, "REVIEW": 0, "FAIL": 0, "ERROR": 0}
+    verdict_counts = {"PASS": 0, "REVIEW": 0, "FAIL": 0, "ERROR": 0, "SKIPPED": 0}
 
     for fpath, result in results.items():
         verdict = compute_verdict(result)
         verdict_counts[verdict] = verdict_counts.get(verdict, 0) + 1
         display, color = _verdict_short(verdict)
-        findings_str = (
-            "input error" if result.input_error is not None else _findings_compact(result.structural_findings)
-        )
+        if result.input_error is not None:
+            findings_str = "input error"
+        elif result.skipped is not None:
+            findings_str = "nothing to inspect"
+        else:
+            findings_str = _findings_compact(result.structural_findings)
         rows.append((fpath, display, color, findings_str))
 
     # Column widths
@@ -365,6 +394,14 @@ def format_summary_table(results: dict[str, ScanResult], elapsed: float) -> str:
         lines.append(
             f"  \u2502 {'':<{col_file}} "
             f"\u2502 {error_str}{' ' * (col_verdict - _ansi_len(error_str))} "
+            f"\u2502 {'':<{col_findings}} \u2502"
+        )
+
+    if verdict_counts["SKIPPED"]:
+        skip_str = f"{DIM}{verdict_counts['SKIPPED']} SKIP{RESET}"
+        lines.append(
+            f"  \u2502 {'':<{col_file}} "
+            f"\u2502 {skip_str}{' ' * (col_verdict - _ansi_len(skip_str))} "
             f"\u2502 {'':<{col_findings}} \u2502"
         )
 

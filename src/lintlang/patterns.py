@@ -72,6 +72,22 @@ class Finding:
 
 
 @dataclass
+class SkillMeta:
+    """``name`` / ``description`` front matter of a skill or sub-agent file.
+
+    The description is what a model reads when deciding whether to load the
+    skill, so it is a selection-time tool description in everything but name."""
+
+    name: str
+    description: str
+    has_name: bool = True
+    has_description: bool = True
+    name_line: int = 0
+    description_line: int = 0
+    dir_name: str = ""
+
+
+@dataclass
 class AgentConfig:
     """Normalized representation of an agent configuration."""
 
@@ -83,6 +99,22 @@ class AgentConfig:
     raw: dict = field(default_factory=dict)
     source_file: str = ""
     source_region: SourceRegion | None = None
+    kind: str = "config"
+    """What the input is: "config" (parsed YAML/JSON), "prompt" (a prompt text
+    file), "instructions" (a Markdown document an agent reads, such as AGENTS.md
+    or a SKILL.md body) or "python" (an extracted literal). Detectors that only
+    make sense for one kind consult it rather than treating everything as a chat
+    system prompt."""
+    unclaimed: list[str] = field(default_factory=list)
+    """Paths of tool-like objects the parser saw and did not inspect."""
+    dropped: list[str] = field(default_factory=list)
+    """Members of a tool container the parser could not read."""
+    not_agent_content: str = ""
+    """Set when the document is a recognised non-agent format (JSON Schema, SBOM...)."""
+    skill: SkillMeta | None = None
+    """Front matter of a SKILL.md / agent definition, when the file has one."""
+    prompt_line_offset: int = 0
+    """Lines of the source file that precede ``system_prompt`` (front matter)."""
 
 
 @dataclass
@@ -90,6 +122,13 @@ class ToolDef:
     name: str
     description: str
     parameters: dict = field(default_factory=dict)
+    path: str = ""
+    """JSON path of the tool object inside its file."""
+    group: str = "tools"
+    """Path of the enclosing container. Pairwise checks compare within a group:
+    two MCP servers may each legitimately expose a tool called ``search``."""
+    owner: str = ""
+    has_schema: bool = False
 
 
 def _is_direct_match(scope: ScopeAnalysis, start: int, end: int) -> bool:
@@ -113,15 +152,12 @@ VAGUE_WORDS = {
     "process",
     "manage",
     "do",
-    "run",
-    "execute",
     "perform",
     "deal",
     "work",
-    "use",
-    "make",
-    "get",
-    "set",
+    # NOT here: get, set, run, execute, use, make. "Get the current time in a
+    # timezone", "Execute a SQL query" and "Run the test suite" are precise; on
+    # real MCP manifests every hit on those verbs was a false flag.
 }
 
 
@@ -468,6 +504,41 @@ def _differentia(a: ToolDef, b: ToolDef) -> tuple[set[str], set[str]]:
     return informative(only_a), informative(only_b)
 
 
+_GENERIC_CANONICALS = frozenset(_SYNONYM_CLASS.values())
+
+
+def _leading_verb(tool: ToolDef) -> str:
+    match = re.match(r"\W*([^\W_]+)", tool.description.lower(), re.UNICODE)
+    if not match:
+        return ""
+    word = match.group(1)
+    # The first word of a description is its verb. Read it as one: "Records
+    # changes" is the verb "record", not the generic payload noun "record".
+    for candidate in _stem_candidates(word):
+        if candidate in _SYNONYM_CLASS and _SYNONYM_CLASS[candidate] != "info":
+            return _SYNONYM_CLASS[candidate]
+    return _stem_candidates(word)[-1] if _stem_candidates(word) else word
+
+
+def _domination_is_meaningful(dominated: ToolDef, dominant: ToolDef) -> bool:
+    """Guard the one-sided H1.6 verdict against artefacts of the term filter.
+
+    Term containment is only evidence of redundancy when the two tools are about
+    the same thing. Two conditions, both observed failing on real MCP manifests:
+
+    - They must share a DOMAIN term, not merely a generic verb class. "Retrieve
+      entity info" is not dominated by "Get the current user" because both "get".
+    - They must perform the same action. "Records changes to the repository" and
+      "Shows changes that are staged for commit" differ in the verb, which is
+      the first thing a model reads.
+    """
+    shared = _meaning_terms(dominated) & _meaning_terms(dominant)
+    if not (shared - _GENERIC_CANONICALS):
+        return False
+    verb_a, verb_b = _leading_verb(dominated), _leading_verb(dominant)
+    return not (verb_a and verb_b and verb_a != verb_b)
+
+
 def detect_h1(config: AgentConfig) -> list[Finding]:
     """Detect tool description ambiguity."""
     findings: list[Finding] = []
@@ -526,9 +597,10 @@ def detect_h1(config: AgentConfig) -> list[Finding]:
             )
 
     # Duplicate tool names
-    seen_names: dict[str, int] = {}
+    seen_names: dict[tuple[str, str], int] = {}
     for i, tool in enumerate(tools):
-        lower_name = tool.name.lower()
+        # Scoped to the container: two MCP servers may each expose `search`.
+        lower_name = (tool.group, tool.name.lower())
         if lower_name in seen_names:
             findings.append(
                 Finding(
@@ -551,6 +623,8 @@ def detect_h1(config: AgentConfig) -> list[Finding]:
     for i, t1 in enumerate(tools):
         for t2 in tools[i + 1 :]:
             if not t1.description or not t2.description:
+                continue
+            if t1.group != t2.group:
                 continue
 
             # A pair that disambiguates itself inline is already correct.
@@ -671,6 +745,8 @@ def detect_h1(config: AgentConfig) -> list[Finding]:
                 )
             elif not only_a or not only_b:
                 dominated, dominant = (t1, t2) if not only_a else (t2, t1)
+                if not _domination_is_meaningful(dominated, dominant):
+                    continue
                 distinguishing = sorted(only_a or only_b)
                 findings.append(
                     Finding(
@@ -1097,11 +1173,15 @@ def detect_h3(config: AgentConfig) -> list[Finding]:
 
     for tool in config.tools:
         params = tool.parameters
-        if not params:
+        if not params or not isinstance(params, dict):
             continue
 
         properties = params.get("properties", {})
         required_list = params.get("required", [])
+        if not isinstance(properties, dict):
+            continue
+        if not isinstance(required_list, list):
+            required_list = []
 
         # Phantom required fields
         for req_name in required_list:
@@ -1122,7 +1202,11 @@ def detect_h3(config: AgentConfig) -> list[Finding]:
     # Check schemas list too
     for i, schema in enumerate(config.schemas):
         props = schema.get("properties", {})
+        if not isinstance(props, dict):
+            continue
         for prop_name, prop_def in props.items():
+            if not isinstance(prop_def, dict):
+                continue
             if "description" not in prop_def and prop_name.lower() in GENERIC_PROP_NAMES:
                 findings.append(
                     Finding(
@@ -1142,6 +1226,8 @@ def _check_properties(findings: list[Finding], tool_name: str, properties: dict,
     """Check properties for schema-intent issues, including nested objects."""
     for prop_name, prop_def in properties.items():
         full_path = f"{path}.{prop_name}"
+        if not isinstance(prop_def, dict):
+            continue  # `true` / `false` are valid JSON Schema and say nothing to lint
 
         # Missing description on parameter
         if "description" not in prop_def:
@@ -1173,8 +1259,18 @@ def _check_properties(findings: list[Finding], tool_name: str, properties: dict,
         for union_key in ("anyOf", "oneOf"):
             if union_key in prop_def:
                 variants = prop_def[union_key]
-                undescribed = [v for v in variants if "description" not in v]
-                if undescribed:
+                if not isinstance(variants, list):
+                    continue
+                variants = [v for v in variants if isinstance(v, dict)]
+                undescribed = [v for v in variants if "description" not in v and "title" not in v]
+                # A union of scalar types ({"type": "string"} | {"type": "number"},
+                # or the nullable idiom) explains itself. The defect is a choice
+                # between STRUCTURES the model cannot tell apart.
+                structural = [
+                    v for v in undescribed
+                    if v.get("type") in ("object", "array") or "properties" in v or "$ref" in v or "items" in v
+                ]
+                if undescribed and structural:
                     findings.append(
                         Finding(
                             pattern_id="H3",

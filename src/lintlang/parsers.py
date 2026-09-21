@@ -15,6 +15,7 @@ from pathlib import Path
 
 import yaml
 
+from .ingestion import discover_tools
 from .patterns import AgentConfig, ToolDef
 
 
@@ -56,16 +57,20 @@ def parse_source(text: str, path: str | Path) -> AgentConfig:
 def parse_yaml(text: str, source_file: str = "") -> AgentConfig:
     """Parse YAML agent config."""
     data = yaml.safe_load(text)
+    if isinstance(data, list):
+        return _normalize({}, source_file, document=data)
     if not isinstance(data, dict):
-        return AgentConfig(system_prompt=text, source_file=source_file, raw={})
+        return AgentConfig(system_prompt=text, source_file=source_file, raw={}, kind="prompt")
     return _normalize(data, source_file)
 
 
 def parse_json(text: str, source_file: str = "") -> AgentConfig:
     """Parse JSON agent config."""
     data = json.loads(text)
+    if isinstance(data, list):
+        return _normalize({}, source_file, document=data)
     if not isinstance(data, dict):
-        raise ValueError("JSON root must be an object")
+        raise ValueError("JSON root must be an object or an array")
     return _normalize(data, source_file)
 
 
@@ -78,8 +83,12 @@ def parse_text(text: str, source_file: str = "") -> AgentConfig:
     )
 
 
-def _normalize(data: dict, source_file: str) -> AgentConfig:
-    """Normalize various config formats to AgentConfig."""
+def _normalize(data: dict, source_file: str, document: object = None) -> AgentConfig:
+    """Normalize various config formats to AgentConfig.
+
+    ``document`` is the parsed root when it is not a mapping (a root array of
+    tools); ``data`` is then empty and only tool discovery applies.
+    """
     config = AgentConfig(raw=data, source_file=source_file)
 
     # Extract system prompt
@@ -88,14 +97,24 @@ def _normalize(data: dict, source_file: str) -> AgentConfig:
             config.system_prompt = data[key]
             break
 
-    # Extract tools
-    tools_data = data.get("tools", data.get("functions", []))
-    if isinstance(tools_data, list):
-        for index, td in enumerate(tools_data):
-            if isinstance(td, dict):
-                tool = _parse_tool(td, index=index)
-                if tool:
-                    config.tools.append(tool)
+    # Extract tools — by shape, wherever they sit (see ingestion.py)
+    _validate_root_tool_names(data)
+    found = discover_tools(document if document is not None else data)
+    config.not_agent_content = found.veto
+    config.unclaimed = found.unclaimed
+    config.dropped = found.dropped
+    for item in found.tools:
+        config.tools.append(
+            ToolDef(
+                name=item.name,
+                description=item.description,
+                parameters=item.parameters,
+                path=item.path,
+                group=item.group,
+                owner=item.owner,
+                has_schema=item.has_schema,
+            )
+        )
 
     # Extract messages
     messages_data = data.get("messages", [])
@@ -127,35 +146,23 @@ def _normalize(data: dict, source_file: str) -> AgentConfig:
     return config
 
 
-def _parse_tool(data: dict, index: int | None = None) -> ToolDef | None:
-    """Parse a tool definition from various formats."""
-    # OpenAI function calling format
-    if data.get("type") == "function" and "function" in data:
-        func = data["function"]
-        return ToolDef(
-            name=func.get("name", "unnamed"),
-            description=func.get("description", ""),
-            parameters=func.get("parameters", {}),
-        )
-
-    # Direct format (name + description at top level)
-    if "name" in data:
-        name = data["name"]
-        if not isinstance(name, str):
-            location = f"tools[{index}].name" if index is not None else "tools.name"
-            yaml_type = {
-                bool: "boolean",
-                int: "integer",
-                float: "number",
-                type(None): "null",
-                list: "array",
-                dict: "object",
-            }.get(type(name), type(name).__name__)
-            raise ValueError(f"{location} must be a string, got {yaml_type}")
-        return ToolDef(
-            name=name,
-            description=data.get("description", ""),
-            parameters=data.get("parameters", data.get("input_schema", {})),
-        )
-
-    return None
+def _validate_root_tool_names(data: dict) -> None:
+    """Reject a root tool whose ``name`` is not a string, naming its location."""
+    tools_data = data.get("tools", data.get("functions", []))
+    if not isinstance(tools_data, list):
+        return
+    for index, td in enumerate(tools_data):
+        if not isinstance(td, dict) or "name" not in td or isinstance(td["name"], str):
+            continue
+        if td.get("type") == "function" and "function" in td:
+            continue
+        name = td["name"]
+        yaml_type = {
+            bool: "boolean",
+            int: "integer",
+            float: "number",
+            type(None): "null",
+            list: "array",
+            dict: "object",
+        }.get(type(name), type(name).__name__)
+        raise ValueError(f"tools[{index}].name must be a string, got {yaml_type}")

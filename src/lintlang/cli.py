@@ -77,6 +77,15 @@ def main(argv: list[str] | None = None) -> int:
         help="Exit 0 when the scan inspected zero files (default: that is an input error)",
     )
     scan_parser.add_argument(
+        "--allow-uninspected",
+        action="store_true",
+        help=(
+            "Report a named file whose tool-like content could not be inspected as SKIPPED "
+            "(default: that is an input error, because a named file that was not read must "
+            "never look clean). Also accept a scan in which every file was SKIPPED."
+        ),
+    )
+    scan_parser.add_argument(
         "--patterns",
         "-p",
         nargs="+",
@@ -305,7 +314,7 @@ def _cmd_scan(args: argparse.Namespace) -> int:
             except (OSError, UnicodeError) as error:
                 results[str(virtual)] = input_error_result(virtual, f"Failed to read standard input: {error}")
                 continue
-            result = scan_source(text, virtual, patterns=args.patterns)
+            result = scan_source(text, virtual, patterns=args.patterns, explicit=not args.allow_uninspected)
             result.structural_findings = [
                 f for f in result.structural_findings if severity_order.get(f.severity.value, 4) <= min_sev
             ]
@@ -331,7 +340,7 @@ def _cmd_scan(args: argparse.Namespace) -> int:
             continue
 
         try:
-            result = scan_file(path, patterns=args.patterns)
+            result = scan_file(path, patterns=args.patterns, explicit=not args.allow_uninspected)
             result.structural_findings = [
                 f for f in result.structural_findings if severity_order.get(f.severity.value, 4) <= min_sev
             ]
@@ -402,6 +411,17 @@ def _cmd_scan(args: argparse.Namespace) -> int:
     # not a silent success: every process boundary (terminal, JSON, SARIF,
     # exit status) must say so. --allow-empty is the only opt-out, and
     # --write-baseline keeps its own stricter pre-existing error below.
+    all_skipped = bool(results) and all(
+        r.skipped is not None and r.input_error is None for r in results.values()
+    )
+    if all_skipped and not args.allow_uninspected and not args.allow_empty and not args.write_baseline:
+        reasons = "; ".join(f"{r.file}: {r.skipped}" for r in list(results.values())[:5])
+        return _empty_scan_failure(
+            args,
+            " ".join(inputs) if inputs else str(args.discover),
+            f"Nothing was inspected: {reasons}. A scan that read no agent-facing content is not a "
+            "pass. Use --allow-uninspected if these inputs may legitimately hold none.",
+        )
     if not results and not args.write_baseline and not args.allow_empty:
         requested = " ".join(inputs) if inputs else str(args.discover)
         return _empty_scan_failure(
@@ -413,11 +433,20 @@ def _cmd_scan(args: argparse.Namespace) -> int:
 
     # Output
     if args.format == "terminal":
+        skipped_files = [r for r in results.values() if r.skipped is not None and r.input_error is None]
+        compact_skips = len(results) > 1
         for key, result in results.items():
+            if compact_skips and result.skipped is not None and result.input_error is None:
+                continue
             print(format_terminal(
                 result, show_suggestions=not args.no_suggestions,
                 baseline_count=baseline_counts.get(key, 0) if args.baseline else None,
             ))
+        if compact_skips and skipped_files:
+            print(f"  Skipped {len(skipped_files)} file(s) with nothing to inspect (not counted as PASS):")
+            for result in skipped_files:
+                print(f"    - {result.file}: {result.skipped}")
+            print()
     elif args.format == "markdown":
         for key, result in results.items():
             if result.input_error:
@@ -436,6 +465,11 @@ def _cmd_scan(args: argparse.Namespace) -> int:
                     "file": result.file,
                     "verdict": verdict,
                     "input_error": result.input_error,
+                    # What the verdict covers. "skipped" is set (and the verdict
+                    # is SKIPPED, never PASS) when nothing could be inspected.
+                    "inspected": result.inspected,
+                    "not_inspected": result.notes,
+                    "skipped": result.skipped,
                     "structural_findings": [
                         {
                             "pattern_id": f.pattern_id,
@@ -573,7 +607,7 @@ def _cmd_scan(args: argparse.Namespace) -> int:
 
     # Legacy --fail-under support (quality score threshold)
     if args.fail_under > 0:
-        min_score = min(r.score for r in results.values())
+        min_score = min((r.score for r in results.values() if r.skipped is None), default=100.0)
         if min_score < args.fail_under:
             print(f"\nQuality score {min_score:.1f} is below threshold {args.fail_under:.1f}", file=sys.stderr)
             return 1
