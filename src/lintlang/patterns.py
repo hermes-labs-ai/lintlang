@@ -1268,6 +1268,24 @@ def _is_bounded_or_descriptive(text: str, match: re.Match[str]) -> bool:
     return match.group().lower().startswith("loop") and bool(_LOOP_AS_NOUN.search(text[max(0, match.start() - 24) : match.start()]))
 
 
+def _is_ordinary_loop_in_document(text: str, match: re.Match[str]) -> bool:
+    """In a Markdown document, "loop / repeat / continue until <condition>" states
+    its own termination condition ("Loop until `stop_reason == \"end_turn\"`",
+    "Repeat until the branch is one commit ahead"). That is what `until` means; it
+    is a procedure, not an unbounded instruction. What stays reported there is
+    effort without a cap — keep trying / retry until, "don't stop until",
+    "continue indefinitely" — and anything inside a quoted example is not an
+    instruction at all.
+    """
+    phrase = match.group().lower()
+    line_start = text.rfind("\n", 0, match.start()) + 1
+    if text.count('"', line_start, match.start()) % 2 == 1:
+        return True
+    if "indefinitely" in phrase:
+        return False
+    return phrase.startswith(("loop", "repeat", "continue"))
+
+
 def detect_h2(config: AgentConfig) -> list[Finding]:
     """Detect missing constraint scaffolding."""
     findings: list[Finding] = []
@@ -1309,6 +1327,8 @@ def detect_h2(config: AgentConfig) -> list[Finding]:
             if _is_negated_prohibition(text, match.start()):
                 continue
             if _is_bounded_or_descriptive(text, match):
+                continue
+            if config.kind == "instructions" and _is_ordinary_loop_in_document(text, match):
                 continue
             if pattern == _LOOP_OVER_THROUGH_PATTERN and not _is_unbounded_loop_traversal(text, match):
                 continue

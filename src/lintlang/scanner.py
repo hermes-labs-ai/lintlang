@@ -470,6 +470,18 @@ def scan_source(
         return input_error_result(path, f"Failed to parse: {error}")
 
 
+def _is_test_code(filepath: Path, base_dir: Path) -> bool:
+    try:
+        parts = filepath.relative_to(base_dir).parts
+    except ValueError:
+        parts = filepath.parts
+    name = filepath.name
+    return (
+        any(part in ("tests", "test", "testing", "integration_tests", "__tests__") for part in parts[:-1])
+        or name.startswith("test_") or name.endswith("_test.py") or name == "conftest.py"
+    )
+
+
 def scan_directory(
     directory: str | Path,
     patterns: list[str] | None = None,
@@ -530,6 +542,10 @@ def scan_directory(
     for filepath in sorted(candidates, key=str):
         # Skip non-prompt files (CHANGELOG, README, etc.)
         if _is_non_prompt_file(filepath):
+            continue
+        # Test code holds fixtures ("tool1", no description), not what an agent
+        # is given. Name a test file explicitly to scan it.
+        if filepath.suffix == ".py" and _is_test_code(filepath, directory):
             continue
 
         # Skip .lintlangignore and --exclude matches
@@ -668,7 +684,7 @@ def _scan_python_extraction(
         tool_config = AgentConfig(
             tools=[
                 ToolDef(name=t.name, description=t.description, parameters=t.parameters,
-                        group="python", has_schema=t.has_schema)
+                        group=t.group, has_schema=t.has_schema)
                 for t in extraction.tools
             ],
             source_file=str(path),

@@ -109,12 +109,22 @@ class ExtractedTool:
     parameters: dict
     has_schema: bool
     line: int
+    group: str = ""
 
 
 _TOOL_SCHEMA_KEYWORDS = ("inputSchema", "input_schema", "parameters", "parameters_json_schema", "args_schema")
 
 
-def _literal_tools(tree: ast.AST) -> list[ExtractedTool]:
+def _enclosing_collection(node: ast.AST, parents: dict[ast.AST, ast.AST]) -> str:
+    """Tools in one list literal are offered together; tools elsewhere in the file
+    (another function, another test) are not, and must not be compared."""
+    parent = parents.get(node)
+    if isinstance(parent, (ast.List, ast.Tuple, ast.Set)):
+        return f"list@{parent.lineno}"
+    return f"single@{getattr(node, 'lineno', 0)}"
+
+
+def _literal_tools(tree: ast.AST, parents: dict[ast.AST, ast.AST]) -> list[ExtractedTool]:
     """Tools declared as `Tool(name=..., description=..., inputSchema=...)` calls
     or as dict literals with the same keys — how MCP servers written in Python
     declare them. Only literal names and descriptions are read; nothing runs."""
@@ -130,10 +140,14 @@ def _literal_tools(tree: ast.AST) -> list[ExtractedTool]:
             }
         if "name" not in fields or not any(key in fields for key in _TOOL_SCHEMA_KEYWORDS):
             continue
-        name = _get_string_value(fields["name"])
-        if not name and isinstance(fields["name"], ast.Attribute):
-            name = fields["name"].attr  # GitTools.STATUS
-        if not name:
+        name_node = fields["name"]
+        name = _get_string_value(name_node)
+        if not name and isinstance(name_node, ast.Attribute):
+            # GitTools.STATUS, TimeTools.GET_CURRENT_TIME.value
+            if name_node.attr == "value" and isinstance(name_node.value, ast.Attribute):
+                name_node = name_node.value
+            name = name_node.attr
+        if not name or "{...}" in name:
             continue
         description = _get_string_value(fields["description"]) if "description" in fields else ""
         if "description" in fields and description is None:
@@ -150,6 +164,7 @@ def _literal_tools(tree: ast.AST) -> list[ExtractedTool]:
                 parameters=schema if isinstance(schema, dict) else {},
                 has_schema=True,
                 line=getattr(node, "lineno", 1),
+                group=_enclosing_collection(node, parents),
             )
         )
     return found
@@ -335,12 +350,11 @@ def extract_from_python(source: str, source_file: str = "") -> ExtractionResult:
         result.parse_errors.append(f"SyntaxError at line {e.lineno}: {e.msg}")
         return result
 
-    result.tools = _literal_tools(tree)
-
     parents: dict[ast.AST, ast.AST] = {}
     for parent in ast.walk(tree):
         for child in ast.iter_child_nodes(parent):
             parents[child] = parent
+    result.tools = _literal_tools(tree, parents)
     docstrings = _docstring_nodes(tree)
 
     # Walk the AST
