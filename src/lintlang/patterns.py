@@ -1199,6 +1199,61 @@ def _is_cross_context_persistence(text: str, match: re.Match[str]) -> bool:
     return bool(_CROSS_CONTEXT_PERSISTENCE_SIGNALS.search(window))
 
 
+_H4_STATEFULNESS_SIGNALS = re.compile(
+    r"(?:"
+    r"\b(?:conversation|chat|message|dialogue)\s+history\b|"
+    r"\bcontext\s+window\b|"
+    r"\b(?:prior|previous|past|earlier)\s+(?:[\w'-]+\s+){0,2}?"
+    r"(?:conversations?|messages?|turns?|tasks?|sessions?|requests?|interactions?|"
+    r"exchanges?|answers?|responses?|results?|states?|context|contexts|inputs?|chats?)\b|"
+    r"\bacross\s+(?:the\s+|all\s+|multiple\s+)?"
+    r"(?:conversations?|tasks?|sessions?|turns?|requests?|messages?|threads?)\b|"
+    r"\bbetween\s+(?:conversations?|tasks?|sessions?|turns?|requests?|messages?)\b|"
+    r"\bcarry(?:ing)?\s+(?:over\s+)?(?:state|context|memory|results?|information)\b|"
+    r"\bcarry[- ]?over\b|\bcross[- ]?(?:task|session|turn|request|conversation)\b|"
+    r"\bremember\s+(?:everything|all|each|every)\b|"
+    r"\b(?:what|anything|everything)\s+the\s+user\s+(?:said|told|asked|wrote)\b|"
+    r"\bmulti[- ]?turn\b|"
+    r"\b(?:maintain|maintaining|keep|keeping|track|tracking|retain|retaining|persist|persisting)\s+"
+    r"(?:[\w'-]+\s+){0,2}?(?:context|state|memory|history)\b|"
+    r"\b(?:every|each|any)\s+future\s+"
+    r"(?:request|session|chat|conversation|message|task|turn|visit|reply|response)\b|"
+    r"\bfrom\s+(?:that|the)\s+same\s+(?:person|user|customer|client)\b|"
+    r"\bnext\s+time\s+(?:they|he|she|the\s+[\w'-]+)\s+"
+    r"(?:ask|asks|request|requests|return|returns|come|comes|visit|visits|write|writes|message|messages)\b|"
+    r"\bbrand\s+new\s+(?:chat|session|conversation)(?:\s+window)?\b"
+    r")",
+    re.IGNORECASE,
+)
+
+
+def _shows_cross_context_statefulness(prompt: str, scope: ScopeAnalysis) -> bool:
+    """Return whether a prompt demonstrates the statefulness H4's length rule assumes.
+
+    The historical rule was applicability-free: any system prompt longer than 500
+    characters had to contain context-boundary vocabulary or it was reported as
+    MEDIUM "Long system prompt with no context boundary markers". Length alone is
+    not evidence of boundary erosion risk: a long, single-shot reference document
+    that never asks the agent to carry anything between turns has no boundary to
+    erode, and LintLang's own ``AGENTS.md`` and ``SKILL.md`` prose were reported
+    that way (RESEARCH.md section 5).
+
+    The rule now requires demonstrated applicability: the prompt must actually
+    instruct or describe cross-context behaviour — conversation/chat history, a
+    context window, prior turns/tasks/sessions, carrying state across or between
+    them, remembering everything, maintaining context/state/memory, or an
+    instruction to carry behaviour into a future request/session ("every future
+    request", "from that same user", "next time they ask", "a brand new chat
+    window"). A prompt with no such signal is not reported for missing boundary
+    vocabulary; the EROSION_PATTERNS rules are unchanged and still fire on their
+    own evidence.
+    """
+    return any(
+        _is_direct_match(scope, match.start(), match.end())
+        for match in _H4_STATEFULNESS_SIGNALS.finditer(prompt)
+    )
+
+
 def detect_h4(config: AgentConfig) -> list[Finding]:
     """Detect context boundary erosion risks."""
     findings: list[Finding] = []
@@ -1214,7 +1269,7 @@ def detect_h4(config: AgentConfig) -> list[Finding]:
             for match in re.finditer(rf"\b{re.escape(signal)}\b", prompt, re.IGNORECASE)
         )
 
-        if len(prompt) > 500 and not has_boundary:
+        if len(prompt) > 500 and not has_boundary and _shows_cross_context_statefulness(prompt, scope):
             findings.append(
                 Finding(
                     pattern_id="H4",

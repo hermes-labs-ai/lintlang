@@ -3,6 +3,8 @@
 import json
 from pathlib import Path
 
+import pytest
+
 from lintlang.patterns import (
     AgentConfig,
     Severity,
@@ -20,6 +22,32 @@ from lintlang.scanner import scan_file
 ROOT = Path(__file__).parent.parent
 CORPUS_PATH = ROOT / "evals" / "corpus" / "cases.jsonl"
 SAMPLES_DIR = ROOT / "samples"
+
+# LintLang's own shipped instruction surfaces, used as hard negatives for the
+# applicability-free H4/H5/H6 heuristics narrowed per RESEARCH.md section 5.
+_LINTLANG_INSTRUCTION_SURFACES = (
+    "AGENTS.md",
+    ".agents/skills/lintlang/SKILL.md",
+    "integrations/claude-code/skills/lintlang-audit/SKILL.md",
+)
+
+# Long AND demonstrably stateful: the positive control for H4's length rule.
+_LONG_STATEFUL_PROMPT = (
+    "You are a support agent for an order system. Answer billing questions. "
+    "Look up orders with the order tool. Explain refund timelines plainly. "
+    "Offer the self-service portal when the customer can use it. "
+    "Escalate a chargeback to a human. Quote the order id in every reply. "
+    "Remember everything the customer tells you and reuse it later. "
+    "Carry over state between tasks so the customer never repeats themselves. "
+    "Use the conversation history to decide what to say next. "
+    "Name the refund window in days rather than calling it fast. "
+    "Cite the policy clause you applied for every decision you report. "
+)
+
+
+def _repo_text(relative_path: str) -> str:
+    """Read one of LintLang's own instruction surfaces as prompt text."""
+    return (ROOT / relative_path).read_text(encoding="utf-8")
 
 # ── H1: Tool Description Ambiguity ─────────────────────────────────
 
@@ -1035,9 +1063,55 @@ class TestH4:
             assert any("persistence without scope" in f.description.lower() for f in findings)
 
     def test_long_prompt_no_boundaries(self):
-        config = AgentConfig(system_prompt="x " * 300)  # Long prompt, no boundary markers
+        """POSITIVE CONTROL: a long, stateful prompt with no boundary vocabulary still flags."""
+        config = AgentConfig(system_prompt=_LONG_STATEFUL_PROMPT)
+        assert len(_LONG_STATEFUL_PROMPT) > 500
         findings = detect_h4(config)
         assert any("no context boundary" in f.description.lower() for f in findings)
+
+    def test_long_prompt_without_statefulness_is_not_reported(self):
+        """HARD NEGATIVE: length alone is no longer evidence of boundary erosion."""
+        config = AgentConfig(system_prompt="x " * 300)  # Long prompt, no boundary markers
+        findings = detect_h4(config)
+        assert not any("no context boundary" in f.description.lower() for f in findings)
+
+    def test_long_single_shot_reference_prose_is_not_reported(self):
+        """HARD NEGATIVE: a long stateless reference document has no boundary to erode."""
+        prompt = (
+            "You are a release checklist reader for a Python packaging repository. "
+            "Report the version recorded in the project metadata. "
+            "Report the wheel and sdist artifact names. "
+            "Report whether the license file is present. "
+            "Report the declared minimum interpreter version. "
+            "Quote the exact line you used for each answer. "
+            "If a field is absent, say that it is absent and name the file you looked in. "
+            "Do not infer a value that the metadata does not state. "
+            "Answer each question with one sentence and one quoted line. "
+        ) * 2
+        assert len(prompt) > 500
+        findings = detect_h4(AgentConfig(system_prompt=prompt))
+        assert not any("no context boundary" in f.description.lower() for f in findings)
+
+    @pytest.mark.parametrize("relative_path", _LINTLANG_INSTRUCTION_SURFACES)
+    def test_lintlang_own_instruction_prose_is_not_boundary_erosion(self, relative_path):
+        """HARD NEGATIVE: LintLang's own shipped AGENTS/SKILL prose (RESEARCH.md section 5)."""
+        prompt = _repo_text(relative_path)
+        findings = detect_h4(AgentConfig(system_prompt=prompt))
+        assert not any("no context boundary" in f.description.lower() for f in findings), relative_path
+
+    def test_statefulness_gate_recognizes_cross_context_instructions(self):
+        """POSITIVE CONTROL: each demonstrated statefulness signal keeps the rule live."""
+        for tail in (
+            "Use the conversation history when you answer.",
+            "Carry over state between tasks.",
+            "Reuse the previous turn's results.",
+            "Remember everything the operator types.",
+            "Maintain full context across requests.",
+        ):
+            prompt = ("Answer support questions about billing. " * 20) + tail
+            assert len(prompt) > 500
+            findings = detect_h4(AgentConfig(system_prompt=prompt))
+            assert any("no context boundary" in f.description.lower() for f in findings), tail
 
     def test_many_messages_no_boundaries(self):
         messages = [{"role": "system", "content": "You are helpful."}]
@@ -1052,9 +1126,64 @@ class TestH4:
 
     def test_substring_false_negative_microscope(self):
         """Word 'microscope' should NOT suppress boundary warning (it's not 'scope')."""
-        config = AgentConfig(system_prompt="Use the microscope to examine the sample carefully. " * 30)
+        config = AgentConfig(
+            system_prompt=("Use the microscope to examine the sample carefully. " * 30)
+            + "Remember everything the operator reports."
+        )
         findings = detect_h4(config)
         assert any("no context boundary" in f.description.lower() for f in findings)
+
+    def test_cross_session_carryover_instruction_still_flags(self):
+        """POSITIVE CONTROL (RESEARCH.md gap): ordinary English cross-session carryover.
+
+        No closed-vocabulary word like 'maintain state' or 'context window' appears;
+        the instruction is phrased as carrying behaviour into a future request from
+        the same person, even in a brand new chat window.
+        """
+        prompt = (
+            ("You are a helpful assistant for a support desk. " * 30)
+            + "Once you learn a customer's account preferences, keep applying them "
+            "automatically to every future request from that same person without "
+            "asking again, even in a brand new chat window."
+        )
+        assert len(prompt) > 500
+        findings = detect_h4(AgentConfig(system_prompt=prompt))
+        assert any("no context boundary" in f.description.lower() for f in findings)
+
+    def test_cross_session_phrasing_signals_recognized_individually(self):
+        """POSITIVE CONTROL: each widened cross-session phrasing keeps the rule live."""
+        for tail in (
+            "Apply the same settings to every future request the customer sends.",
+            "Keep using those preferences from that same customer going forward.",
+            "Next time they ask a question, reuse what you learned about them.",
+            "Carry the preference forward even in a brand new chat window.",
+        ):
+            prompt = ("Answer support questions about billing. " * 20) + tail
+            assert len(prompt) > 500
+            findings = detect_h4(AgentConfig(system_prompt=prompt))
+            assert any("no context boundary" in f.description.lower() for f in findings), tail
+
+    def test_future_request_and_chat_mention_without_persistence_is_not_reported(self):
+        """HARD NEGATIVE: mentioning 'request' and 'chat' with no persistence instruction."""
+        prompt = (
+            "Handle each request politely and answer questions in the chat. "
+            "Every request should be answered within one reply. "
+        ) * 15
+        assert len(prompt) > 500
+        findings = detect_h4(AgentConfig(system_prompt=prompt))
+        assert not any("no context boundary" in f.description.lower() for f in findings)
+
+    def test_generic_future_and_new_session_mentions_without_instruction_are_not_reported(self):
+        """HARD NEGATIVE: 'future' and 'new session' as plain vocabulary, not an instruction."""
+        prompt = (
+            "This document describes future plans for the support desk product. "
+            "A new session begins whenever the operator opens the console. "
+            "Sessions are independent and nothing here asks the agent to carry "
+            "anything between them. "
+        ) * 6
+        assert len(prompt) > 500
+        findings = detect_h4(AgentConfig(system_prompt=prompt))
+        assert not any("no context boundary" in f.description.lower() for f in findings)
 
 
 # ── H5: Implicit Instruction Failure ───────────────────────────────

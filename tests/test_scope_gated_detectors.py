@@ -50,7 +50,14 @@ def test_live_instruction_still_fires(detector, prompt: str) -> None:
 def test_quoted_or_code_boundary_markers_do_not_satisfy_long_prompt_boundary(
     quoted_marker: str,
 ) -> None:
-    prompt = ("Operational guidance. " * 30) + quoted_marker
+    # H4's length rule now requires demonstrated cross-context statefulness, so the
+    # prompt carries a live one. The point under test is unchanged: the only
+    # boundary vocabulary present is quoted or in code, and must not exempt it.
+    prompt = (
+        ("Operational guidance. " * 30)
+        + "Use the conversation history when you answer. "
+        + quoted_marker
+    )
 
     findings = detect_h4(AgentConfig(system_prompt=prompt))
 
