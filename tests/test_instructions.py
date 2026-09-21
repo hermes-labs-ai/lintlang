@@ -194,6 +194,15 @@ class TestDiscoverInstructionFiles:
 
         assert discover_instruction_files(tmp_path) == [real / "AGENTS.md"]
 
+    def test_rejects_symlinked_discovery_root(self, tmp_path):
+        outside = tmp_path / "outside"
+        outside.mkdir()
+        (outside / "AGENTS.md").write_text("# Outside\n", encoding="utf-8")
+        root = tmp_path / "repository"
+        root.symlink_to(outside, target_is_directory=True)
+
+        assert discover_instruction_files(root) == []
+
     def test_skipped_symlinked_instruction_files_are_reported_to_the_caller(self, tmp_path):
         """A skipped symlink is a coverage gap, so it is available to say out
         loud rather than being dropped from the returned list in silence."""

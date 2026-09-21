@@ -19,6 +19,11 @@ from .scanner import ScanResult, describe_inspected
 _ANSI_ESCAPE = re.compile(r"\033\[[0-9;]*m")
 
 
+def strip_ansi(value: str) -> str:
+    """Return terminal-formatted text without ANSI styling."""
+    return _ANSI_ESCAPE.sub("", value)
+
+
 def _ansi_len(s: str) -> int:
     """Return the visible length of a string, ignoring ANSI escape codes."""
     return len(_ANSI_ESCAPE.sub("", s))

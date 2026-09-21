@@ -192,7 +192,7 @@ def _qualifies_as_keyed_tool(value: Any) -> bool:
 class _Walker:
     def __init__(self) -> None:
         self.found = Discovery()
-        self._seen: set[int] = set()
+        self._seen_nodes: set[int] = set()
 
     # -- containers -------------------------------------------------------
 
@@ -230,9 +230,13 @@ class _Walker:
                     self.found.dropped.append(member_path)
 
     def claim(self, node: dict, path: str, group: str, owner: str, fallback_name: str = "") -> None:
-        if id(node) in self._seen:
+        # A shared node (for example, a YAML alias) may be reached through more
+        # than one traversal path. Deduplicate that physical object, not every
+        # same-named tool in the document: separate containers can legitimately
+        # expose different tools with the same name.
+        if id(node) in self._seen_nodes:
             return
-        self._seen.add(id(node))
+        self._seen_nodes.add(id(node))
         self.found.tools.append(_make_tool(node, path, group, owner, fallback_name))
 
     # -- generic traversal ------------------------------------------------
@@ -301,16 +305,19 @@ def discover_tools(data: Any) -> Discovery:
     else:
         walker.walk(data, "", "", is_root=True)
     found = walker.found
-    # A manifest often lists the same tool twice: a short `tools` declaration and
-    # a full `tools/list` response. Keep the fuller copy; reporting both doubles
-    # every finding and reads the pair as a name collision.
-    best: dict[tuple[str, str], DiscoveredTool] = {}
-    for tool in found.tools:
-        key = (tool.owner, tool.name)
-        kept = best.get(key)
-        if kept is None or kept.group != tool.group and tool.has_schema and not kept.has_schema:
-            best[key] = tool
+    # Some manifests carry a schema-less summary list plus a full tools/list
+    # response. When owner, name, and model-facing description agree, the
+    # summary is strictly less informative and would only double coverage and
+    # findings. Keep every schema-bearing copy, though: separate agents or
+    # servers may legitimately expose same-named tools in distinct containers.
+    described_schema_tools = {
+        (tool.owner, tool.name, tool.description)
+        for tool in found.tools
+        if tool.has_schema
+    }
     found.tools = [
-        t for t in found.tools if best[(t.owner, t.name)] is t or best[(t.owner, t.name)].group == t.group
+        tool
+        for tool in found.tools
+        if tool.has_schema or (tool.owner, tool.name, tool.description) not in described_schema_tools
     ]
     return found

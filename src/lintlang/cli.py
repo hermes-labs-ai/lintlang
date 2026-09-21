@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from pathlib import Path
 
@@ -10,7 +11,7 @@ from . import __version__
 from .github_init import configure_init_parser, run_init
 from .patterns import PATTERNS as _PATTERNS
 from .preflight_cli import configure_preflight_parser, run_preflight
-from .report import compute_verdict, format_markdown, format_summary_table, format_terminal
+from .report import compute_verdict, format_markdown, format_summary_table, format_terminal, strip_ansi
 from .scanner import (
     PYTHON_EXTRACTION_EXCLUDED_PATTERNS,
     ScanResult,
@@ -414,20 +415,31 @@ def _cmd_scan(args: argparse.Namespace) -> int:
 
     # An invoked scan that inspected zero files is an input/coverage failure,
     # not a silent success: every process boundary (terminal, JSON, SARIF,
-    # exit status) must say so. --allow-empty is the only opt-out, and
-    # --write-baseline keeps its own stricter pre-existing error below.
+    # exit status) must say so. --allow-empty / --allow-uninspected opt out
+    # for ordinary scans, while --write-baseline remains strict: an empty
+    # suppression list cannot prove that any agent-facing content was read.
     all_skipped = bool(results) and all(
         r.skipped is not None and r.input_error is None for r in results.values()
     )
-    if all_skipped and not args.allow_uninspected and not args.allow_empty and not args.write_baseline:
+    if all_skipped:
         reasons = "; ".join(f"{r.file}: {r.skipped}" for r in list(results.values())[:5])
-        return _empty_scan_failure(
-            args,
-            " ".join(inputs) if inputs else str(args.discover),
-            f"Nothing was inspected: {reasons}. A scan that read no agent-facing content is not a "
-            "pass. Use --allow-uninspected if these inputs may legitimately hold none.",
-            skipped=reasons,
-        )
+        requested = " ".join(inputs) if inputs else str(args.discover)
+        if args.write_baseline:
+            return _empty_scan_failure(
+                args,
+                requested,
+                f"Nothing was inspected: {reasons}. A baseline cannot be created from a scan that "
+                f"read no agent-facing content; baseline {args.write_baseline} was not written.",
+                skipped=reasons,
+            )
+        if not args.allow_uninspected:
+            return _empty_scan_failure(
+                args,
+                requested,
+                f"Nothing was inspected: {reasons}. A scan that read no agent-facing content is not a "
+                "pass. Use --allow-uninspected if these inputs may legitimately hold none.",
+                skipped=reasons,
+            )
     if not results and not args.write_baseline and not args.allow_empty:
         requested = " ".join(inputs) if inputs else str(args.discover)
         return _empty_scan_failure(
@@ -439,6 +451,7 @@ def _cmd_scan(args: argparse.Namespace) -> int:
 
     # Output
     if args.format == "terminal":
+        use_color = sys.stdout.isatty() and "NO_COLOR" not in os.environ
         skipped_files = [r for r in results.values() if r.skipped is not None and r.input_error is None]
         compact_skips = len(results) > 1
         for key, result in results.items():
@@ -448,11 +461,12 @@ def _cmd_scan(args: argparse.Namespace) -> int:
             # table, not a screen of its own.
             if compact_skips and result.input_error is None and not result.structural_findings and not result.notes:
                 continue
-            print(format_terminal(
+            rendered = format_terminal(
                 result, show_suggestions=not args.no_suggestions,
                 baseline_count=baseline_counts.get(key, 0) if args.baseline else None,
                 show_all=args.show_all,
-            ))
+            )
+            print(rendered if use_color else strip_ansi(rendered))
         if compact_skips and skipped_files:
             print(f"  Skipped {len(skipped_files)} file(s) with nothing to inspect (not counted as PASS):")
             for result in skipped_files:
@@ -499,7 +513,7 @@ def _cmd_scan(args: argparse.Namespace) -> int:
                     ],
                     # Raw HERM data preserved for programmatic consumers
                     "herm": None
-                    if result.input_error
+                    if result.input_error or result.skipped
                     else {
                         "score": result.score,
                         "dimensions": result.herm.dimension_scores,
@@ -556,14 +570,16 @@ def _cmd_scan(args: argparse.Namespace) -> int:
     # Summary table for multi-file terminal scans
     if args.format == "terminal" and len(results) > 1:
         elapsed = time.monotonic() - t_start
-        print(format_summary_table(results, elapsed))
+        summary = format_summary_table(results, elapsed)
+        print(summary if use_color else strip_ansi(summary))
 
     # One-line, TTY-only pointer back to the project home. Never shown in
     # machine-readable formats or when output is piped/redirected.
     if args.format == "terminal" and sys.stdout.isatty():
         from .report import DIM, RESET
 
-        print(f"  {DIM}lintlang v{__version__} — https://github.com/hermes-labs-ai/lintlang{RESET}")
+        pointer = f"  {DIM}lintlang v{__version__} — https://github.com/hermes-labs-ai/lintlang{RESET}"
+        print(pointer if use_color else strip_ansi(pointer))
 
     if not results:
         # This branch is only reachable when every argument was a directory
@@ -646,6 +662,8 @@ def _empty_scan_failure(
                         "file": requested,
                         "verdict": "ERROR",
                         "input_error": message,
+                        "inspected": {},
+                        "not_inspected": [],
                         # Set when files were read and held nothing agent-facing
                         # (as opposed to no file matching at all). Editor hooks
                         # use it to stay quiet about an ordinary package.json.
@@ -673,6 +691,7 @@ def _baseline_failure(args: argparse.Namespace, message: str) -> int:
         print(json.dumps([{
             "file": str(args.baseline or args.write_baseline),
             "verdict": "ERROR", "input_error": f"Baseline error: {message}",
+            "inspected": {}, "not_inspected": [], "skipped": None,
             "structural_findings": [], "herm": None,
         }], indent=2))
     return 1

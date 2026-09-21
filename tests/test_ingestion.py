@@ -73,13 +73,63 @@ class TestShapes:
         config = parse_yaml("- name: a\n  description: d\n  inputSchema: {type: object}\n")
         assert [t.name for t in config.tools] == ["a"]
 
-    def test_same_tool_listed_twice_is_read_once(self):
+    def test_same_physical_tool_reached_twice_is_read_once(self):
+        tool = {"name": "a", "description": "d", "inputSchema": SCHEMA}
         data = {
-            "tools": [{"name": "a", "description": "d"}],
-            "_meta": {"static": {"tools": [{"name": "a", "description": "d", "inputSchema": SCHEMA}]}},
+            "tools": [tool],
+            "_meta": {"static": {"tools": [tool]}},
         }
         tools = discover_tools(data).tools
         assert len(tools) == 1 and tools[0].has_schema
+
+    def test_schema_less_summary_is_replaced_by_full_definition(self):
+        data = {
+            "tools": [{"name": "a", "description": "Read one record"}],
+            "_meta": {
+                "static": {
+                    "tools": [
+                        {
+                            "name": "a",
+                            "description": "Read one record",
+                            "inputSchema": SCHEMA,
+                        }
+                    ]
+                }
+            },
+        }
+
+        tools = discover_tools(data).tools
+
+        assert len(tools) == 1
+        assert tools[0].has_schema
+
+    def test_same_named_tools_in_distinct_containers_are_both_inspected(self, tmp_path):
+        path = tmp_path / "agents.json"
+        path.write_text(
+            json.dumps(
+                {
+                    "agents": {
+                        "researcher": {
+                            "tools": [
+                                {
+                                    "name": "search",
+                                    "description": "Search public sources for current facts",
+                                    "inputSchema": {},
+                                }
+                            ],
+                        },
+                        "reviewer": {
+                            "tools": [{"name": "search", "description": "", "inputSchema": {}}],
+                        },
+                    },
+                }
+            )
+        )
+
+        result = scan_file(path)
+
+        assert result.inspected["tools"] == 2
+        assert [finding.code for finding in result.structural_findings].count("H1.1") == 1
 
 
 class TestHardNegatives:
@@ -136,6 +186,8 @@ class TestNeverSilentlyClean:
         path.write_text('{"bomFormat": "CycloneDX", "components": []}')
         assert main(["scan", str(path)]) == 1
         assert "software bill of materials" in capsys.readouterr().err
+        assert main(["scan", str(path), "--allow-empty"]) == 1
+        assert "software bill of materials" in capsys.readouterr().err
         assert main(["scan", str(path), "--allow-uninspected"]) == 0
 
     def test_named_file_with_unreadable_tool_like_content_is_an_error(self, tmp_path, capsys):
@@ -157,6 +209,9 @@ class TestNeverSilentlyClean:
         assert main(["scan", str(good), str(other), "--format", "json"]) == 0
         rows = {row["file"]: row for row in json.loads(capsys.readouterr().out)}
         assert rows[str(other)]["verdict"] == "SKIPPED"
+        assert rows[str(other)]["herm"] is None
+        assert rows[str(other)]["inspected"] == {}
+        assert rows[str(other)]["not_inspected"] == []
         assert rows[str(good)]["inspected"]["instructions"] == 1
 
     def test_boolean_property_schema_does_not_crash(self, tmp_path):

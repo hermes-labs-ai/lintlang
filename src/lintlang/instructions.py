@@ -164,7 +164,7 @@ def discover_instruction_files(
     deciding whether it holds instruction files would mean following it.
     """
     root_path = Path(root)
-    if not root_path.is_dir():
+    if root_path.is_symlink() or not root_path.is_dir():
         return []
 
     found: list[Path] = []

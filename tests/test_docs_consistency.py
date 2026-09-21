@@ -80,6 +80,10 @@ def test_reference_labels_the_failing_demo_and_its_clean_comparison():
     assert "A clean static scan is not evidence" in section
 
 
+def test_readme_links_to_checkout_free_first_run():
+    assert "[No instruction file yet? Try the checkout-free first run.]" in _text("README.md")
+
+
 def test_owning_guides_match_baseline_and_scan_default_contracts():
     baseline = _prose("docs/baselines.md").lower()
     github = _prose("docs/github.md")

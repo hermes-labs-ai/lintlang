@@ -41,10 +41,9 @@
 - The chat-prompt shape heuristics no longer run on Markdown instruction
   documents: H5 instruction count without priority ordering, H5 negative
   density, H6 missing output format, H6 missing version marker, H4 missing
-  boundary vocabulary. Measured on 204 real `AGENTS.md`/`CLAUDE.md`/`SKILL.md`
-  files before the change: 161 `REVIEW`, 155 of them from "N instructions with no
-  explicit priority ordering", none naming a sentence. After: 165 `PASS`.
-  They still run on `.txt`/`.prompt` files and config system prompts.
+  boundary vocabulary. Those generic prompt-shape notices did not identify a
+  specific sentence to repair in an instruction document. They still run on
+  `.txt`/`.prompt` files and config system prompts.
 - H1.3 no longer treats get/set/run/execute/use/make as vague verbs. One-sided
   H1.6 needs a shared domain term and the same leading verb. H1.4/H1.5/H1.6
   compare within one tool container. H3 ignores unions of scalar types.

@@ -5,7 +5,9 @@ from __future__ import annotations
 from lintlang.report import compute_verdict
 from lintlang.scanner import scan_file
 
-LONG_GUIDE = "# Guide\n\n" + "\n".join(f"- Step {i}: Run the formatter. Then commit the result." for i in range(40)) + "\n"
+LONG_GUIDE = (
+    "# Guide\n\n" + "\n".join(f"- Step {i}: Run the formatter. Then commit the result." for i in range(40)) + "\n"
+)
 
 
 def scan(tmp_path, name, text):
@@ -27,6 +29,38 @@ def test_the_same_text_as_a_chat_prompt_keeps_the_prompt_heuristics(tmp_path):
     assert any("priority ordering" in f.description for f in result.structural_findings)
 
 
+def test_markdown_with_chat_prompt_evidence_keeps_the_prompt_heuristics(tmp_path):
+    prompt = (
+        "# System prompt\n\nYou are the release reviewer.\n\n"
+        + "\n".join(f"- Check release requirement {i} and record the outcome." for i in range(12))
+        + "\n"
+    )
+
+    result = scan(tmp_path, "system.md", prompt)
+
+    assert any("priority ordering" in f.description for f in result.structural_findings)
+
+
+def test_markdown_filename_alone_does_not_make_ordinary_prose_a_chat_prompt(tmp_path):
+    result = scan(tmp_path, "system.md", LONG_GUIDE)
+
+    assert compute_verdict(result) == "PASS"
+    assert result.inspected["instructions"] == 1
+
+
+def test_documented_instruction_surface_stays_a_document_with_role_language(tmp_path):
+    text = (
+        "# Instructions\n\nYou are the repository maintainer.\n\n"
+        + "\n".join(f"- Check repository requirement {i} and record the outcome." for i in range(12))
+        + "\n"
+    )
+
+    result = scan(tmp_path, "AGENTS.md", text)
+
+    assert not any("priority ordering" in f.description for f in result.structural_findings)
+    assert result.inspected["instructions"] == 1
+
+
 def test_findings_carry_the_file_line_and_quote_the_whole_line(tmp_path):
     text = "---\nname: x\ndescription: Use when the build fails and must be retried.\n---\n\n# T\n\nIf the build fails, keep trying until it works.\n"
     finding = next(f for f in scan(tmp_path, "AGENTS.md", text).structural_findings if f.pattern_id == "H2")
@@ -36,7 +70,9 @@ def test_findings_carry_the_file_line_and_quote_the_whole_line(tmp_path):
 
 def test_front_matter_is_not_linted_as_prose(tmp_path):
     text = "---\nname: retry-helper\ndescription: Use when a task says keep trying until it works.\n---\n\nBody.\n"
-    assert not [f for f in scan(tmp_path, "skills/retry-helper/SKILL.md", text).structural_findings if f.pattern_id == "H2"]
+    assert not [
+        f for f in scan(tmp_path, "skills/retry-helper/SKILL.md", text).structural_findings if f.pattern_id == "H2"
+    ]
 
 
 class TestSkillFrontMatter:
@@ -45,7 +81,12 @@ class TestSkillFrontMatter:
         return {f.code: f for f in result.structural_findings}
 
     def test_good_skill_is_clean(self, tmp_path):
-        assert self.codes(tmp_path, "name: pdf-tools\ndescription: Fill and merge PDF forms. Use when the user mentions a PDF.") == {}
+        assert (
+            self.codes(
+                tmp_path, "name: pdf-tools\ndescription: Fill and merge PDF forms. Use when the user mentions a PDF."
+            )
+            == {}
+        )
 
     def test_missing_description(self, tmp_path):
         found = self.codes(tmp_path, "name: pdf-tools")
@@ -56,7 +97,9 @@ class TestSkillFrontMatter:
         assert found["H1.8"].source_region.start_line == 3
 
     def test_description_written_as_the_situation_is_a_trigger(self, tmp_path):
-        assert "H1.8" not in self.codes(tmp_path, "name: pdf-tools\ndescription: About to cite a number whose source is a tracking doc.")
+        assert "H1.8" not in self.codes(
+            tmp_path, "name: pdf-tools\ndescription: About to cite a number whose source is a tracking doc."
+        )
 
     def test_description_over_the_limit(self, tmp_path):
         assert "H1.7" in self.codes(tmp_path, "name: pdf-tools\ndescription: Use when " + "x" * 1100)
@@ -66,7 +109,9 @@ class TestSkillFrontMatter:
         assert "does not match its directory" in found["H1.9"].description
 
     def test_invalid_name(self, tmp_path):
-        found = self.codes(tmp_path, "name: PDF_Tools\ndescription: Use when the user mentions a PDF file.", "PDF_Tools")
+        found = self.codes(
+            tmp_path, "name: PDF_Tools\ndescription: Use when the user mentions a PDF file.", "PDF_Tools"
+        )
         assert "not a valid" in found["H1.9"].description
 
 

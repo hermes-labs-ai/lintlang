@@ -81,6 +81,43 @@ def test_empty_scan_and_existing_destination_cannot_write(project, capsys):
     assert (project / "baseline.json").read_bytes() == before
 
 
+def test_all_skipped_scan_cannot_write_empty_baseline(project, capsys):
+    source = project / "package.json"
+    source.write_text('{"name": "example", "version": "1.0.0"}\n')
+    baseline_path = project / "skipped.json"
+
+    status, data, error = scan(
+        capsys,
+        str(source),
+        "--allow-uninspected",
+        "--write-baseline",
+        str(baseline_path),
+    )
+
+    assert status == 1
+    assert data[0]["verdict"] == "ERROR"
+    assert "Nothing was inspected" in data[0]["input_error"]
+    assert f"baseline {baseline_path} was not written" in error
+    assert not baseline_path.exists()
+
+
+def test_baseline_error_json_uses_the_result_schema(project, capsys):
+    (project / "broken-baseline.json").write_text("not json\n")
+
+    status, data, _ = scan(capsys, "agent.yaml", "--baseline", "broken-baseline.json")
+
+    assert status == 1
+    assert len(data) == 1
+    assert data[0]["file"] == "broken-baseline.json"
+    assert data[0]["verdict"] == "ERROR"
+    assert data[0]["input_error"].startswith("Baseline error:")
+    assert data[0]["inspected"] == {}
+    assert data[0]["not_inspected"] == []
+    assert data[0]["skipped"] is None
+    assert data[0]["structural_findings"] == []
+    assert data[0]["herm"] is None
+
+
 @pytest.mark.parametrize("output_format", ["terminal", "markdown"])
 def test_human_output_states_verdict_scope(project, capsys, output_format):
     baseline(capsys)

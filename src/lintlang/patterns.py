@@ -2107,10 +2107,10 @@ def detect_h5(config: AgentConfig) -> list[Finding]:
 
     # The two density heuristics below judge the SHAPE of a chat system prompt.
     # An instruction document (AGENTS.md, CLAUDE.md, a SKILL.md body) is a
-    # reference an agent consults, not one prompt: on 204 real instruction files
-    # "N instructions with no priority ordering" fired on 76% of them and named
-    # no sentence in any. A finding that cannot point at its evidence, on a
-    # surface it was not designed for, is noise.
+    # reference an agent consults, not one prompt. In the audited instruction
+    # corpus, "N instructions with no priority ordering" fired broadly and
+    # named no sentence to repair. A finding that cannot point at its evidence,
+    # on a surface it was not designed for, is noise.
     is_chat_prompt = config.kind not in ("instructions", "templates", "server")
 
     # Flag problematic negatives (those NOT near safety keywords)

@@ -329,6 +329,25 @@ class TestCLI:
         # HERM score should NOT appear in terminal output
         assert "HERM Score:" not in captured.out
 
+    def test_scan_terminal_redirected_output_has_no_ansi(self, capsys, monkeypatch):
+        monkeypatch.setattr(sys.stdout, "isatty", lambda: False)
+
+        exit_code = main(["scan", str(SAMPLES_DIR / "clean_config.yaml")])
+
+        assert exit_code == 0
+        assert "\033[" not in capsys.readouterr().out
+
+    def test_scan_terminal_honors_no_color(self, capsys, monkeypatch):
+        monkeypatch.setattr(sys.stdout, "isatty", lambda: True)
+        monkeypatch.setenv("NO_COLOR", "1")
+
+        exit_code = main(["scan", str(SAMPLES_DIR / "clean_config.yaml")])
+
+        assert exit_code == 0
+        output = capsys.readouterr().out
+        assert "\033[" not in output
+        assert "https://github.com/hermes-labs-ai/lintlang" in output
+
     def test_scan_terminal_multi_file_repo_pointer_is_emitted_once(self, capsys, monkeypatch):
         """Interactive multi-file scans should point to the repo once overall."""
         monkeypatch.setattr(sys.stdout, "isatty", lambda: True)
@@ -764,6 +783,9 @@ class TestEmptyScanIsNonzero:
         assert len(data) == 1
         assert data[0]["verdict"] == "ERROR"
         assert "No files were inspected" in data[0]["input_error"]
+        assert data[0]["inspected"] == {}
+        assert data[0]["not_inspected"] == []
+        assert data[0]["skipped"] is None
         assert data[0]["structural_findings"] == []
         assert data[0]["herm"] is None
 

@@ -43,6 +43,8 @@ lintlang scan AGENTS.md
 
 Use the instruction file your agent actually reads: `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, GitHub Copilot instructions, or another supported prompt/configuration path.
 
+[No instruction file yet? Try the checkout-free first run.](llms-full.txt#first-run-without-a-checkout)
+
 A normal scan reports findings without blocking:
 
 ```text

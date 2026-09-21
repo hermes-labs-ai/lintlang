@@ -171,9 +171,9 @@ def _matches(filepath: Path, base_dir: Path, patterns: list[re.Pattern]) -> bool
     if not patterns:
         return False
     try:
-        relative = str(filepath.relative_to(base_dir))
+        relative = filepath.relative_to(base_dir).as_posix()
     except ValueError:
-        relative = str(filepath)
+        relative = filepath.as_posix()
     return any(p.search(relative) for p in patterns)
 
 
@@ -235,10 +235,10 @@ def describe_inspected(inspected: dict[str, int]) -> str:
         )
     if inspected.get("skill_description"):
         parts.append("skill front matter")
+    if inspected.get("system_prompt"):
+        parts.append("system prompt")
     if inspected.get("nested_prompts"):
         parts.append(_plural(inspected["nested_prompts"], "prompt") + " under nested keys")
-    elif inspected.get("system_prompt"):
-        parts.append("system prompt")
     if inspected.get("instructions"):
         parts.append(f"instruction text ({_plural(inspected.get('lines', 0), 'line')})")
     if inspected.get("messages"):
@@ -262,7 +262,7 @@ def _coverage(config: AgentConfig) -> tuple[dict[str, int], list[str], str | Non
     if config.skill is not None:
         inspected["skill_description"] = 1
     if config.system_prompt.strip():
-        key = "instructions" if config.kind in ("instructions", "prompt") else "system_prompt"
+        key = "instructions" if config.kind == "instructions" else "system_prompt"
         inspected[key] = 1
         if config.prompt_paths:
             inspected["nested_prompts"] = len(config.prompt_paths)

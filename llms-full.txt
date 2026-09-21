@@ -458,7 +458,7 @@ not every provider's protocol.
 from lintlang import compute_verdict, scan_directory, scan_file
 
 result = scan_file("config.yaml")
-print(compute_verdict(result))  # ERROR, PASS, REVIEW, or FAIL
+print(compute_verdict(result))  # ERROR, SKIPPED, PASS, REVIEW, or FAIL
 if result.input_error is not None:
     print(result.input_error)
 else:
@@ -472,8 +472,10 @@ for path, scanned in results.items():
 ```
 
 `scan_file(path, patterns=None)` returns a `ScanResult` with `file`, `score`,
-`herm`, `structural_findings`, and `input_error`. Load/parse failures use the
-`input_error` channel. `scan_directory(directory, patterns=None,
+`herm`, `structural_findings`, `input_error`, `inspected`, `notes`, and
+`skipped`. Load/parse failures use the `input_error` channel; inputs with no
+recognized agent-facing content return `SKIPPED`, never `PASS`.
+`scan_directory(directory, patterns=None,
 extensions=(".yaml", ".yml", ".json", ".txt", ".md", ".prompt", ".py"),
 exclude=None)` returns a path-keyed result dictionary. Directory failures remain
 represented in that dictionary. Severity gates are CLI policy, not exceptions

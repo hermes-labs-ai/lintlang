@@ -107,21 +107,45 @@ def parse_json(text: str, source_file: str = "") -> AgentConfig:
 
 
 _FRONT_MATTER = re.compile(r"\A(?:\ufeff)?---[ \t]*\r?\n(.*?)\r?\n---[ \t]*(?:\r?\n|\Z)", re.DOTALL)
+_MARKDOWN_SUFFIXES = frozenset({".md", ".markdown", ".mdc"})
+_INSTRUCTION_BASENAMES = frozenset({"AGENTS.md", "CLAUDE.md", "GEMINI.md", "SKILL.md"})
+_CHAT_PROMPT_HEADING = re.compile(r"(?im)^\s{0,3}#{1,6}\s*(?:(?:system|developer|assistant)\s+)?prompt\b")
+_CHAT_ROLE_OPENING = re.compile(
+    r"\A(?:\s{0,3}#{1,6}[^\n]*\n+)?\s*(?:you are|act as|your role is)\b",
+    re.IGNORECASE,
+)
+
+
+def _is_documented_instruction_path(source_file: str) -> bool:
+    """Return whether a Markdown path names a documented instruction surface."""
+    path = Path(source_file)
+    if path.name in _INSTRUCTION_BASENAMES:
+        return True
+    parts = path.parts
+    if parts[-2:] == (".github", "copilot-instructions.md"):
+        return True
+    return path.name.endswith(".instructions.md") and any(
+        parts[index : index + 2] == (".github", "instructions") for index in range(len(parts) - 1)
+    )
+
+
+def _markdown_is_chat_prompt(body: str) -> bool:
+    """Recognize explicit chat-prompt evidence without relying on a filename."""
+    return bool(_CHAT_PROMPT_HEADING.search(body) or _CHAT_ROLE_OPENING.search(body))
 
 
 def parse_text(text: str, source_file: str = "") -> AgentConfig:
     """Parse a text file an agent reads.
 
-    Markdown is an instruction DOCUMENT (AGENTS.md, CLAUDE.md, a SKILL.md body),
-    not a chat system prompt, and is marked so: detectors that judge a chat
-    prompt's shape (output contract, priority ordering) do not apply to it.
+    Markdown instruction documents (AGENTS.md, CLAUDE.md, a SKILL.md body) are
+    distinct from Markdown that explicitly presents itself as a chat prompt.
+    Chat-prompt shape checks apply only when the content supplies that evidence.
 
     YAML front matter carrying ``name`` / ``description`` is the selection-time
     metadata of a skill or sub-agent. It is read as such and kept out of the
     body, so its keys are neither linted as prose nor silently ignored.
     """
     suffix = Path(source_file).suffix.lower()
-    kind = "instructions" if suffix in (".md", ".markdown", ".mdc") else "prompt"
     body = text
     skill = None
     offset = 0
@@ -142,6 +166,12 @@ def parse_text(text: str, source_file: str = "") -> AgentConfig:
             is_skill_file = Path(source_file).name == "SKILL.md" or bool(parents & {"skills", "agents", "commands"})
             if "description" in meta or ("name" in meta and is_skill_file):
                 skill = _skill_meta(meta, match.group(1), source_file)
+
+    kind = "prompt"
+    if suffix in _MARKDOWN_SUFFIXES:
+        kind = "instructions"
+        if skill is None and not _is_documented_instruction_path(source_file) and _markdown_is_chat_prompt(body):
+            kind = "prompt"
 
     leading = len(body) - len(body.lstrip())
     offset += body[:leading].count("\n")
@@ -181,7 +211,7 @@ def _normalize(data: dict, source_file: str, document: object = None) -> AgentCo
     """Normalize various config formats to AgentConfig.
 
     ``document`` is the parsed root when it is not a mapping (a root array of
-    tools); ``data`` is then empty and only tool discovery applies.
+    tools, messages, or prompt-bearing records); ``data`` is then empty.
     """
     config = AgentConfig(raw=data, source_file=source_file)
 
@@ -197,16 +227,18 @@ def _normalize(data: dict, source_file: str, document: object = None) -> AgentCo
 
     # Prompts kept under nested keys (`agent.templates.system_template`,
     # `agents[].instructions`, `llm.system_prompt`) are prompts too.
-    if document is None:
-        nested = _nested_prompts(data)
-        if nested:
-            texts = [config.system_prompt] if config.system_prompt else []
-            texts += [text for _, text in nested if text != config.system_prompt]
-            config.system_prompt = "\n\n".join(texts)
-            config.prompt_paths = [path for path, _ in nested]
-            # Several templates joined together are not ONE chat prompt: counting
-            # "instructions" or demanding one output contract across them is
-            # meaningless. Evidence-bearing checks still run on the text.
+    has_root_prompt = bool(config.system_prompt)
+    nested = _nested_prompts(data if document is None else document)
+    if nested:
+        texts = [config.system_prompt] if config.system_prompt else []
+        texts += [text for _, text in nested if text != config.system_prompt]
+        config.system_prompt = "\n\n".join(texts)
+        config.prompt_paths = [path for path, _ in nested]
+        # Several templates joined together are not ONE chat prompt: counting
+        # "instructions" or demanding one output contract across them is
+        # meaningless. A top-level system prompt keeps its chat-prompt role,
+        # even when the same config also contains subordinate templates.
+        if not has_root_prompt:
             config.kind = "templates"
 
     # Extract tools — by shape, wherever they sit (see ingestion.py)
@@ -234,7 +266,7 @@ def _normalize(data: dict, source_file: str, document: object = None) -> AgentCo
         config.uninspected_text.extend(_localized_descriptions(item.parameters, f"{item.path}.parameters"))
 
     # Extract messages
-    messages_data = data.get("messages", [])
+    messages_data = _root_message_sequence(document) if document is not None else data.get("messages", [])
     if isinstance(messages_data, list):
         config.messages = messages_data
         # Also extract system prompt from messages if not already found
@@ -261,6 +293,24 @@ def _normalize(data: dict, source_file: str, document: object = None) -> AgentCo
             config.constraints.update(data[key])
 
     return config
+
+
+_MESSAGE_ROLES = frozenset({"system", "developer", "user", "assistant", "tool"})
+
+
+def _root_message_sequence(document: object) -> list[dict] | None:
+    """Return a root array only when every member has message-envelope shape."""
+    if not isinstance(document, list) or not document:
+        return None
+    if not all(
+        isinstance(member, dict)
+        and member.get("role") in _MESSAGE_ROLES
+        and "content" in member
+        and isinstance(member["content"], (str, list))
+        for member in document
+    ):
+        return None
+    return document
 
 
 _PROMPT_KEY = re.compile(
