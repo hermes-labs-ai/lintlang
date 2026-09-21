@@ -432,9 +432,13 @@ verdicts. They are not a validated probability of correctness or safety.
 ## JSON and SARIF
 
 `--format json` writes an array, including for a single input. Each entry has
-`file`, `verdict`, `input_error`, `structural_findings`, and `herm`. Each finding
-contains `pattern_id`, the specific `code`, `pattern_name`, lowercase `severity`,
-`location`, `description`, `suggestion`, and `evidence`. HERM contains `score`,
+`file`, `verdict`, `input_error`, `inspected` (counts of what the verdict
+covers, such as `tools`, `tools_described`, `tools_with_schema`, `instructions`,
+`system_prompt`, `messages`, `python_prompts`), `not_inspected` (coverage
+notices), `skipped` (the reason, or null), `structural_findings`, and `herm`.
+Each finding contains `pattern_id`, the specific `code`, `pattern_name`,
+lowercase `severity`, `location`, `line` (a file line for text inputs, else
+null), `description`, `suggestion`, and `evidence`. HERM contains `score`,
 `dimensions`, `signal_counts`, `coverage`, `confidence`, `findings`, and
 `context_flags`; it is null for input errors. Applying a baseline adds
 `baseline: {"suppressed": N}` to each scanned result. Operational baseline errors
