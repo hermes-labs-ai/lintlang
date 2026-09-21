@@ -1438,3 +1438,59 @@ class TestH7:
         )
         findings = detect_h7(config)
         assert len(findings) == 0
+
+
+# ── Baseline identity for the findings that survive the narrowing ──
+
+
+class TestNarrowedDetectorBaselineIdentity:
+    """Pin code, severity, location, description, and evidence for surviving positives.
+
+    docs/baselines.md:86-100 makes those five fields a baseline entry's identity, so a
+    surviving positive whose message changed would reopen every baseline that recorded
+    it. Removing a false positive is compatible; rewording a true one is not. These are
+    the H4/H5/H6 findings that the RESEARCH.md section 5 narrowing must leave untouched.
+    """
+
+    @staticmethod
+    def _identities(prompt: str) -> set[tuple[str, str, str, str, str]]:
+        config = AgentConfig(system_prompt=prompt)
+        findings = detect_h4(config) + detect_h5(config) + detect_h6(config)
+        return {(f.code, f.severity.name, f.location, f.description, f.evidence) for f in findings}
+
+    def test_bad_system_prompt_sample_identities_are_unchanged(self):
+        identities = self._identities((SAMPLES_DIR / "bad_system_prompt.txt").read_text(encoding="utf-8"))
+        expected = {
+            (
+                "H4",
+                "MEDIUM",
+                "system_prompt",
+                "Long system prompt with no context boundary markers.",
+                "",
+            ),
+            (
+                "H5",
+                "MEDIUM",
+                "system_prompt",
+                "System prompt has ~25 instructions with no explicit priority ordering.",
+                "",
+            ),
+            (
+                "H6",
+                "MEDIUM",
+                "system_prompt",
+                "System prompt references multiple output formats (JSON, Markdown, XML) "
+                "— model may produce hybrid output.",
+                "",
+            ),
+        }
+        assert expected <= identities
+
+    def test_removed_findings_are_gone_everywhere_they_were_false(self):
+        """The narrowing removes findings; it never reworks a surviving one."""
+        for relative_path in _LINTLANG_INSTRUCTION_SURFACES:
+            identities = self._identities(_repo_text(relative_path))
+            descriptions = {description for _, _, _, description, _ in identities}
+            assert "Long system prompt with no context boundary markers." not in descriptions, relative_path
+            assert not any("multiple output formats" in d for d in descriptions), relative_path
+            assert not any("could be reframed positively" in d for d in descriptions), relative_path
