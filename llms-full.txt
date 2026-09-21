@@ -244,8 +244,8 @@ then text. Directory discovery uses the listed, case-sensitive extensions only.
 Directories are traversed in sorted order; dependency/cache/build trees,
 issue/pull-request template directories and conventional non-prompt names such
 as README, CHANGELOG, LICENSE (and other licence, NOTICE and third-party notice
-files), CONTRIBUTING, and SECURITY are skipped. Python test code (`tests/`, `test_*.py`, `*_test.py`, `conftest.py`) is skipped
-during a walk: it holds fixtures, not what an agent is given. A `.txt` file met during a walk
+files), CONTRIBUTING, and SECURITY are skipped. Python test code (`tests/`, `test_*.py`, `*_test.py`, `conftest.py`) is returned as SKIPPED
+during a walk: it holds fixtures, not what an agent is given, and its explicit result keeps that exclusion visible. A `.txt` file met during a walk
 is scanned only if it contains prompt language; name it explicitly to scan it
 regardless. Front matter is read as skill metadata only when it has a
 `description`, or a `name` in a `SKILL.md` or under a `skills`/`agents`/`commands`

@@ -498,6 +498,7 @@ def scan_directory(
 
     Automatically skips:
         - Non-prompt files (README, CHANGELOG, LICENSE, etc.)
+        - Python test code, returned as an explicit SKIPPED result
         - .lintlangignore patterns (gitignore-style, from directory root)
         - Files matching --exclude patterns
 
@@ -544,8 +545,16 @@ def scan_directory(
         if _is_non_prompt_file(filepath):
             continue
         # Test code holds fixtures ("tool1", no description), not what an agent
-        # is given. Name a test file explicitly to scan it.
+        # is given. Keep the exclusion visible: a directory result that silently
+        # omits the file would overstate coverage. Name it explicitly to scan it.
         if filepath.suffix == ".py" and _is_test_code(filepath, directory):
+            herm = score_text("", source_path=str(filepath))
+            results[str(filepath)] = ScanResult(
+                file=str(filepath),
+                score=herm.score,
+                herm=herm,
+                skipped="Python test code is excluded from directory scans; name this file explicitly to inspect it",
+            )
             continue
 
         # Skip .lintlangignore and --exclude matches

@@ -53,6 +53,8 @@
   note does not apply to extracted literals. A Python tool's schema is counted
   as inspected only when it is a literal object; dynamic schema expressions are
   retained as coverage notices rather than silently treated as empty schemas.
+  Python test files excluded during directory walks now appear as explicit
+  SKIPPED results instead of disappearing from the reported coverage.
 - Baselines: evidence is part of a finding's fingerprint and H2/H4/H5 evidence in
   text files is now the whole line, so such entries recorded by 0.6.0 resurface
   once and need re-recording.

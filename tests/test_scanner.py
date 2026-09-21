@@ -304,6 +304,22 @@ class TestScanDirectory:
         assert str(py_file) in results
         assert results[str(py_file)].input_error is None
 
+    def test_directory_scan_reports_excluded_python_test_code(self, tmp_path):
+        py_file = tmp_path / "tests" / "test_agent.py"
+        py_file.parent.mkdir()
+        py_file.write_text(
+            'SYSTEM_PROMPT = """You are an assistant. Keep trying until the operation succeeds, '
+            'and report every attempt to the user."""\n'
+        )
+
+        results = scan_directory(tmp_path)
+
+        assert results[str(py_file)].inspected == {}
+        assert results[str(py_file)].skipped == (
+            "Python test code is excluded from directory scans; name this file explicitly to inspect it"
+        )
+        assert any(f.pattern_id == "H2" for f in scan_file(py_file).structural_findings)
+
     def test_direct_python_scans_inside_dependency_directories(self, tmp_path):
         for directory_name in (".venv", "venv", "site-packages", "__pypackages__"):
             py_file = tmp_path / directory_name / "pipeline.py"
