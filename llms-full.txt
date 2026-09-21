@@ -623,7 +623,7 @@ lintlang scan samples/bad_tool_descriptions.yaml
 Excerpt from `lintlang 0.6.0`:
 
 ```text
-FAIL — 1 CRITICAL, 2 HIGH, 7 MEDIUM, 3 LOW
+FAIL — 1 CRITICAL, 1 HIGH, 5 MEDIUM, 3 LOW
 H1.1: Tool 'process_ticket' has no description
 ```
 

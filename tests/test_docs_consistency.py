@@ -80,6 +80,22 @@ def test_reference_labels_the_failing_demo_and_its_clean_comparison():
     assert "A clean static scan is not evidence" in section
 
 
+def test_reference_failing_demo_count_matches_the_fixture():
+    from collections import Counter
+
+    from lintlang.scanner import scan_file
+
+    findings = scan_file(REPO_ROOT / "samples/bad_tool_descriptions.yaml").structural_findings
+    counts = Counter(finding.severity.value for finding in findings)
+    summary = ", ".join(
+        f"{counts[severity]} {severity}"
+        for severity in ("CRITICAL", "HIGH", "MEDIUM", "LOW")
+        if counts[severity]
+    )
+
+    assert f"FAIL — {summary}" in _text("llms-full.txt")
+
+
 def test_readme_links_to_checkout_free_first_run():
     assert "[No instruction file yet? Try the checkout-free first run.]" in _text("README.md")
 

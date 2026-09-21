@@ -1035,6 +1035,19 @@ class TestH2:
         missing = [f for f in findings if "no termination" in f.description.lower()]
         assert len(missing) == 0
 
+    def test_suggested_numeric_budget_clears_missing_constraint_finding(self):
+        config = AgentConfig(
+            system_prompt=(
+                "You have a maximum of 5 tool calls per task. "
+                "If no progress after 2 attempts, stop and report the issue."
+            ),
+            tools=[ToolDef(name="search", description="Search the database for records matching a query")],
+        )
+
+        findings = detect_h2(config)
+
+        assert not any("no termination" in finding.description.lower() for finding in findings)
+
     def test_substring_false_negative_limited(self):
         """Word 'limited' should NOT suppress constraint warning (it's not 'limit')."""
         config = AgentConfig(
