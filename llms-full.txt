@@ -124,9 +124,10 @@ produce exit 1 when the HERM score is below it; baselines do not change that sco
 A scan that inspects zero files is an input/coverage error: it exits 1, with a
 matching `ERROR` result on every output channel. JSON output is a one-entry
 array with `"verdict": "ERROR"`; SARIF carries the corresponding error tool
-result. `--allow-empty` restores the previous exit-0 behavior (a stderr note,
-`[]` for JSON, and an empty SARIF run reporting `executionSuccessful: true` to
-match the exit status) for a caller that intentionally scans an
+result, and `executionSuccessful: false` to match the exit status.
+`--allow-empty` exits 0 instead (a stderr note, `[]` for JSON, and an empty
+SARIF run reporting `executionSuccessful: true`) for a caller that
+intentionally scans an
 input that may sometimes be empty; that is different from an uninspectable
 requested input and does not prove that the intended instructions were
 scanned. `--write-baseline` keeps its own stricter, pre-existing behavior:

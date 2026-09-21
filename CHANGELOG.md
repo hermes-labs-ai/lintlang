@@ -41,16 +41,25 @@
 
 ### Changed
 
-- **Breaking: a scan that inspects zero files is now an input/coverage
-  error.** Previously, `lintlang scan <dir-or-files>` that matched no eligible
-  input printed `No matching files found to scan.` and exited 0. It now exits
-  1 with a matching `ERROR` result on every output channel (terminal, JSON,
-  SARIF). Pass `--allow-empty` to restore the previous exit-0 behavior for
-  callers that intentionally scan an input that may sometimes be empty.
-  `--write-baseline`'s pre-existing empty-scan error, which already refused to
-  write a baseline, is unchanged. Under `--allow-empty` the SARIF report now
-  reports `executionSuccessful: true` to match the exit-0 status, instead of
-  declaring the run unsuccessful while the process reported success.
+- **A scan that inspects zero files is an input/coverage error on every
+  channel.** Released 0.6.0 already exited 1 for it and said so on stderr
+  (`Error: No files were successfully scanned.`) and in SARIF, which reported
+  `executionSuccessful: false` with an `LL_INPUT_ERROR` notification but no
+  `ERROR` result; JSON alone still printed `[]`, so the JSON report
+  contradicted the process status. The scan now exits 1 with a matching
+  `ERROR` result on every output channel (terminal, JSON, SARIF). New
+  `--allow-empty` is the opt-out for a caller that intentionally scans an
+  input that may sometimes be empty: it exits 0 with a stderr note, `[]` for
+  JSON, and an empty SARIF run reporting `executionSuccessful: true`. Report
+  and exit status now agree in both directions. An interim change on `main`
+  after the 0.6.0 tag made a zero-file scan exit 0; it was never released, so
+  no published version behaved that way and an upgrade from 0.6.0 sees only
+  the added channels and the new flag. The first-party GitHub Action runs the
+  same CLI over its `path` input, so a path that inspects zero files now fails
+  the step with exit 1; the Action exposes no input that forwards
+  `--allow-empty`, so a workflow that needs the opt-out has to call the CLI
+  directly. `--write-baseline`'s pre-existing empty-scan error, which already
+  refused to write a baseline, is unchanged.
 - **Breaking: the pre-commit hook now consumes pre-commit's own changed-file
   selection instead of a hard-coded path.** `args: [AGENTS.md]`,
   `pass_filenames: false`, and `always_run: true` are gone from
