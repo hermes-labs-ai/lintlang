@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="assets/lintlang-mark.svg" alt="LintLang" width="88" height="88">
+<img src="assets/lintlang-header.jpg" alt="LintLang — deterministic analysis for the runtime of agents" width="960">
 
 # LintLang
 
