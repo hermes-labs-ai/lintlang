@@ -1066,6 +1066,16 @@ class TestH2:
 
         assert any("no termination" in finding.description.lower() for finding in findings)
 
+    def test_output_step_limit_is_not_an_execution_budget(self):
+        config = AgentConfig(
+            system_prompt="Use the search tool as needed. Present the result in at most 5 steps.",
+            tools=[ToolDef(name="search", description="Search the database for records matching a query")],
+        )
+
+        findings = detect_h2(config)
+
+        assert any("no termination" in finding.description.lower() for finding in findings)
+
     def test_suggested_constraint_clears_its_own_finding(self):
         tool = ToolDef(name="search", description="Search the database for records matching a query")
         original = detect_h2(AgentConfig(system_prompt="Use the search tool.", tools=[tool]))

@@ -86,13 +86,14 @@ def test_reference_failing_demo_count_matches_the_fixture():
     from lintlang.scanner import scan_file
 
     findings = scan_file(REPO_ROOT / "samples/bad_tool_descriptions.yaml").structural_findings
-    counts = Counter(finding.severity.value for finding in findings)
+    counts = Counter(finding.severity.name for finding in findings)
     summary = ", ".join(
         f"{counts[severity]} {severity}"
         for severity in ("CRITICAL", "HIGH", "MEDIUM", "LOW")
         if counts[severity]
     )
 
+    assert summary
     assert f"FAIL — {summary}" in _text("llms-full.txt")
 
 

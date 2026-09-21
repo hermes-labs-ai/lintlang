@@ -1005,7 +1005,7 @@ CONSTRAINT_SIGNALS = [
 
 _EXPLICIT_NUMERIC_BUDGET = re.compile(
     r"\b(?:max(?:imum)?(?:\s+of)?|at\s+most|no\s+more\s+than|up\s+to)\s+\d+\s+"
-    r"(?:tool\s+calls?|attempts?|retries|tries|iterations?|steps?|turns?|rounds?)\b",
+    r"(?:tool\s+calls?|attempts?|retries|tries|iterations?|turns?|rounds?)\b",
     re.IGNORECASE,
 )
 _NEGATED_NUMERIC_BUDGET_PREFIX = re.compile(
