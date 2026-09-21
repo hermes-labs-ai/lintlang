@@ -21,7 +21,18 @@ from .patterns import AgentConfig, ToolDef
 def parse_file(path: str | Path) -> AgentConfig:
     """Parse a file into an AgentConfig based on extension."""
     path = Path(path)
-    text = path.read_text(encoding="utf-8")
+    return parse_source(path.read_text(encoding="utf-8"), path)
+
+
+def parse_source(text: str, path: str | Path) -> AgentConfig:
+    """Parse in-memory source text as if it had been read from ``path``.
+
+    ``path`` is used only for suffix dispatch and source identity; it is never
+    opened, so a virtual path (for example a document arriving on standard
+    input) selects the same parser and reports the same locations as the real
+    file would.
+    """
+    path = Path(path)
 
     if path.suffix in (".yaml", ".yml"):
         return parse_yaml(text, source_file=str(path))

@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from .herm import HermResult, score_text
-from .parsers import parse_file
+from .parsers import parse_file, parse_source
 from .patterns import PATTERNS, AgentConfig, Finding
 
 # Pipeline detectors (P-series) — registered lazily to avoid circular imports
@@ -223,6 +223,25 @@ def scan_file(path: str | Path, patterns: list[str] | None = None) -> ScanResult
         return input_error_result(path, f"Failed to parse: {error}")
 
 
+def scan_source(text: str, path: str | Path, patterns: list[str] | None = None) -> ScanResult:
+    """Scan in-memory source text as if it had been read from ``path``.
+
+    ``path`` is never opened: it selects the parser (or Python extraction) and
+    supplies the source identity used by locations, JSON/SARIF output, and
+    baseline matching. A document handed to LintLang over standard input under
+    a virtual path therefore produces the same result as the identical file on
+    disk.
+    """
+    path = Path(path)
+    try:
+        if path.suffix == ".py":
+            return scan_python_source(text, path, patterns=patterns)
+        config = parse_source(text, path)
+        return scan_config(config, patterns=patterns)
+    except Exception as error:
+        return input_error_result(path, f"Failed to parse: {error}")
+
+
 def scan_directory(
     directory: str | Path,
     patterns: list[str] | None = None,
@@ -354,15 +373,35 @@ def scan_python_file(
 
     Returns a single ScanResult aggregating all findings.
     """
+    from .extractors import extract_from_python_file
+
+    path = Path(path)
+    return _scan_python_extraction(extract_from_python_file(path), path, patterns=patterns)
+
+
+def scan_python_source(
+    text: str,
+    path: str | Path,
+    patterns: list[str] | None = None,
+) -> ScanResult:
+    """Run Python extraction over in-memory source attributed to ``path``."""
+    from .extractors import extract_from_python
+
+    path = Path(path)
+    return _scan_python_extraction(extract_from_python(text, source_file=str(path)), path, patterns=patterns)
+
+
+def _scan_python_extraction(
+    extraction,
+    path: Path,
+    patterns: list[str] | None = None,
+) -> ScanResult:
+    """Shared Python-extraction scoring for file and in-memory sources."""
     from .extractors import (
         detect_scaffold_in_code,
         detect_uncalibrated_thresholds,
-        extract_from_python_file,
         extracted_prompts_to_configs,
     )
-
-    path = Path(path)
-    extraction = extract_from_python_file(path)
 
     # Pipeline-specific detectors (P1, P2)
     all_findings: list[Finding] = []

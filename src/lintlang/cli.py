@@ -17,6 +17,7 @@ from .scanner import (
     input_error_result,
     scan_directory,
     scan_file,
+    scan_source,
 )
 
 
@@ -40,7 +41,18 @@ def main(argv: list[str] | None = None) -> int:
         help=(
             "Language-bearing inputs: YAML, JSON, text, or Python "
             "(.py uses AST extraction for embedded prompts/pipeline artifacts; "
-            "not general Python code linting)"
+            "not general Python code linting). Use '-' exactly once with "
+            "--stdin-filename to scan one document from standard input."
+        ),
+    )
+    scan_parser.add_argument(
+        "--stdin-filename",
+        metavar="PATH",
+        default=None,
+        help=(
+            "Virtual path for the single '-' input. It selects the parser and "
+            "supplies the source identity used by locations, JSON/SARIF output, "
+            "and baseline matching. The path is never opened."
         ),
     )
     scan_parser.add_argument(
@@ -142,6 +154,30 @@ def _cmd_scan(args: argparse.Namespace) -> int:
 
     t_start = time.monotonic()
 
+    # Exactly one stdin document, always under an explicit virtual path. Any
+    # ambiguous combination is rejected rather than guessed, so a generator
+    # can never silently scan the wrong identity.
+    stdin_requests = args.files.count("-")
+    if stdin_requests > 1:
+        print(
+            "Error: standard input can be scanned exactly once; pass '-' at most one time.",
+            file=sys.stderr,
+        )
+        return 2
+    if stdin_requests and not args.stdin_filename:
+        print(
+            "Error: '-' requires --stdin-filename <virtual-path> so the document has a "
+            "deterministic parser and identity.",
+            file=sys.stderr,
+        )
+        return 2
+    if args.stdin_filename and not stdin_requests:
+        print(
+            "Error: --stdin-filename only applies to standard input; pass '-' as an input.",
+            file=sys.stderr,
+        )
+        return 2
+
     baseline_data = None
     baseline_root = None
     baseline_counts: dict[str, int] = {}
@@ -162,7 +198,25 @@ def _cmd_scan(args: argparse.Namespace) -> int:
 
     results: dict[str, ScanResult] = {}
 
-    for filepath in args.files:
+    inputs = list(args.files)
+
+    for filepath in inputs:
+        if filepath == "-":
+            virtual = Path(args.stdin_filename)
+            try:
+                stream = getattr(sys.stdin, "buffer", sys.stdin)
+                data = stream.read()
+                text = data.decode("utf-8") if isinstance(data, bytes) else data
+            except (OSError, UnicodeError) as error:
+                results[str(virtual)] = input_error_result(virtual, f"Failed to read standard input: {error}")
+                continue
+            result = scan_source(text, virtual, patterns=args.patterns)
+            result.structural_findings = [
+                f for f in result.structural_findings if severity_order.get(f.severity.value, 4) <= min_sev
+            ]
+            results[str(virtual)] = result
+            continue
+
         path = Path(filepath)
         if not path.exists():
             results[str(path)] = input_error_result(path, "File not found")
