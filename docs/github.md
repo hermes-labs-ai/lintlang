@@ -103,6 +103,12 @@ Missing, unreadable, malformed, or otherwise uninspectable requested inputs stay
 on the fatal `ERROR` channel, regardless of the verdict threshold. Another valid
 input cannot mask such an error. Invalid command arguments are also nonzero.
 
+A file that was read and holds nothing LintLang inspects (a `package.json`, a
+JSON Schema, Python with no prompt) is `SKIPPED` with its reason, never `PASS`,
+and does not change the exit status on its own. A scan in which every file was
+`SKIPPED`, and a named file whose tool-like objects could not be inspected, are
+input errors like the zero-file case below; `--allow-uninspected` is the opt-out.
+
 A scan that inspects zero files — an existing directory with no eligible files,
 or `--discover` finding nothing recognized, with no other matching input — is
 an input/coverage error: it exits 1, with a matching `ERROR` result on every

@@ -16,7 +16,8 @@ Primary CLI:
 - `printf '%s' 'Is it true that X?' | lintlang preflight - --format json`
 
 Outputs:
-- ERROR, PASS, REVIEW, or FAIL scan outcomes
+- ERROR, PASS, REVIEW, FAIL, or SKIPPED (nothing to inspect; never a pass) scan outcomes
+- an `inspected` count of the tools, prompts and messages each verdict covers
 - structural findings with pattern IDs `H1` to `H7`, `P1`, and `P2`
 - optional JSON output for CI pipelines
 - separate preflight states `ALLOW`, `NOTICE`, `HOLD`, `UNAVAILABLE`, and `ERROR`

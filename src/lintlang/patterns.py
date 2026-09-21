@@ -10,9 +10,9 @@ Each pattern has:
 from __future__ import annotations
 
 import re
-from pathlib import Path
 from dataclasses import dataclass, field
 from enum import Enum
+from pathlib import Path
 
 from .preflight.models import ScopeKind
 from .preflight.scope import ScopeAnalysis, analyze_scope

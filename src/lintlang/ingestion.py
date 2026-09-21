@@ -298,9 +298,7 @@ def discover_tools(data: Any) -> Discovery:
     for tool in found.tools:
         key = (tool.owner, tool.name)
         kept = best.get(key)
-        if kept is None:
-            best[key] = tool
-        elif kept.group != tool.group and tool.has_schema and not kept.has_schema:
+        if kept is None or kept.group != tool.group and tool.has_schema and not kept.has_schema:
             best[key] = tool
     found.tools = [
         t for t in found.tools if best[(t.owner, t.name)] is t or best[(t.owner, t.name)].group == t.group

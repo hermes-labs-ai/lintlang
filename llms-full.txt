@@ -114,6 +114,7 @@ The initializer does not scan, commit, publish, or enable repository features.
 | Verdict | Meaning after selected filters and any baseline |
 | --- | --- |
 | ERROR | A requested input could not be inspected |
+| SKIPPED | The file was read and holds nothing LintLang inspects. Never a PASS |
 | FAIL | At least one HIGH or CRITICAL structural finding remains |
 | REVIEW | At least one MEDIUM finding remains and none is HIGH/CRITICAL |
 | PASS | No MEDIUM, HIGH, or CRITICAL finding remains; LOW/INFO may remain |
@@ -142,9 +143,30 @@ scanned. `--write-baseline` keeps its own stricter, pre-existing behavior:
 zero scanned files is always an error and writes nothing, `--allow-empty` or
 not.
 
-PASS applies only to recognized content and selected checks. It does not mean
-that arbitrary nested vendor configuration was extracted, that prose is true,
-or that a model will behave correctly. Determinism describes findings and
+Every result states what it inspected: the terminal and Markdown reports print
+an `Inspected:` line ("12 tools (11 described, 12 with a schema)", "skill front
+matter, instruction text (418 lines)"), and JSON carries the same counts under
+`inspected`. A verdict covers that content and nothing else.
+
+A file in which nothing was inspected is `SKIPPED`, with the reason (for example
+"this is a JSON Schema document, not agent-facing content", or "no embedded prompt
+literals or threshold assignments were found in this Python file"). SKIPPED is
+never PASS and does not by itself change the exit status, so a wrapper may hand
+LintLang a `package.json` beside an `AGENTS.md`. Two cases are input errors
+(exit 1), because a scan the author believes covers a file must not look clean:
+
+- a scan in which EVERY file was SKIPPED (the same rule as a zero-file scan);
+- a named file that holds tool-like objects (a `name` with a `description`) none
+  of which could be inspected as tools. The error names them by path.
+
+`--allow-uninspected` reports both as SKIPPED instead. Files met while walking a
+directory are never errors for this reason. In a multi-file terminal scan,
+SKIPPED files are listed once at the end and clean files appear only in the
+summary table. Terminal output shows five findings per finding code and counts
+the rest; `--show-all`, JSON and SARIF carry every finding.
+
+PASS applies only to the inspected content and selected checks. It does not mean
+that prose is true or that a model will behave correctly. Determinism describes findings and
 verdicts for the same inputs and rules; terminal elapsed-time summaries are not
 a byte-identical-output promise.
 
@@ -152,23 +174,55 @@ a byte-identical-output promise.
 
 | Input | Recognized content and limits |
 | --- | --- |
-| `.yaml`, `.yml` | Top-level recognized agent fields; non-object YAML is treated as prompt text, not normalized as a list of tools |
-| `.json` | Top-level object with recognized fields; a non-object JSON root is an input error |
-| `.md`, `.txt`, `.prompt` | Source text as a system prompt, not automatic parsing of every host's frontmatter or configuration grammar |
-| `.py` | AST-extracted prompt-like strings and supported numeric assignments; not general Python linting |
+| `.yaml`, `.yml`, `.json` | Tool definitions found by shape anywhere in the document (object or array root); top-level prompt, message and schema fields |
+| `.md` | An instruction DOCUMENT (AGENTS.md, CLAUDE.md, a SKILL.md body). YAML front matter with `name`/`description` is read as skill metadata and kept out of the body |
+| `.txt`, `.prompt` | Source text as a chat system prompt |
+| `.py` | AST-extracted strings that the code uses as prompts, and supported numeric assignments; not general Python linting |
 
 For YAML/JSON objects, the first string among `system_prompt`, `system`,
-`systemPrompt`, `instructions`, and `prompt` supplies the system prompt. Tools
-come from a top-level `tools` list, or `functions` when `tools` is absent. Supported
-tool shapes include a direct `name`/`description` with `parameters` or
-`input_schema`, and OpenAI-style `type: function` with a nested `function` object.
+`systemPrompt`, `instructions`, and `prompt` supplies the system prompt.
+
+Tools are recognized by shape, not by file name or an allowlist of keys:
+
+- STRONG: a mapping with a string `name` and a parameter schema under
+  `inputSchema`, `input_schema`, `parameters`, `parametersJsonSchema` or
+  `parameters_json_schema`, or an OpenAI `{"type": "function", "function": {...}}`
+  / `{"type": "custom", ...}` wrapper. Read wherever it sits: a root array, a
+  vendor key such as `contributes.languageModelTools`, `result.tools`, any depth.
+  `parameters` only counts when it is empty or carries `type`, `properties` or
+  `$schema`, which keeps CI pipeline templates out.
+- Under a `tools`, `functions` or `functionDeclarations` key, a mapping with a
+  string `name` is a tool even without a schema (at depth it also needs a
+  description key). A `tools` MAP is read as name-keyed tools when its values
+  carry a schema or a description. An unknown-key map is read as tools only when
+  it has at least two entries and every one carries a schema.
+- `mcpServers.<server>.tools` and `servers[].tools` are read and the tools are
+  attributed to their server. Launch-only server entries (`command`, `args`,
+  `url`) define no tool language and are not units.
+- The model-facing description is the first non-empty string among
+  `modelDescription`, `model_description`, `description_for_model`, `description`.
+- The same tool listed twice in one file (a short declaration and a full
+  `tools/list` response) is read once, keeping the copy with a schema.
+- H1.4/H1.5/H1.6 compare tools within one container, so two MCP servers may each
+  expose a `search`.
+
+Never read as tools: `dependencies`-style maps, JSON Schema `properties`/`$defs`,
+`components`/`packages` lists, and whole documents recognized as JSON Schema
+(`$schema` with `properties`/`$defs`/`definitions`), OpenAPI, a package
+lockfile, an SBOM (CycloneDX/SPDX) or an in-toto attestation. A bare
+`{name, description}` object outside a tools container is not claimed (it is as
+likely a package or a server); when a file has no tools at all, such objects are
+reported as not inspected. Known limits: a custom container key whose members
+have no parameter schema is not read; tool definitions built in code are not
+read; YAML anchors are resolved by the YAML parser, but templated YAML is not.
+
 Messages come from a top-level `messages` list; its first system message can
 supply the prompt when one was not otherwise found.
 
 Recognized schema fields are `response_format`, `output_schema`, `schema`, and
 `schemas`; constraint mappings come from `constraints`, `config`, `settings`,
 and `parameters`. These are extraction rules, not comprehensive provider-schema
-validation. Unrecognized nested vendor layouts can yield no covered findings.
+validation.
 
 An explicitly named file with an unknown extension is tried as JSON, then YAML,
 then text. Directory discovery uses the listed, case-sensitive extensions only.
@@ -203,6 +257,12 @@ those checks passed. P1/P2 still run independently of that selection.
   nearby calibration comment produces MEDIUM; a recognized comment containing
   uncertainty markers can produce LOW. This tests a documented justification
   signal, not whether the threshold was actually calibrated or is correct.
+- A string is extracted as a prompt when the code uses it as one: it is bound to
+  a prompt-like name, keyword argument or message-dict key (`prompt`, `system`,
+  `instructions`, `template`, `content`, ...), or it addresses a model ("You
+  are", "your task"), or it matches three or more prompt signals. Docstrings, bare
+  string statements, and text passed to logging, argparse/click help, or an
+  exception are never prompts.
 - **P2: Embedded Scaffold.** An extracted prompt longer than 500 characters
   produces LOW; one longer than 200 and at most 500 produces INFO. It suggests
   reviewing whether the prompt should be externalized, not that embedded prompts
@@ -229,6 +289,23 @@ tool names, high word overlap, and relational nondistinction. Findings keep
 | H1.4 | Two tools share a name | CRITICAL |
 | H1.5 | Near-duplicate descriptions under the word-overlap model | HIGH |
 | H1.6 | One or both tools lack a distinguishing analyzed term | MEDIUM |
+| H1.7 | Skill description longer than 1024 characters | HIGH |
+| H1.8 | Skill description does not say when to use the skill | MEDIUM under 120 characters, else LOW |
+| H1.9 | Skill `name` invalid, or different from its `SKILL.md` directory | MEDIUM |
+
+For a Markdown file with `name`/`description` front matter (a skill or sub-agent
+definition) the description is the selection-time text, so H1.1 (no description,
+HIGH) and H1.2 (under 20 characters, MEDIUM) apply to it, located at
+`frontmatter.description` with its line. H1.8 looks for trigger vocabulary ("use
+when", "if the user", "before", a description written as the situation); it is a
+finite vocabulary, which is why a long description is only LOW. H1.9's directory
+comparison runs only for a file named `SKILL.md`.
+
+H1.3's vague verbs are handle, process, manage, do, perform, deal, work. `get`,
+`set`, `run`, `execute`, `use` and `make` were removed: on real MCP manifests every
+hit on them was a precise description ("Get the current time in a timezone").
+One-sided H1.6 (domination) additionally requires that the two tools share a
+domain term, not only a generic verb class, and open with the same action.
 
 H1.5 uses Jaccard word similarity with stopword removal. H1.6 compares analyzed
 terms from tool names and descriptions under a finite synonym lexicon. It can
@@ -263,21 +340,37 @@ indicators, not a proof that a loop will or will not terminate.
 
 Checks phantom required fields absent from `properties`, undescribed parameters,
 generic parameter names such as `data`, `input`, `value`, and `payload`,
-undescribed `anyOf`/`oneOf` variants, and nested objects without descriptions.
+undescribed `anyOf`/`oneOf` variants when at least one undescribed variant is
+structural (an object, array or `$ref`; a union of scalar types explains itself),
+and nested objects without descriptions. Boolean property schemas are skipped.
 It is not full JSON Schema validation or an oracle for a tool's implementation.
 
 ### H4: Context Boundary Erosion
 
 Checks selected unscoped requests to remember everything or use all conversation,
-history, or context; unbounded always-remember language; and long prompts without
-recognized boundary markers. It does not inspect a host's actual context window.
+history, or context; unbounded always-remember language; and, for chat prompts
+only, long prompts without recognized boundary markers. It does not inspect a
+host's actual context window.
+
+H4.5 (MEDIUM, Markdown instruction documents read from disk only) reports a
+referenced project file that does not exist. It needs all of: a literal relative
+path with a directory part and a known file extension, in backticks or a Markdown
+link, outside fenced code; a first segment that exists beside the document or at
+the repository root; a path that resolves from neither; and a line that does not
+talk about creating, renaming, removing or exemplifying it. It reads the
+filesystem, so it does not run on standard input, and it is deliberately quiet:
+directories, globs, placeholders and paths into other projects are never reported.
 
 ### H5: Implicit Instruction Failure
 
 Checks selected vague qualifiers ("be concise", "be helpful", "use common sense"),
 ambiguous conditionals ("as needed", "when appropriate"), figurative verbs
-("lean into", "err on the side of", "keep it simple"), and high instruction count
-without priority ordering. Negative-instruction exemptions have three layers:
+("lean into", "err on the side of", "keep it simple"). For chat prompts only
+(`.txt`, `.prompt`, a config's system prompt, an extracted Python literal) it also
+checks negative-instruction density and high instruction count without priority
+ordering; those two judge the shape of a single prompt and do not run on Markdown
+instruction documents, where they fired on most real files and named no sentence.
+Negative-instruction exemptions have three layers:
 
 1. Structural: HTML comments, fenced/inline code, and generated-file markers.
 2. Phrase-level: selected privacy disclaimers, UI labels, descriptive wording,
@@ -292,7 +385,8 @@ understanding; a useful false-positive report includes a minimal reproduction.
 
 Strips fenced code, inline code, filenames, and CLI flags before counting format
 keywords. Checks selected conflicting output formats without disambiguation,
-missing format specifications, template variables, and missing version markers.
+template variables and, for chat prompts only, a missing format specification and
+(not for extracted Python literals) a missing version marker.
 It does not prove arbitrary output contracts satisfiable.
 
 ### H7: Role Confusion

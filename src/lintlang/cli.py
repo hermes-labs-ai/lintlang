@@ -77,6 +77,11 @@ def main(argv: list[str] | None = None) -> int:
         help="Exit 0 when the scan inspected zero files (default: that is an input error)",
     )
     scan_parser.add_argument(
+        "--show-all",
+        action="store_true",
+        help="Terminal output: list every finding (default: 5 per finding code, then a count)",
+    )
+    scan_parser.add_argument(
         "--allow-uninspected",
         action="store_true",
         help=(
@@ -446,6 +451,7 @@ def _cmd_scan(args: argparse.Namespace) -> int:
             print(format_terminal(
                 result, show_suggestions=not args.no_suggestions,
                 baseline_count=baseline_counts.get(key, 0) if args.baseline else None,
+                show_all=args.show_all,
             ))
         if compact_skips and skipped_files:
             print(f"  Skipped {len(skipped_files)} file(s) with nothing to inspect (not counted as PASS):")

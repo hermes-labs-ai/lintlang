@@ -238,7 +238,7 @@ def _is_prompt_in_context(node: ast.AST, parents: dict[ast.AST, ast.AST], text: 
     elif isinstance(parent, ast.AnnAssign) and isinstance(parent.target, (ast.Name, ast.Attribute)):
         name = parent.target.id if isinstance(parent.target, ast.Name) else parent.target.attr
     elif isinstance(parent, ast.Dict):
-        for key, value in zip(parent.keys, parent.values):
+        for key, value in zip(parent.keys, parent.values, strict=False):
             if value is child and isinstance(key, ast.Constant) and isinstance(key.value, str):
                 name = key.value
     elif isinstance(parent, ast.Call):

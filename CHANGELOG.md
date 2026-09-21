@@ -4,6 +4,52 @@
 
 ### Added
 
+- Tool definitions are found by shape, wherever they sit. Previously only a
+  root `tools`/`functions` list of `name` + `parameters`/`input_schema` objects
+  was read: a root JSON array was an input error, and MCP `inputSchema` tools,
+  `mcpServers.<server>.tools`, vendor keys such as VS Code
+  `contributes.languageModelTools`, name-keyed tool maps and Gemini
+  `functionDeclarations` scanned `PASS` with nothing inspected. See "Supported
+  formats and extraction" in `llms-full.txt` for the exact signatures and the
+  hard negatives (SBOMs, JSON Schema, OpenAPI, lockfiles, pipeline templates).
+- Every result reports what it inspected (`Inspected:` line; `inspected` in
+  JSON). A file with nothing to inspect is `SKIPPED` with its reason, never
+  `PASS`. A scan in which every file was skipped, and a named file whose
+  tool-like objects could not be read, exit 1; `--allow-uninspected` opts out.
+  JSON also gains `not_inspected`, `skipped`, and a per-finding `line`.
+- Markdown files are instruction documents, not chat system prompts. YAML front
+  matter with `name`/`description` is read as skill metadata: H1.1/H1.2 on the
+  description, H1.7 (over 1024 characters), H1.8 (no "when to use"), H1.9 (name
+  invalid or different from the `SKILL.md` directory). Front matter is no longer
+  linted as body prose.
+- H4.5: an instruction document references a project file that does not exist.
+- Findings in text files carry their line number (terminal `file:line`, JSON
+  `line`, SARIF region) and quote the whole offending line.
+- `--show-all`; the terminal otherwise shows five findings per code and counts
+  the rest. Clean and skipped files in a multi-file scan are summary rows.
+
+### Changed
+
+- The chat-prompt shape heuristics no longer run on Markdown instruction
+  documents: H5 instruction count without priority ordering, H5 negative
+  density, H6 missing output format, H6 missing version marker, H4 missing
+  boundary vocabulary. Measured on 204 real `AGENTS.md`/`CLAUDE.md`/`SKILL.md`
+  files before the change: 161 `REVIEW`, 155 of them from "N instructions with no
+  explicit priority ordering", none naming a sentence. After: 165 `PASS`.
+  They still run on `.txt`/`.prompt` files and config system prompts.
+- H1.3 no longer treats get/set/run/execute/use/make as vague verbs. One-sided
+  H1.6 needs a shared domain term and the same leading verb. H1.4/H1.5/H1.6
+  compare within one tool container. H3 ignores unions of scalar types.
+- Python: a string is extracted as a prompt when the code uses it as one;
+  docstrings, help text, log and exception messages are not prompts. P2 is LOW
+  (over 500 characters) / INFO instead of MEDIUM / LOW, and the version-marker
+  note does not apply to extracted literals.
+- Baselines: evidence is part of a finding's fingerprint and H2/H4/H5 evidence in
+  text files is now the whole line, so such entries recorded by 0.6.0 resurface
+  once and need re-recording.
+
+### Added (earlier in this cycle)
+
 - On-demand `lintlang-audit` skill in the Claude Code plugin
   (`integrations/claude-code/skills/lintlang-audit/`), plugin version `0.2.0`.
   It audits the file a user names, resolving the released CLI from `PATH` or

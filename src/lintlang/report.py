@@ -83,14 +83,11 @@ def compute_verdict(value: ScanResult | list[Finding]) -> str:
 
 def _verdict_display(verdict: str) -> tuple[str, str]:
     """Return (icon, color) for a verdict."""
-    if verdict == "PASS":
-        return "✅", GREEN
-    elif verdict == "SKIPPED":
-        return "⏭️", DIM
-    elif verdict == "REVIEW":
-        return "⚠️", YELLOW
-    else:
-        return "❌", BRIGHT_RED
+    return {
+        "PASS": ("✅", GREEN),
+        "SKIPPED": ("⏭️", DIM),
+        "REVIEW": ("⚠️", YELLOW),
+    }.get(verdict, ("❌", BRIGHT_RED))
 
 
 def _severity_summary(findings: list[Finding]) -> str:
@@ -109,10 +106,14 @@ def _severity_summary(findings: list[Finding]) -> str:
 # ── Terminal Report ────────────────────────────────────────────────
 
 
+MAX_SHOWN_PER_CODE = 5
+
+
 def format_terminal(
     result: ScanResult,
     show_suggestions: bool = True,
     baseline_count: int | None = None,
+    show_all: bool = False,
 ) -> str:
     """Format a ScanResult for terminal output with ANSI colors."""
     lines: list[str] = []
@@ -159,7 +160,17 @@ def format_terminal(
             lines.append(f"  {BOLD}{pid}: {pattern_name}{RESET}")
             lines.append("")
 
+            # A manifest with 27 undescribed tools has one problem, 27 times. Show
+            # enough of each kind to act on and count the rest; JSON, SARIF and
+            # --show-all always carry every finding.
+            shown_per_kind: dict[tuple[str, Severity], int] = {}
+            hidden: dict[tuple[str, Severity], list[Finding]] = {}
             for f in pattern_findings:
+                kind_key = (f.code, f.severity)
+                shown_per_kind[kind_key] = shown_per_kind.get(kind_key, 0) + 1
+                if not show_all and shown_per_kind[kind_key] > MAX_SHOWN_PER_CODE:
+                    hidden.setdefault(kind_key, []).append(f)
+                    continue
                 color = COLORS[f.severity]
                 icon_f = _severity_icon(f.severity)
                 # Print the sub-code. Without it every H1 result renders
@@ -180,6 +191,15 @@ def format_terminal(
                     lines.append(f'      {DIM}Evidence: "{f.evidence}"{RESET}')
                 if show_suggestions:
                     lines.append(f"      {DIM}→ {f.suggestion}{RESET}")
+                lines.append("")
+
+            for (code_key, severity), rest in hidden.items():
+                where = ", ".join(f.location for f in rest[:6]) + (", ..." if len(rest) > 6 else "")
+                lines.append(
+                    f"    {COLORS[severity]}+ {len(rest)} more {code_key} [{severity.value.upper()}]{RESET} "
+                    f"{DIM}{where}{RESET}"
+                )
+                lines.append(f"      {DIM}(--show-all lists every finding){RESET}")
                 lines.append("")
     else:
         lines.append(f"  {GREEN}No structural issues found.{RESET}")
