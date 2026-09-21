@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
+import pytest
 import yaml
+
+from lintlang.instructions import is_recognized_instruction_path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 HOOKS = yaml.safe_load((REPO_ROOT / ".pre-commit-hooks.yaml").read_text(encoding="utf-8"))
@@ -19,10 +23,57 @@ def test_precommit_hook_is_explicit_and_advisory_by_default():
     assert hook["id"] == "lintlang"
     assert hook["entry"] == "lintlang scan"
     assert hook["language"] == "python"
-    assert hook["args"] == ["AGENTS.md"]
-    assert hook["pass_filenames"] is False
-    assert hook["always_run"] is True
+    # The hook must consume pre-commit's own changed-file selection rather than
+    # a hard-coded path, and must not force itself to run on unrelated commits.
+    assert "args" not in hook
+    assert "pass_filenames" not in hook
+    assert "always_run" not in hook
     assert hook["verbose"] is True
+    assert "files" in hook
+
+
+# Paths that must be selected by the hook's `files:` regex, and must therefore
+# agree with lintlang.instructions.is_recognized_instruction_path.
+RECOGNIZED_PATHS = [
+    "AGENTS.md",
+    "CLAUDE.md",
+    "GEMINI.md",
+    "SKILL.md",
+    ".agents/skills/lintlang/SKILL.md",
+    "docs/sub/CLAUDE.md",
+    "agent.yaml",
+    "agent.yml",
+    "agent.json",
+    ".github/copilot-instructions.md",
+    ".github/instructions/foo.md",
+]
+
+# Paths that must NOT be selected by the hook's `files:` regex.
+UNRECOGNIZED_PATHS = [
+    "README.md",
+    "CHANGELOG.md",
+    "docs/notes.md",
+    "src/lintlang/cli.py",
+    "agents.md",
+    "AGENTS.txt",
+    ".github/instructions/foo.txt",
+    "pyproject.toml",
+]
+
+
+@pytest.mark.parametrize("path", RECOGNIZED_PATHS + UNRECOGNIZED_PATHS)
+def test_precommit_hook_files_regex_agrees_with_instruction_primitive(path):
+    hook = HOOKS[0]
+    pattern = re.compile(hook["files"])
+    regex_matches = pattern.search(path) is not None
+    primitive_matches = is_recognized_instruction_path(path)
+    assert regex_matches == primitive_matches, (
+        f"hook files regex and is_recognized_instruction_path disagree on {path!r}: "
+        f"regex={regex_matches} primitive={primitive_matches}"
+    )
+    expected = path in RECOGNIZED_PATHS
+    assert regex_matches is expected
+    assert primitive_matches is expected
 
 
 def test_public_docs_show_exercised_install_and_hook_paths():
