@@ -5,9 +5,10 @@
 ### Added
 
 - A conservative `lintlang scan --fix` path for instruction documents applies
-  bounded, reversible edits and declines files without a leading instruction
-  section or edits that would introduce an example. The original remains
-  available for review; automatic repair is not a safety verdict.
+  a bounded in-place rewrite and declines files without a leading instruction
+  section or edits that would introduce an example. Use `--dry-run` to preview
+  without writing or `--backup` to preserve the original bytes before writing;
+  automatic repair is not a safety verdict.
 - HERM confidence output now names its coverage drivers, so a low confidence
   label can be traced to missing or sparse evidence rather than read as a
   detector accuracy measurement.
