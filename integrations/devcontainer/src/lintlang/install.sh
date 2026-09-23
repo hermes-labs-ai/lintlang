@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-readonly requested_version="${VERSION:-0.6.0}"
+readonly requested_version="${VERSION:-0.7.0}"
 readonly install_root="/opt/lintlang-${requested_version}"
 
 if [ "$(id -u)" -ne 0 ]; then
