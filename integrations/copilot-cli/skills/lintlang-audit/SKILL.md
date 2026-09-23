@@ -53,14 +53,17 @@ and does not rewrite the file or block a tool call.
    runner that worked in step 2:
 
    ```bash
-   lintlang scan --format json -- <file> [<file> ...]
+   lintlang scan --format json -- "$file" ["$next_file" ...]
    ```
 
    ```bash
-   uvx --from lintlang==0.6.0 lintlang scan --format json -- <file> [<file> ...]
+   uvx --from lintlang==0.6.0 lintlang scan --format json -- "$file" ["$next_file" ...]
    ```
 
-   The `--` keeps a path that begins with `-` from being read as a flag. JSON
+   Treat every named path as data: pass it as one argv element. If using a
+   shell, put each path in a variable and quote the expansion as shown; never
+   paste a raw path into a shell command. The `--` keeps a path that begins
+   with `-` from being read as a flag. JSON
    is an array with one object per input file, each with `file`, `verdict`,
    `input_error`, `skipped`, and `structural_findings`.
 

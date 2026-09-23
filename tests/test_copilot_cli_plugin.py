@@ -34,9 +34,10 @@ def test_copilot_plugin_has_portable_root_manifest_and_skill() -> None:
     metadata = yaml.safe_load(raw_metadata)
     assert metadata["name"] == SKILL.parent.name == "lintlang-audit"
     assert "Python 3.10+" in metadata["compatibility"]
-    assert "--format json -- <file>" in body
+    assert 'lintlang scan --format json -- "$file"' in body
+    assert "pass it as one argv element" in body
     assert f"uvx --from lintlang=={__version__}" in body
-    assert f"uvx --from lintlang=={__version__} lintlang scan --format json -- <file>" in body
+    assert f'uvx --from lintlang=={__version__} lintlang scan --format json -- "$file"' in body
     assert "if `lintlang --version` succeeded with another version" in body
     assert "`verdict` is `SKIPPED`" in body
     assert "If every named file is `SKIPPED`, the command exits `1`" in body
