@@ -41,4 +41,4 @@ Key success condition:
 
 ## About Hermes Labs
 
-Hermes Labs studies failure modes in agent and LLM systems, develops open-source tools that treat language as part of the runtime, and works with teams to remediate reliability failures in production. More at [hermes-labs.ai](https://hermes-labs.ai).
+Hermes Labs is an agentic infrastructure company building the reliability layer for autonomous systems. More at [hermes-labs.ai](https://hermes-labs.ai).
