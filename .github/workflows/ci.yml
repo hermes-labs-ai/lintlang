@@ -64,3 +64,35 @@ jobs:
         env:
           ACTION_OUTCOME: ${{ steps.failing-scan.outcome }}
         run: test "$ACTION_OUTCOME" = "failure"
+
+      - name: Released Action writes clean SARIF
+        uses: hermes-labs-ai/lintlang@175a9a19414aff9a1752d3b9850d6cf58d59fb32 # v0.7.0
+        with:
+          path: samples/clean_config.yaml
+          sarif-file: lintlang-clean.sarif
+
+      - name: Released Action writes failing SARIF
+        id: released-failing-scan
+        continue-on-error: true
+        uses: hermes-labs-ai/lintlang@175a9a19414aff9a1752d3b9850d6cf58d59fb32 # v0.7.0
+        with:
+          path: samples/bad_tool_descriptions.yaml
+          sarif-file: lintlang-bad.sarif
+
+      - name: Assert released Action version, findings, and exit code
+        env:
+          BAD_ACTION_OUTCOME: ${{ steps.released-failing-scan.outcome }}
+        run: |
+          test "$BAD_ACTION_OUTCOME" = failure
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          clean = json.loads(Path("lintlang-clean.sarif").read_text())
+          bad = json.loads(Path("lintlang-bad.sarif").read_text())
+          assert clean["version"] == bad["version"] == "2.1.0"
+          for report in (clean, bad):
+              assert report["runs"][0]["tool"]["driver"]["semanticVersion"] == "0.7.0"
+          assert not clean["runs"][0]["results"]
+          assert {"H1.1", "H3"} <= {result["ruleId"] for result in bad["runs"][0]["results"]}
+          PY
