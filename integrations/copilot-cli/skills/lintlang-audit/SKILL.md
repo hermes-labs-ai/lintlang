@@ -53,16 +53,18 @@ and does not rewrite the file or block a tool call.
    runner that worked in step 2:
 
    ```bash
-   lintlang scan --format json -- "$file" ["$next_file" ...]
+   lintlang scan --format json -- "$file"
    ```
 
    ```bash
-   uvx --from lintlang==0.6.0 lintlang scan --format json -- "$file" ["$next_file" ...]
+   uvx --from lintlang==0.6.0 lintlang scan --format json -- "$file"
    ```
 
-   Treat every named path as data: pass it as one argv element. If using a
-   shell, put each path in a variable and quote the expansion as shown; never
-   paste a raw path into a shell command. The `--` keeps a path that begins
+   To scan more files, append each additional quoted path argument after
+   `"$file"`, for example `"$next_file"`. Treat every named path as data:
+   pass it as one argv element. If using a shell, put each path in a variable
+   and quote the expansion as shown; never paste a raw path into a shell
+   command. The `--` keeps a path that begins
    with `-` from being read as a flag. JSON
    is an array with one object per input file, each with `file`, `verdict`,
    `input_error`, `skipped`, and `structural_findings`.
