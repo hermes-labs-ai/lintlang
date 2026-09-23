@@ -136,12 +136,13 @@ LintLang fits existing developer workflows rather than requiring a runtime servi
 | GitHub Code Scanning | Upload SARIF findings beside code findings |
 | pre-commit | Review instructions before commit |
 | Claude Code | Optional non-blocking guidance after supported edits |
+| GitHub Copilot CLI | On-demand audit of a named instruction or tool-definition file |
 | Gemini CLI | Optional non-blocking guidance after supported edits |
 | OpenCode | Optional non-blocking post-edit guidance |
 | Hermes Agent | Bounded pre-verification of supported edits |
 | MegaLinter | Opt-in external plugin for existing MegaLinter users |
 
-See the [integrations and ecosystem guide](docs/integrations.md) for setup instructions and public ecosystem references.
+See the [integrations and ecosystem guide](docs/integrations.md) for setup instructions and public ecosystem references. The [GitHub Copilot CLI plugin guide](integrations/copilot-cli/README.md) gives the direct install command.
 
 ## Results and exit behavior
 

@@ -1,8 +1,8 @@
 ---
 name: lintlang
 description: Use when writing or reviewing AI agent configs, system prompts, or tool definitions (JSON/YAML/Python) and you need to catch ambiguous tool descriptions, missing stop conditions, schema/description mismatches, or embedded prompts before they reach runtime. Deterministic static analysis, no LLM or network calls.
-license: MIT
-compatibility: Requires Python 3.9+; installs via pip or runs standalone via `uvx lintlang`. No network access needed.
+license: Apache-2.0
+compatibility: Requires Python 3.10+; installs via pip or runs standalone via `uvx lintlang`. Scans need no network access.
 ---
 
 # LintLang

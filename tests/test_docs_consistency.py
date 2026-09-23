@@ -16,7 +16,8 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 PUBLIC_DOCS = (
     "README.md", "INTENT.md", "CONTRIBUTING.md", "llms-full.txt",
     "docs/research.md", "docs/integrations.md", "docs/github.md", "docs/baselines.md",
-    "integrations/claude-code/README.md", "docs/gemini-cli-extension.md",
+    "integrations/claude-code/README.md", "integrations/copilot-cli/README.md",
+    "docs/gemini-cli-extension.md",
     "integrations/opencode/README.md", "mega-linter-plugin-lintlang/README.md",
 )
 
@@ -156,7 +157,8 @@ def test_readme_routes_to_the_owning_guides():
     for target in (
         "docs/research.md", "docs/integrations.md", "docs/github.md", "docs/baselines.md",
         "llms-full.txt", "INTENT.md", "CONTRIBUTING.md", "SECURITY.md", "CHANGELOG.md", "LICENSE",
-        "integrations/claude-code/README.md", "docs/gemini-cli-extension.md",
+        "integrations/claude-code/README.md", "integrations/copilot-cli/README.md",
+        "docs/gemini-cli-extension.md",
         "mega-linter-plugin-lintlang/README.md",
     ):
         assert f"]({target})" in readme, target
