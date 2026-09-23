@@ -1,0 +1,4 @@
+API Reference
+
+This document lists service endpoints and configuration values for operators.
+Each section describes one endpoint, its request fields, and its response shape.

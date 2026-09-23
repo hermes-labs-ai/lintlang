@@ -9,6 +9,7 @@ from pathlib import Path
 
 from . import __version__
 from .github_init import configure_init_parser, run_init
+from .herm import confidence_breakdown
 from .patterns import PATTERNS as _PATTERNS
 from .preflight_cli import configure_preflight_parser, run_preflight
 from .report import compute_verdict, format_markdown, format_summary_table, format_terminal, strip_ansi
@@ -36,6 +37,17 @@ def main(argv: list[str] | None = None) -> int:
     scan_parser = subparsers.add_parser(
         "scan",
         help="Scan agent configs and embedded language in Python pipelines",
+        description=(
+            "Scan agent configs and embedded language in Python pipelines. "
+            "Confidence explains HERM coverage proxies; it is separate from the "
+            "structural PASS/REVIEW/FAIL verdict."
+        ),
+        epilog=(
+            "Low confidence may reflect non-prompt reference material or an "
+            "undetected input boundary. Reports explain the detected drivers; "
+            "JSON includes herm.confidence_breakdown. Confidence bands use "
+            "high >=90%, medium >=75%, and low <75% coverage."
+        ),
     )
     scan_parser.add_argument(
         "files",
@@ -520,6 +532,7 @@ def _cmd_scan(args: argparse.Namespace) -> int:
                         "signal_counts": result.herm.signal_counts,
                         "coverage": result.herm.coverage,
                         "confidence": result.herm.confidence,
+                        "confidence_breakdown": confidence_breakdown(result.herm),
                         "findings": result.herm.findings,
                         "context_flags": result.herm.context_flags,
                     },

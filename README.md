@@ -80,6 +80,14 @@ Inspected: 18 tools (18 described, 18 with a schema)
 
 A file LintLang could read nothing from is reported `SKIPPED`, never `PASS`.
 
+Reports also explain the separate HERM confidence label using its current
+coverage proxies: whether prompt-like framing and input-boundary language were
+detected. The guidance is conditional on the document's purpose; reference
+material can naturally receive lower confidence. This label is not a
+statistical probability, a finding-certainty estimate, or the structural
+PASS/REVIEW/FAIL verdict. The current coverage bands are high at 90% or more,
+medium at 75% or more, and low below 75%.
+
 LintLang does not decide whether arbitrary prose is true, predict runtime model behavior, or certify an agent as safe.
 
 ## What it can scan

@@ -28,6 +28,13 @@ DIMENSIONS = [
     "HERM-6 Adversarial Reframing Susceptibility",
 ]
 
+PROMPT_FRAMING_COVERAGE_PENALTY = 0.25
+INPUT_SURFACE_COVERAGE_PENALTY = 0.10
+MIN_COVERAGE = 0.55
+# Existing heuristic band cutoffs; these are not empirically calibrated probabilities.
+HIGH_CONFIDENCE_MIN_COVERAGE = 0.90
+MEDIUM_CONFIDENCE_MIN_COVERAGE = 0.75
+
 SIGNALS = {
     "ambiguous_qualifiers": [
         r"\bas needed\b",
@@ -98,6 +105,55 @@ class HermResult:
     context_flags: dict[str, bool] = field(default_factory=dict)
 
 
+def confidence_breakdown(result: HermResult) -> dict[str, object]:
+    """Explain the coverage proxies that determine HERM's confidence label.
+
+    These are coverage limitations, not estimates of the probability that a
+    finding is correct. Keep the factors in sync with ``score_text`` below.
+    """
+    drivers: list[dict[str, object]] = []
+    if not result.context_flags.get("is_prompt_like", False):
+        drivers.append(
+            {
+                "id": "prompt_like_framing",
+                "coverage_penalty": PROMPT_FRAMING_COVERAGE_PENALTY,
+                "reason": "Prompt-like framing was not detected in the text.",
+                "guidance": (
+                    "If this file is intended as agent instructions, make its role or purpose explicit. "
+                    "Reference material may naturally remain lower-confidence on this proxy."
+                ),
+            }
+        )
+    if result.signal_counts.get("input_surface", 0) == 0:
+        drivers.append(
+            {
+                "id": "input_surface",
+                "coverage_penalty": INPUT_SURFACE_COVERAGE_PENALTY,
+                "reason": "No user-input or untrusted-input boundary language was detected.",
+                "guidance": (
+                    "If these instructions govern user-controlled content, describe that boundary "
+                    "explicitly; otherwise no change is implied."
+                ),
+            }
+        )
+    primary = max(drivers, key=lambda driver: driver["coverage_penalty"], default=None)
+    return {
+        "label": result.confidence,
+        "coverage": result.coverage,
+        "coverage_percent": round(result.coverage * 100),
+        "confidence_thresholds": {
+            "high_minimum_coverage": HIGH_CONFIDENCE_MIN_COVERAGE,
+            "medium_minimum_coverage": MEDIUM_CONFIDENCE_MIN_COVERAGE,
+        },
+        "primary_driver": primary["id"] if primary is not None else None,
+        "drivers": drivers,
+        "interpretation": (
+            "HERM confidence is a heuristic coverage label, not a statistical probability, "
+            "finding-certainty estimate, or structural PASS/REVIEW/FAIL verdict."
+        ),
+    }
+
+
 def _count_signals(text: str, patterns: list[str]) -> int:
     """Count regex signal matches in text."""
     return sum(len(re.findall(p, text, flags=re.I)) for p in patterns)
@@ -136,10 +192,10 @@ def score_text(text: str, source_path: str = "") -> HermResult:
     # Coverage proxy: lower confidence for non-prompt-like files
     coverage = 1.0
     if not ctx["is_prompt_like"]:
-        coverage -= 0.25
+        coverage -= PROMPT_FRAMING_COVERAGE_PENALTY
     if counts["input_surface"] == 0:
-        coverage -= 0.10
-    coverage = max(0.55, round(coverage, 2))
+        coverage -= INPUT_SURFACE_COVERAGE_PENALTY
+    coverage = max(MIN_COVERAGE, round(coverage, 2))
 
     # Dimension scoring (0-100 each)
     d: dict[str, float] = {}
@@ -181,7 +237,11 @@ def score_text(text: str, source_path: str = "") -> HermResult:
     if counts["boundary"] == 0:
         findings.append("No explicit task-boundary language")
 
-    confidence = "high" if coverage >= 0.9 else ("medium" if coverage >= 0.75 else "low")
+    confidence = (
+        "high"
+        if coverage >= HIGH_CONFIDENCE_MIN_COVERAGE
+        else ("medium" if coverage >= MEDIUM_CONFIDENCE_MIN_COVERAGE else "low")
+    )
 
     return HermResult(
         score=final,

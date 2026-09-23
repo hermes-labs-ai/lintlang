@@ -329,6 +329,60 @@ class TestCLI:
         # HERM score should NOT appear in terminal output
         assert "HERM Score:" not in captured.out
 
+    def test_terminal_explains_confidence_coverage_drivers(self, capsys):
+        main(["scan", str(SAMPLES_DIR / "reference_document.txt")])
+        output = capsys.readouterr().out
+        assert "Confidence: LOW (65% coverage proxy; low <75%)" in output
+        assert "Primary driver: Prompt-like framing was not detected" in output
+        assert "(-25 percentage points)" in output
+        assert "No user-input or untrusted-input boundary language was detected" in output
+        assert "not a statistical probability" in output
+        assert "HERM Score:" not in output
+
+    def test_json_confidence_breakdown_matches_coverage_proxies(self, capsys):
+        main(
+            [
+                "scan",
+                str(SAMPLES_DIR / "reference_document.txt"),
+                "--format",
+                "json",
+            ]
+        )
+        result = json.loads(capsys.readouterr().out)[0]
+        breakdown = result["herm"]["confidence_breakdown"]
+        assert breakdown["label"] == "low"
+        assert breakdown["coverage_percent"] == 65
+        assert breakdown["primary_driver"] == "prompt_like_framing"
+        assert breakdown["confidence_thresholds"] == {
+            "high_minimum_coverage": 0.9,
+            "medium_minimum_coverage": 0.75,
+        }
+        assert [driver["id"] for driver in breakdown["drivers"]] == [
+            "prompt_like_framing",
+            "input_surface",
+        ]
+
+    def test_markdown_reports_confidence_guidance(self, capsys):
+        main(
+            [
+                "scan",
+                str(SAMPLES_DIR / "reference_document.txt"),
+                "--format",
+                "markdown",
+            ]
+        )
+        output = capsys.readouterr().out
+        assert "**Confidence:** low (65% coverage proxy; low <75%)" in output
+        assert "**prompt_like_framing**" in output
+
+    def test_scan_help_explains_confidence_output(self, capsys):
+        with pytest.raises(SystemExit) as exc_info:
+            main(["scan", "--help"])
+        assert exc_info.value.code == 0
+        output = capsys.readouterr().out
+        assert "coverage proxies" in output
+        assert "herm.confidence_breakdown" in output
+
     def test_scan_terminal_redirected_output_has_no_ansi(self, capsys, monkeypatch):
         monkeypatch.setattr(sys.stdout, "isatty", lambda: False)
 
