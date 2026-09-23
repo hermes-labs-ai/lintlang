@@ -50,7 +50,7 @@ other hooks:
 ```yaml
 repos:
   - repo: https://github.com/hermes-labs-ai/lintlang
-    rev: v0.7.0
+    rev: v0.7.1
     hooks:
       - id: lintlang
 ```
@@ -153,7 +153,7 @@ Install LintLang with the Python interpreter for the environment that runs
 Hermes Agent, then check plugin discovery:
 
 ```bash
-python -m pip install lintlang==0.6.0
+python -m pip install lintlang==0.7.1
 hermes plugins list
 ```
 

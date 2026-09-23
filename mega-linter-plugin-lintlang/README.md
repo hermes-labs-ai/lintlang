@@ -31,7 +31,7 @@ package. Review descriptor changes separately from package upgrades; those are
 different parts of the installation chain.
 
 MegaLinter's loader runs the descriptor's installation step at run time
-(`pip install --no-cache-dir lintlang==0.7.0`) inside the existing image, then invokes:
+(`pip install --no-cache-dir lintlang==0.7.1`) inside the existing image, then invokes:
 
 ```console
 lintlang scan --fail-on fail <selected files>
@@ -104,7 +104,7 @@ unrelated metadata. It initialized `AI_LINTLANG` and selected only the two
 conventionally named instruction surfaces. The bad fixture produced FAIL; after
 removing it, only `AGENTS.md` was selected and the process exited 0. This is
 historical loader/selector evidence, not a new real-container test of the current
-0.7.0 package, nor a claim about agent behavior or adoption.
+0.7.1 package, nor a claim about agent behavior or adoption.
 
 The descriptor also validates against MegaLinter's published
 [descriptor JSON schema](https://github.com/oxsecurity/megalinter/blob/main/megalinter/descriptors/schemas/megalinter-descriptor.jsonschema.json).

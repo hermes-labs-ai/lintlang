@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.7.1] - 2026-09-23
+
+### Fixed
+
+- `lintlang init --github` and the maintained Code Scanning examples now pin
+  the released v0.7.0 Action commit. Existing generated workflows remain
+  untouched unless their owners rerun the initializer with `--force`.
+- Dev Container Feature 1.0.1 defaults to the published LintLang 0.7.0
+  package, including the installer fallback. Current setup guides point to
+  these corrected release routes.
+
 ## [0.7.0] - 2026-09-23
 
 ### Added
