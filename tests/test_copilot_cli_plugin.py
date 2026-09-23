@@ -39,6 +39,7 @@ def test_copilot_plugin_has_portable_root_manifest_and_skill() -> None:
     assert f"uvx --from lintlang=={__version__} lintlang scan --format json -- <file>" in body
     assert "if `lintlang --version` succeeded with another version" in body
     assert "`verdict` is `SKIPPED`" in body
+    assert "If every named file is `SKIPPED`, the command exits `1`" in body
 
 
 def test_copilot_install_path_and_scanner_prerequisite_are_documented() -> None:

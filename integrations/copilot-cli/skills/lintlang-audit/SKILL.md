@@ -85,9 +85,15 @@ and does not rewrite the file or block a tool call.
 
 ## Exit codes
 
-A scannable file **exits `0` whatever its verdict**, unless you passed
-`--fail-on`. `FAIL` and `PASS` are indistinguishable by exit status alone, so
-read the verdict from the output, never from the exit status.
+A file with inspected content **exits `0` for `PASS`, `REVIEW`, or `FAIL`**,
+unless you passed `--fail-on`. These verdicts are indistinguishable by exit
+status alone, so read the verdict from the output, never from the exit status.
+
+If every named file is `SKIPPED`, the command exits `1` by default because
+it inspected no covered content. That is a coverage failure, not a detector
+finding or an unreadable file. `--allow-uninspected` opts out of this exit
+code, but does not turn `SKIPPED` into `PASS`; use it only if the user
+explicitly accepts a scan with no covered content.
 
 With `--fail-on`, exit `1` means findings at or above the chosen threshold were
 detected. That is the gate working, not a broken install or a failed command —
