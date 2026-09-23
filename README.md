@@ -1,14 +1,14 @@
 <div align="center">
 
-<img src="assets/lintlang-header.jpg" alt="LintLang — deterministic analysis for the runtime of agents" width="960">
-
 # LintLang
+
+<img src="assets/lintlang-header.jpg" alt="LintLang — deterministic analysis for the runtime of agents" width="960">
 
 **Static analysis for the instructions your AI agents execute.**
 
 LintLang is developed by [Hermes Labs](https://hermes-labs.ai).
 
-Hermes Labs studies failure modes in agent and LLM systems, develops open-source tools that treat language as part of the runtime, and works with teams to remediate reliability failures in production.
+Hermes Labs is an agentic infrastructure company building the reliability layer for autonomous systems.
 
 [![CI](https://github.com/hermes-labs-ai/lintlang/actions/workflows/ci.yml/badge.svg)](https://github.com/hermes-labs-ai/lintlang/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/lintlang)](https://pypi.org/project/lintlang/)
@@ -20,9 +20,9 @@ Hermes Labs studies failure modes in agent and LLM systems, develops open-source
 
 [Product page](https://lintlang.ai/) · [Browser playground](https://hermes-labs.ai/lintlang#playground) · [PyPI](https://pypi.org/project/lintlang/) · [Documentation](llms-full.txt)
 
-<img src="assets/preview.png" alt="lintlang scan reporting a CRITICAL tool-description finding" width="760">
-
 </div>
+
+<img src="assets/preview.png" alt="lintlang scan reporting a CRITICAL tool-description finding" width="760">
 
 LintLang catches ambiguous tool descriptions, missing operational limits, schema/description mismatches, conflicting output contracts, and other bounded instruction defects before a model runs.
 
