@@ -53,15 +53,19 @@ and does not rewrite the file or block a tool call.
    runner that worked in step 2:
 
    ```bash
+   file='./prompt.md' # replace with the exact selected path, shell-quoted
    lintlang scan --format json -- "$file"
    ```
 
    ```bash
+   file='./prompt.md' # replace with the exact selected path, shell-quoted
    uvx --from lintlang==0.6.0 lintlang scan --format json -- "$file"
    ```
 
-   To scan more files, append each additional quoted path argument after
-   `"$file"`, for example `"$next_file"`. Treat every named path as data:
+   Set `file` before running the chosen command; `./prompt.md` is only an
+   example. To scan more files, append each additional quoted path argument
+   after `"$file"`, for example `"$next_file"` after assigning `next_file`.
+   Treat every named path as data:
    pass it as one argv element. If using a shell, put each path in a variable
    and quote the expansion as shown; never paste a raw path into a shell
    command. The `--` keeps a path that begins
