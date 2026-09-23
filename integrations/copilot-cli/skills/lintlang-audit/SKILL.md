@@ -98,9 +98,11 @@ finding or an unreadable file. `--allow-uninspected` opts out of this exit
 code, but does not turn `SKIPPED` into `PASS`; use it only if the user
 explicitly accepts a scan with no covered content.
 
-With `--fail-on`, exit `1` means findings at or above the chosen threshold were
-detected. That is the gate working, not a broken install or a failed command —
-do not retry it and do not suppress it with `|| true`.
+With `--fail-on`, exit `1` can mean findings at or above the chosen threshold,
+the all-`SKIPPED` coverage failure above, or an input error. Read the JSON
+verdicts and `input_error` before classifying it. A threshold finding is the
+gate working, not a broken install or a failed command — do not retry it or
+suppress it with `|| true`.
 
 An input that cannot be scanned exits `1` either way, with or without
 `--fail-on`. That is a different outcome from findings: check `input_error` to
