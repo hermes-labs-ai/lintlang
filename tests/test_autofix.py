@@ -52,7 +52,10 @@ def test_does_not_rewrite_an_instruction_under_a_priority_heading(tmp_path):
     assert prepared.updated.decode() == original
 
 
-@pytest.mark.parametrize("introduction", ["Example:", "Here is an example:", "An illustration:"])
+@pytest.mark.parametrize(
+    "introduction",
+    ["Example:", "Here is an example:", "The following is an example:", "An illustration:"],
+)
 def test_does_not_rewrite_a_bare_instruction_introduced_as_an_example(tmp_path, introduction):
     path = tmp_path / "AGENTS.md"
     original = f"{introduction}\n\nDon't be verbose.\n"
@@ -62,6 +65,16 @@ def test_does_not_rewrite_a_bare_instruction_introduced_as_an_example(tmp_path, 
 
     assert prepared.rewrite_count == 0
     assert prepared.updated.decode() == original
+
+
+def test_incidental_example_mention_does_not_suppress_a_direct_rewrite(tmp_path):
+    path = tmp_path / "AGENTS.md"
+    path.write_text("Include examples in the response.\nDon't be verbose.\n", encoding="utf-8")
+
+    prepared = prepare_fix(path)
+
+    assert prepared.rewrite_count == 1
+    assert prepared.updated.decode() == "Include examples in the response.\nBe concise.\n"
 
 
 @pytest.mark.parametrize(
