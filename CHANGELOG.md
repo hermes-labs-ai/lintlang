@@ -16,8 +16,8 @@
   portable Claude Code audit skill. Each invokes the standalone scanner on
   selected files; none scans a whole host session or proves runtime behavior.
 - A Dev Container Feature installs an exact LintLang release in an isolated
-  environment. Its default is updated to `0.7.0` as part of this release
-  candidate; the package must be published before this default can resolve.
+  environment. Its default remains the published `0.6.0` package until the
+  0.7.0 package is available; the version option can select a later release.
 - A second Agent Plugins 1.0 manifest at the Claude Code plugin root makes
   its existing skill discoverable by hosts using that format. The automatic
   Claude Code hook remains a separate surface.

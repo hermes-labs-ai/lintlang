@@ -11,14 +11,14 @@ the `lintlang` command at `/usr/local/bin/lintlang`.
 }
 ```
 
-The default package pin is LintLang `0.7.0`. Override it only with an exact
+The default package pin is LintLang `0.6.0`. Override it only with an exact
 released PyPI version:
 
 ```json
 {
   "features": {
     "ghcr.io/hermes-labs-ai/lintlang/lintlang:1": {
-      "version": "0.7.0"
+      "version": "0.6.0"
     }
   }
 }

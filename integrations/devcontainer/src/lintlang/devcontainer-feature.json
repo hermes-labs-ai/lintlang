@@ -8,7 +8,7 @@
     "options": {
         "version": {
             "type": "string",
-            "default": "0.7.0",
+            "default": "0.6.0",
             "description": "Exact LintLang PyPI version to install. The default is the latest reviewed release."
         }
     }
