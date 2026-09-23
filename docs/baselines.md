@@ -14,7 +14,7 @@ unchanged until you pass `--baseline`.
 later. Install the release:
 
 ```bash
-python -m pip install lintlang==0.6.0
+python -m pip install lintlang==0.7.1
 ```
 
 ## Create and review the starting set
@@ -62,7 +62,7 @@ this does not exclude every JSON report or historical baseline in that directory
 Add the optional `baseline` input to your existing LintLang Action step:
 
 ```yaml
-- uses: hermes-labs-ai/lintlang@58e66871531eb585869336189d07b4334e963a5f # v0.6.0
+- uses: hermes-labs-ai/lintlang@175a9a19414aff9a1752d3b9850d6cf58d59fb32 # v0.7.0
   with:
     path: AGENTS.md
     baseline: .lintlang-baseline.json

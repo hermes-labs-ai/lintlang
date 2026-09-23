@@ -45,9 +45,9 @@ file directly. For subsequent tracked changes, use
 The generated workflow runs on pull requests and pushes to `main`. Change that
 branch deliberately if your default branch differs. It uses immutable Action
 commits, a read-only scan job, SARIF artifact preservation, and a separate upload
-job. The current template pins the released LintLang v0.6.0 Action. This is a
-reviewed released pin, not a request to install the newest package from PyPI;
-it may intentionally trail a package version being prepared.
+job. The current template pins the released LintLang v0.7.0 Action by its full
+commit SHA. The Action runs the scanner from that release. Existing generated
+workflows require review before replacing their older pin.
 
 The complete maintained example is
 [examples/github-code-scanning.yml](../examples/github-code-scanning.yml).

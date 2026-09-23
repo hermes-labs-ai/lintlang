@@ -9,7 +9,7 @@ import yaml
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 EXAMPLE_PATH = REPO_ROOT / "examples" / "github-code-scanning.yml"
-LINTLANG_V060_SHA = "58e66871531eb585869336189d07b4334e963a5f"
+LINTLANG_V070_SHA = "175a9a19414aff9a1752d3b9850d6cf58d59fb32"
 UPLOAD_ARTIFACT_V7_SHA = "043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
 DOWNLOAD_ARTIFACT_V8_SHA = "3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c"
 UPLOAD_SARIF_V4_SHA = "5595ccaf912efad79be6eef63a5619ff05969be3"
@@ -51,7 +51,7 @@ def test_code_scanning_example_is_least_privilege_and_uploads_even_after_failure
     download_step = next(step for step in upload["steps"] if step.get("name") == "Download LintLang SARIF")
     upload_step = next(step for step in upload["steps"] if step.get("name") == "Upload LintLang SARIF")
     assert checkout_step["with"]["persist-credentials"] is False
-    assert lintlang_step["uses"] == f"hermes-labs-ai/lintlang@{LINTLANG_V060_SHA}"
+    assert lintlang_step["uses"] == f"hermes-labs-ai/lintlang@{LINTLANG_V070_SHA}"
     assert lintlang_step["with"]["path"] == "AGENTS.md"
     assert lintlang_step["with"]["sarif-file"] == "lintlang.sarif"
     assert lintlang_step["with"]["fail-on"] == "fail"
@@ -64,7 +64,7 @@ def test_code_scanning_example_is_least_privilege_and_uploads_even_after_failure
     assert download_step["with"]["name"] == preserve_step["with"]["name"]
     assert upload_step["with"]["sarif_file"] == "lintlang.sarif"
     assert upload_step["uses"] == f"github/codeql-action/upload-sarif@{UPLOAD_SARIF_V4_SHA}"
-    assert f"lintlang@{LINTLANG_V060_SHA} # v0.6.0" in text
+    assert f"lintlang@{LINTLANG_V070_SHA} # v0.7.0" in text
     assert re.search(
         rf"github/codeql-action/upload-sarif@{UPLOAD_SARIF_V4_SHA}\s+# v4\b",
         text,

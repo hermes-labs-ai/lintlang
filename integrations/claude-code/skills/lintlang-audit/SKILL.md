@@ -32,28 +32,35 @@ rewrites a file or blocks a tool call.
 
 2. **Resolve a runner, in this order.** Stop at the first that works.
 
-   - `lintlang --version` prints `lintlang 0.7.0` → use `lintlang`.
+   - `lintlang --version` prints `lintlang 0.7.1` → use `lintlang`.
    - Otherwise, if `uvx` is available, use the pinned release with no install
      and no PATH change:
 
      ```bash
-     uvx --from lintlang==0.7.0 lintlang --version
+     uvx --from lintlang==0.7.1 lintlang --version
      ```
 
-     Keep the `==0.7.0` pin so an unreviewed newer release is never fetched.
+     Keep the `==0.7.1` pin so an unreviewed newer release is never fetched.
      This downloads the package into uv's cache once; the scan itself still
      makes no network call.
    - Otherwise stop and relay the install line:
-     `python -m pip install lintlang==0.7.0`. Do not install anything
+     `python -m pip install lintlang==0.7.1`. Do not install anything
      persistently on the user's machine yourself.
 
    A different installed version still works — say which version produced the
    result, because counts and codes can differ between releases.
 
-3. **Scan, once, with JSON output.** Using the runner from step 2:
+3. **Scan, once, with JSON output.** Use the same runner that passed the
+   version check in step 2:
 
    ```bash
    lintlang scan --format json -- <file> [<file> ...]
+   ```
+
+   If step 2 selected `uvx`, run the pinned package instead:
+
+   ```bash
+   uvx --from lintlang==0.7.1 lintlang scan --format json -- <file> [<file> ...]
    ```
 
    The `--` keeps a path that begins with `-` from being read as a flag. JSON
@@ -144,7 +151,7 @@ YAML
 lintlang scan --fail-on fail -- "${TMPDIR:-/tmp}/lintlang-check.yaml"
 ```
 
-On `lintlang 0.7.0` that reports `FAIL` and exits `1`, with `H1.1
+On `lintlang 0.7.1` that reports `FAIL` and exits `1`, with `H1.1
 tool:process_ticket` — "Tool 'process_ticket' has no description." The seeded
 finding is the expected outcome: it shows the detector fired, not that the
 install is broken. Delete the file afterwards.
