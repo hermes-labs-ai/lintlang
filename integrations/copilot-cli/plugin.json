@@ -1,0 +1,14 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "lintlang",
+  "version": "0.1.0",
+  "description": "Audit named agent instructions and tool definitions with deterministic LintLang scans in GitHub Copilot CLI.",
+  "author": {
+    "name": "Hermes Labs",
+    "url": "https://hermes-labs.ai"
+  },
+  "homepage": "https://lintlang.ai/",
+  "repository": "https://github.com/hermes-labs-ai/lintlang",
+  "license": "Apache-2.0",
+  "keywords": ["agent-instructions", "static-analysis", "tool-definitions"]
+}

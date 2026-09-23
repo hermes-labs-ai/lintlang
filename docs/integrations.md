@@ -13,6 +13,7 @@ plugin, validate every host-specific setting, or establish provider compatibilit
 | GitHub Code Scanning | SARIF upload after a scan | Eligible repository, feature enabled, upload permissions | Scan gate and upload outcome are separate | [Code scanning](github.md#code-scanning) |
 | pre-commit | Commit hook or explicit run | pre-commit and a configured input path | Advisory by default; opt-in severity gate | [pre-commit setup](#pre-commit) |
 | Claude Code | Supported `Write`/`Edit`; named-file audit on request | Claude Code plugin support; scanner runner | Non-blocking guidance; no file rewriting | [Claude Code guide](../integrations/claude-code/README.md) |
+| GitHub Copilot CLI | Named-file audit on request | Copilot CLI plugin support; scanner runner | Advisory verdict; no file rewriting | [Copilot CLI guide](../integrations/copilot-cli/README.md) |
 | Gemini CLI | Successful `write_file` or `replace` | Configured Gemini CLI, uv, installed extension source | Non-blocking guidance; no file rewriting | [Gemini extension](gemini-cli-extension.md) |
 | OpenCode | Supported post-edit event with an explicit changed path | Documented legacy host contract and scanner on PATH | Non-blocking guidance; no file rewriting | [OpenCode guide](../integrations/opencode/README.md) |
 | Hermes Agent | First coding-turn `pre_verify` attempt | Plugin-capable host; LintLang in its Python environment | One continuation for eligible FAIL/ERROR inputs | [Hermes Agent setup](#hermes-agent) |
@@ -128,6 +129,8 @@ none of these plugins.
 The [Claude Code plugin](../integrations/claude-code/README.md) has two distinct
 surfaces: an on-demand `lintlang-audit` skill for a named file and an automatic
 `PostToolUse` hook for supported edits. The
+[GitHub Copilot CLI plugin](../integrations/copilot-cli/README.md) provides an
+on-demand `lintlang-audit` skill for a named file. The
 [Gemini extension](gemini-cli-extension.md) runs bundled source in an isolated uv
 environment; its recorded installation remains LintLang 0.5.3 with Gemini CLI
 0.32.1. That historical tested pair is not a pin to bulk-update with the package.
