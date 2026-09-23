@@ -15,8 +15,8 @@ bundle or replace the scanner.
 2. Select the specific file paths named by the user. For an unnamed repository
    check, first identify its agent instruction or configuration files, then
    state which paths you will scan. Do not silently scan an entire repository.
-3. Run `lintlang scan --format json <path> [<path> ...]`. Pass paths as separate
-   shell arguments, safely quoted. For prompt text without a file, check
+3. Run `lintlang scan --format json -- <path> [<path> ...]`. Pass paths as separate
+   shell arguments after `--`, safely quoted. For prompt text without a file, check
    `lintlang scan --help`: if it lists `--stdin-filename`, pipe the exact text
    to `lintlang scan - --stdin-filename prompt.txt --format json`. Earlier
    published CLIs lack this option; ask for a file path on those installations.
