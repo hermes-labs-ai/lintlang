@@ -102,10 +102,10 @@ lintlang scan AGENTS.md --fix --dry-run
 lintlang scan AGENTS.md --fix --backup
 ```
 
-The supported instruction must be the first nonblank body line under a
-top-level `# Instructions` heading. Other headings, preceding prose, quoted,
-commented, code, and ambiguous contexts are left untouched; malformed lexical
-scope fails closed. Only one explicit `.md`, `.txt`, or `.prompt` file is
+The file must start with a top-level `# Instructions` heading, followed only
+by blank lines and the supported instruction as its first body line. Other
+headings, preambles, quoted, commented, code, and ambiguous contexts are left
+untouched; malformed lexical scope fails closed. Only one explicit `.md`, `.txt`, or `.prompt` file is
 accepted. H1/H2 suggestions that would
 invent tool behavior, output formats, or scope; security negatives; other
 priority rules; and cross-file conflicts remain manual. This is a narrow

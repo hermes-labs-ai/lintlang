@@ -15,6 +15,7 @@ from .preflight.scope import analyze_scope
 
 _VERBOSITY_NEGATIVE = re.compile(r"Don't be verbose(?P<period>\.)?|Don’t be verbose(?P<curly_period>\.)?")
 _SUPPORTED_SUFFIXES = {".md", ".txt", ".prompt"}
+_INSTRUCTION_HEADER = re.compile(r"# Instructions(?:[ \t]+#+)?[ \t]*\r?\n(?:[ \t]*\r?\n)*")
 
 
 def _html_comment_ranges(text: str) -> list[tuple[int, int]]:
@@ -32,23 +33,9 @@ def _html_comment_ranges(text: str) -> list[tuple[int, int]]:
 
 
 def _has_explicit_instruction_context(text: str, line_start: int) -> bool:
-    """Require the first body line of a top-level ``# Instructions`` section."""
-    prefix = text[:line_start]
-    active_headings: list[tuple[int, str, int]] = []
-    for match in re.finditer(r"(?m)^(#{1,6})[ \t]+(.+?)[ \t]*$", prefix):
-        level = len(match.group(1))
-        title = match.group(2).rstrip("#").strip()
-        while active_headings and active_headings[-1][0] >= level:
-            active_headings.pop()
-        active_headings.append((level, title, match.end()))
-    if (
-        len(active_headings) != 1
-        or active_headings[0][0] != 1
-        or active_headings[0][1] != "Instructions"
-    ):
-        return False
-    section_body_start = active_headings[-1][2]
-    return not text[section_body_start:line_start].strip()
+    """Require a literal top-level header and no preceding body content."""
+    header = _INSTRUCTION_HEADER.match(text)
+    return header is not None and header.end() == line_start
 
 
 class AutoFixError(ValueError):

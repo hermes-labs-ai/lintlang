@@ -55,6 +55,17 @@ def test_does_not_rewrite_an_instruction_under_a_priority_heading(tmp_path):
     assert prepared.updated.decode() == original
 
 
+def test_commented_heading_cannot_authorize_a_rewrite(tmp_path):
+    path = tmp_path / "AGENTS.md"
+    original = "<!--\n# Instructions\n-->\nDon't be verbose.\n"
+    path.write_text(original, encoding="utf-8")
+
+    prepared = prepare_fix(path)
+
+    assert prepared.rewrite_count == 0
+    assert prepared.updated.decode() == original
+
+
 @pytest.mark.parametrize("introduction", ["Example:", "Here is an example:", "Example 1:"])
 def test_does_not_rewrite_a_bare_instruction_introduced_as_an_example(tmp_path, introduction):
     path = tmp_path / "AGENTS.md"
@@ -218,6 +229,7 @@ def test_cli_help_describes_the_supported_auto_fix_scope(capsys):
     assert "--dry-run" in output
     assert "--backup" in output
     assert "first body line" in output
+    assert "file-leading" in output
     assert "# Instructions" in output
 
 
