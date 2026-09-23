@@ -55,10 +55,7 @@ def _has_priority_context(text: str, line_start: int) -> bool:
 def _has_example_context(text: str, line_start: int) -> bool:
     """Avoid rewriting a bare instruction introduced as an example."""
     previous = _preceding_nonempty_line(text, line_start)
-    return re.match(
-        r"(?i)^(?:#{1,6}\s*)?(?:example|examples|for example|e\.g\.|bad example)\b",
-        previous,
-    ) is not None
+    return re.search(r"(?i)\b(?:examples?|illustration|illustrative|e\.g\.|for instance)\b", previous) is not None
 
 
 class AutoFixError(ValueError):

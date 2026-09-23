@@ -52,9 +52,10 @@ def test_does_not_rewrite_an_instruction_under_a_priority_heading(tmp_path):
     assert prepared.updated.decode() == original
 
 
-def test_does_not_rewrite_a_bare_instruction_introduced_as_an_example(tmp_path):
+@pytest.mark.parametrize("introduction", ["Example:", "Here is an example:", "An illustration:"])
+def test_does_not_rewrite_a_bare_instruction_introduced_as_an_example(tmp_path, introduction):
     path = tmp_path / "AGENTS.md"
-    original = "Example:\nDon't be verbose.\n"
+    original = f"{introduction}\n\nDon't be verbose.\n"
     path.write_text(original, encoding="utf-8")
 
     prepared = prepare_fix(path)
