@@ -45,6 +45,13 @@ pip install lintlang
 lintlang scan AGENTS.md
 ```
 
+On macOS, you can install from the [Hermes Labs Homebrew tap](https://github.com/hermes-labs-ai/homebrew-tap#install-a-tool):
+
+```bash
+brew install hermes-labs-ai/tap/lintlang
+lintlang scan AGENTS.md
+```
+
 Use the instruction file your agent actually reads: `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, GitHub Copilot instructions, or another supported prompt/configuration path.
 
 [No instruction file yet? Try the checkout-free first run.](llms-full.txt#first-run-without-a-checkout)
