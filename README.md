@@ -102,10 +102,11 @@ lintlang scan AGENTS.md --fix --dry-run
 lintlang scan AGENTS.md --fix --backup
 ```
 
-Only one explicit `.md`, `.txt`, or `.prompt` file is accepted. Quoted,
-commented, code, and explicitly introduced example content is left untouched;
-explicit priority sections are also skipped. Malformed scope fails closed.
-H1/H2 suggestions that would
+The supported instruction must be the first nonblank body line under a
+top-level `# Instructions` heading. Other headings, preceding prose, quoted,
+commented, code, and ambiguous contexts are left untouched; malformed lexical
+scope fails closed. Only one explicit `.md`, `.txt`, or `.prompt` file is
+accepted. H1/H2 suggestions that would
 invent tool behavior, output formats, or scope; security negatives; other
 priority rules; and cross-file conflicts remain manual. This is a narrow
 syntactic rewrite, not an automatic-fix score or a claim that other

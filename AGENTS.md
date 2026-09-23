@@ -56,7 +56,7 @@ python -m build
 - repository scan outcomes: `ERROR`, `PASS`, `REVIEW`, or `FAIL`
 - structural findings by pattern `H1` through `H7`, plus Python pipeline findings `P1` and `P2`
 - JSON output for CI via `--format json`
-- conservative `scan --fix` for one exact standalone `Don't be verbose` instruction; `--dry-run` previews and `--backup` saves the original bytes
+- conservative `scan --fix` for `Don't be verbose` as the first body line under `# Instructions`; `--dry-run` previews and `--backup` saves the original bytes
 - preflight states: `ALLOW`, `NOTICE`, `HOLD`, `UNAVAILABLE`, or `ERROR`
 - preflight evidence uses exact code-point spans and stable `PF001`-`PF005` IDs
 - scan reports explain the HERM confidence coverage proxies separately from the structural verdict

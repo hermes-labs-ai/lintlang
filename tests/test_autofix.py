@@ -9,9 +9,13 @@ import pytest
 from lintlang.autofix import AutoFixError, prepare_fix, write_fix
 
 
+def _instruction_document(body: str) -> str:
+    return f"# Instructions\n\n{body}"
+
+
 def test_rewrites_only_an_exact_direct_standalone_instruction(tmp_path):
     path = tmp_path / "AGENTS.md"
-    original = (
+    original = _instruction_document(
         "Don't be verbose.\n"
         "> Don't be verbose.\n"
         "`Don't be verbose.`\n"
@@ -28,14 +32,13 @@ def test_rewrites_only_an_exact_direct_standalone_instruction(tmp_path):
     assert prepared.updated.decode() == original.replace(
         "Don't be verbose.\n", "Be concise.\n", 1
     )
-    assert "@@ -1,4 +1,4 @@" in prepared.diff
     assert "-Don't be verbose." in prepared.diff
     assert "+Be concise." in prepared.diff
 
 
 def test_unclosed_code_scope_fails_closed(tmp_path):
     path = tmp_path / "AGENTS.md"
-    path.write_text("````\nDon't be verbose.\n", encoding="utf-8")
+    path.write_text(_instruction_document("````\nDon't be verbose.\n"), encoding="utf-8")
 
     with pytest.raises(AutoFixError, match="Cannot establish instruction scope"):
         prepare_fix(path)
@@ -43,7 +46,7 @@ def test_unclosed_code_scope_fails_closed(tmp_path):
 
 def test_does_not_rewrite_an_instruction_under_a_priority_heading(tmp_path):
     path = tmp_path / "AGENTS.md"
-    original = "## Priority 1\nDon't be verbose.\n"
+    original = "# Instructions\n\n## Priority 1\nDon't be verbose.\n"
     path.write_text(original, encoding="utf-8")
 
     prepared = prepare_fix(path)
@@ -52,13 +55,10 @@ def test_does_not_rewrite_an_instruction_under_a_priority_heading(tmp_path):
     assert prepared.updated.decode() == original
 
 
-@pytest.mark.parametrize(
-    "introduction",
-    ["Example:", "Here is an example:", "The following is an example:", "An illustration:"],
-)
+@pytest.mark.parametrize("introduction", ["Example:", "Here is an example:", "Example 1:"])
 def test_does_not_rewrite_a_bare_instruction_introduced_as_an_example(tmp_path, introduction):
     path = tmp_path / "AGENTS.md"
-    original = f"{introduction}\n\nDon't be verbose.\n"
+    original = _instruction_document(f"{introduction}\n\nDon't be verbose.\n")
     path.write_text(original, encoding="utf-8")
 
     prepared = prepare_fix(path)
@@ -67,14 +67,15 @@ def test_does_not_rewrite_a_bare_instruction_introduced_as_an_example(tmp_path, 
     assert prepared.updated.decode() == original
 
 
-def test_incidental_example_mention_does_not_suppress_a_direct_rewrite(tmp_path):
+def test_does_not_rewrite_after_preceding_instruction_prose(tmp_path):
     path = tmp_path / "AGENTS.md"
-    path.write_text("Include examples in the response.\nDon't be verbose.\n", encoding="utf-8")
+    original = _instruction_document("Include examples in the response.\nDon't be verbose.\n")
+    path.write_text(original, encoding="utf-8")
 
     prepared = prepare_fix(path)
 
-    assert prepared.rewrite_count == 1
-    assert prepared.updated.decode() == "Include examples in the response.\nBe concise.\n"
+    assert prepared.rewrite_count == 0
+    assert prepared.updated.decode() == original
 
 
 @pytest.mark.parametrize(
@@ -86,11 +87,12 @@ def test_incidental_example_mention_does_not_suppress_a_direct_rewrite(tmp_path)
 )
 def test_supports_exact_standalone_variants(tmp_path, original, updated):
     path = tmp_path / "AGENTS.md"
-    path.write_text(original, encoding="utf-8")
+    document = _instruction_document(original)
+    path.write_text(document, encoding="utf-8")
 
     prepared = prepare_fix(path)
 
-    assert prepared.updated.decode() == updated
+    assert prepared.updated.decode() == _instruction_document(updated)
     assert prepared.rewrite_count == 1
 
 
@@ -98,7 +100,7 @@ def test_dry_run_displays_exact_diff_without_writing(tmp_path, capsys):
     from lintlang.cli import main
 
     path = tmp_path / "AGENTS.md"
-    original = b"Don't be verbose.\r\n"
+    original = b"# Instructions\r\n\r\nDon't be verbose.\r\n"
     path.write_bytes(original)
     original_stat = path.stat()
 
@@ -108,7 +110,9 @@ def test_dry_run_displays_exact_diff_without_writing(tmp_path, capsys):
     expected_diff = (
         f"--- {path}\n"
         f"+++ {path} (fixed)\n"
-        "@@ -1 +1 @@\n"
+        "@@ -1,3 +1,3 @@\n"
+        " # Instructions\r\n"
+        " \r\n"
         "-Don't be verbose.\r\n"
         "+Be concise.\r\n"
     )
@@ -123,16 +127,16 @@ def test_write_creates_exact_backup_that_restores_and_is_idempotent(tmp_path, ca
     from lintlang.cli import main
 
     path = tmp_path / "AGENTS.md"
-    original = b"Don't be verbose.\r\n"
+    original = b"# Instructions\r\n\r\nDon't be verbose.\r\n"
     path.write_bytes(original)
     backup = tmp_path / "AGENTS.md.lintlang.bak"
 
     assert main(["scan", str(path), "--fix", "--backup"]) == 0
 
-    assert path.read_bytes() == b"Be concise.\r\n"
+    assert path.read_bytes() == b"# Instructions\r\n\r\nBe concise.\r\n"
     assert backup.read_bytes() == original
     assert main(["scan", str(path), "--fix", "--backup"]) == 0
-    assert path.read_bytes() == b"Be concise.\r\n"
+    assert path.read_bytes() == b"# Instructions\r\n\r\nBe concise.\r\n"
 
     path.write_bytes(backup.read_bytes())
     assert path.read_bytes() == original
@@ -141,7 +145,7 @@ def test_write_creates_exact_backup_that_restores_and_is_idempotent(tmp_path, ca
 
 def test_refuses_to_overwrite_an_existing_backup(tmp_path):
     path = tmp_path / "AGENTS.md"
-    path.write_text("Don't be verbose.\n", encoding="utf-8")
+    path.write_text(_instruction_document("Don't be verbose.\n"), encoding="utf-8")
     backup = tmp_path / "AGENTS.md.lintlang.bak"
     backup.write_text("keep this", encoding="utf-8")
     original = path.read_bytes()
@@ -155,14 +159,14 @@ def test_refuses_to_overwrite_an_existing_backup(tmp_path):
 
 def test_rechecks_file_before_writing_prepared_diff(tmp_path):
     path = tmp_path / "AGENTS.md"
-    path.write_text("Don't be verbose.\n", encoding="utf-8")
+    path.write_text(_instruction_document("Don't be verbose.\n"), encoding="utf-8")
     prepared = prepare_fix(path)
-    path.write_text("Be concise.\n", encoding="utf-8")
+    path.write_text(_instruction_document("Be concise.\n"), encoding="utf-8")
 
     with pytest.raises(AutoFixError, match="Input changed after the diff"):
         write_fix(prepared)
 
-    assert path.read_text(encoding="utf-8") == "Be concise.\n"
+    assert path.read_text(encoding="utf-8") == _instruction_document("Be concise.\n")
 
 
 @pytest.mark.parametrize(
@@ -213,11 +217,13 @@ def test_cli_help_describes_the_supported_auto_fix_scope(capsys):
     assert "--fix" in output
     assert "--dry-run" in output
     assert "--backup" in output
+    assert "first body line" in output
+    assert "# Instructions" in output
 
 
 def test_auto_fix_preserves_file_mode(tmp_path):
     path = tmp_path / "AGENTS.md"
-    path.write_text("Don't be verbose.\n", encoding="utf-8")
+    path.write_text(_instruction_document("Don't be verbose.\n"), encoding="utf-8")
     os.chmod(path, 0o640)
     prepared = prepare_fix(path)
 

@@ -1,4 +1,4 @@
-"""Conservative, reversible instruction rewrites for explicit scan inputs."""
+"""Conservative rewrites for the first instruction under an explicit heading."""
 
 from __future__ import annotations
 
@@ -31,37 +31,24 @@ def _html_comment_ranges(text: str) -> list[tuple[int, int]]:
     return ranges
 
 
-def _preceding_nonempty_line(text: str, line_start: int) -> str:
+def _has_explicit_instruction_context(text: str, line_start: int) -> bool:
+    """Require the first body line of a top-level ``# Instructions`` section."""
     prefix = text[:line_start]
-    return next((line.strip() for line in reversed(prefix.splitlines()) if line.strip()), "")
-
-
-def _has_priority_context(text: str, line_start: int) -> bool:
-    """Avoid rewriting an instruction inside an explicit priority section."""
-    prefix = text[:line_start]
-    active_headings: list[tuple[int, str]] = []
-    for match in re.finditer(r"(?m)^(#{1,6})\s+(.+?)\s*$", prefix):
+    active_headings: list[tuple[int, str, int]] = []
+    for match in re.finditer(r"(?m)^(#{1,6})[ \t]+(.+?)[ \t]*$", prefix):
         level = len(match.group(1))
+        title = match.group(2).rstrip("#").strip()
         while active_headings and active_headings[-1][0] >= level:
             active_headings.pop()
-        active_headings.append((level, match.group(2)))
-    if any(re.search(r"\bpriorit(?:y|ies)\b", title, re.IGNORECASE) for _, title in active_headings):
-        return True
-
-    previous = _preceding_nonempty_line(text, line_start)
-    return re.match(r"(?i)^priority\b", previous) is not None
-
-
-def _has_example_context(text: str, line_start: int) -> bool:
-    """Avoid rewriting a bare instruction introduced as an example."""
-    previous = _preceding_nonempty_line(text, line_start)
-    return re.fullmatch(
-        r"(?i)(?:#{1,6}\s*)?(?:(?:here is|here's|the following is|for)\s+)?"
-        r"(?:an?\s+)?(?:(?:bad|good|counter)\s+)?"
-        r"(?:examples?|illustration|instance|e\.g\.)"
-        r"(?:\s+(?:below|follows|to follow))?\s*:?",
-        previous,
-    ) is not None
+        active_headings.append((level, title, match.end()))
+    if (
+        len(active_headings) != 1
+        or active_headings[0][0] != 1
+        or active_headings[0][1] != "Instructions"
+    ):
+        return False
+    section_body_start = active_headings[-1][2]
+    return not text[section_body_start:line_start].strip()
 
 
 class AutoFixError(ValueError):
@@ -124,8 +111,7 @@ def prepare_fix(path: str | Path, *, backup: bool = False) -> PreparedFix:
         if (
             match is not None
             and not in_comment
-            and not _has_priority_context(text, offset)
-            and not _has_example_context(text, offset)
+            and _has_explicit_instruction_context(text, offset)
             and scope.is_direct(offset, offset + len(content))
         ):
             period = "." if match.group("period") or match.group("curly_period") else ""
