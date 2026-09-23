@@ -31,8 +31,8 @@ and does not rewrite the file or block a tool call.
 
    - `lintlang --version` prints `lintlang 0.6.0` → use `lintlang` for
      both the version check and scan.
-   - Otherwise, if `uvx` is available, use the pinned release with no install
-     and no PATH change:
+   - Otherwise, if `uvx` is available and the pinned release runs, use it
+     with no persistent install and no PATH change:
 
      ```bash
      uvx --from lintlang==0.6.0 lintlang --version
@@ -42,12 +42,12 @@ and does not rewrite the file or block a tool call.
      `==0.6.0` pin so an unreviewed newer release is never fetched.
      This downloads the package into uv's cache once; the scan itself still
      makes no network call.
-   - Otherwise stop and relay the install line:
+   - Otherwise, if `lintlang --version` succeeded with another version,
+     use that installed `lintlang` command and report its version with the
+     result; available checks and findings may differ from 0.6.0.
+   - If neither runner works, stop and relay the install line:
      `python -m pip install lintlang==0.6.0`. Do not install anything
      persistently on the user's machine yourself.
-
-   A different installed version still works — say which version produced the
-   result, because counts and codes can differ between releases.
 
 3. **Scan, once, with JSON output.** Run one of these commands, matching the
    runner that worked in step 2:
@@ -62,7 +62,7 @@ and does not rewrite the file or block a tool call.
 
    The `--` keeps a path that begins with `-` from being read as a flag. JSON
    is an array with one object per input file, each with `file`, `verdict`,
-   `input_error`, and `structural_findings`.
+   `input_error`, `skipped`, and `structural_findings`.
 
    Add `--fail-on fail` (blocks on `CRITICAL`/`HIGH`) or `--fail-on review`
    (blocks on `MEDIUM` and above) **only** when the user asked for a gate or a
@@ -73,6 +73,8 @@ and does not rewrite the file or block a tool call.
    - `input_error` is non-null → the scan never ran on that file (missing file,
      unreadable, unsupported). `verdict` is `ERROR`. Report what the message
      says. This is not a clean result.
+   - `verdict` is `SKIPPED` → no covered agent-facing content was inspected.
+     Report the `skipped` reason. Do not call this a pass.
    - `verdict` is `FAIL` (`CRITICAL` or `HIGH` present), `REVIEW` (`MEDIUM`
      present), or `PASS` (nothing above `LOW`).
 
