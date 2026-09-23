@@ -46,7 +46,14 @@ def main(argv: list[str] | None = None) -> int:
             "Low confidence may reflect non-prompt reference material or an "
             "undetected input boundary. Reports explain the detected drivers; "
             "JSON includes herm.confidence_breakdown. Confidence bands use "
-            "high >=90%, medium >=75%, and low <75% coverage."
+            "high >=90%, medium >=75%, and low <75% coverage.\n\n"
+            "Auto-fix supports only a direct standalone 'Don't be verbose' "
+            "instruction (also with a curly apostrophe). It skips quoted, "
+            "commented, code, example, and priority-section content; malformed "
+            "scope fails closed. H1/H2 "
+            "inference, security negatives, priority rules, and cross-file "
+            "conflicts remain manual. --fix accepts one explicit .md, .txt, "
+            "or .prompt file and terminal output only."
         ),
     )
     scan_parser.add_argument(
@@ -93,6 +100,21 @@ def main(argv: list[str] | None = None) -> int:
         "--show-all",
         action="store_true",
         help="Terminal output: list every finding (default: 5 per finding code, then a count)",
+    )
+    scan_parser.add_argument(
+        "--fix",
+        action="store_true",
+        help="Show and apply the exact supported standalone verbosity rewrite",
+    )
+    scan_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="With --fix, show the exact diff without writing the file",
+    )
+    scan_parser.add_argument(
+        "--backup",
+        action="store_true",
+        help="With --fix, save original bytes as FILE.lintlang.bak before writing (never overwrite)",
     )
     scan_parser.add_argument(
         "--allow-uninspected",
@@ -201,6 +223,48 @@ def _cmd_scan(args: argparse.Namespace) -> int:
     import time
 
     t_start = time.monotonic()
+
+    if args.dry_run and not args.fix:
+        print("Error: --dry-run requires --fix.", file=sys.stderr)
+        return 2
+    if args.backup and not args.fix:
+        print("Error: --backup requires --fix.", file=sys.stderr)
+        return 2
+    if args.dry_run and args.backup:
+        print("Error: --backup cannot be combined with --dry-run.", file=sys.stderr)
+        return 2
+    if args.fix:
+        if (
+            len(args.files) != 1
+            or args.files[0] == "-"
+            or args.discover is not None
+            or args.format != "terminal"
+            or args.baseline is not None
+            or args.write_baseline is not None
+        ):
+            print(
+                "Error: --fix requires exactly one explicit file, terminal output, and no baseline or discovery input.",
+                file=sys.stderr,
+            )
+            return 2
+        from .autofix import AutoFixError, prepare_fix, write_fix
+
+        try:
+            prepared = prepare_fix(args.files[0], backup=args.backup)
+            if prepared.diff:
+                sys.stdout.write(prepared.diff)
+                sys.stdout.flush()
+                if args.dry_run:
+                    print("Dry run: file not changed.")
+                else:
+                    write_fix(prepared, backup=args.backup)
+                    noun = "rewrite" if prepared.rewrite_count == 1 else "rewrites"
+                    print(f"Applied {prepared.rewrite_count} supported {noun} to {prepared.path}.")
+            else:
+                print(f"No supported safe rewrites found; {prepared.path} is unchanged.")
+        except AutoFixError as error:
+            print(f"Error: {error}", file=sys.stderr)
+            return 2
 
     if not args.files and args.discover is None:
         print(

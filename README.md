@@ -88,6 +88,29 @@ statistical probability, a finding-certainty estimate, or the structural
 PASS/REVIEW/FAIL verdict. The current coverage bands are high at 90% or more,
 medium at 75% or more, and low below 75%.
 
+### Conservative automatic rewrite
+
+`scan --fix` currently handles one exact case: a direct, standalone
+`Don't be verbose` instruction (with or without a final period; curly
+apostrophe is also accepted). It prints the unified diff before writing. Use
+`--dry-run` to preview without writing, or `--backup` to preserve the exact
+original bytes as `FILE.lintlang.bak` before the write; an existing backup is
+never overwritten.
+
+```bash
+lintlang scan AGENTS.md --fix --dry-run
+lintlang scan AGENTS.md --fix --backup
+```
+
+Only one explicit `.md`, `.txt`, or `.prompt` file is accepted. Quoted,
+commented, code, and explicitly introduced example content is left untouched;
+explicit priority sections are also skipped. Malformed scope fails closed.
+H1/H2 suggestions that would
+invent tool behavior, output formats, or scope; security negatives; other
+priority rules; and cross-file conflicts remain manual. This is a narrow
+syntactic rewrite, not an automatic-fix score or a claim that other
+suggestions are safe to apply.
+
 LintLang does not decide whether arbitrary prose is true, predict runtime model behavior, or certify an agent as safe.
 
 ## What it can scan

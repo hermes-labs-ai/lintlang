@@ -56,6 +56,7 @@ python -m build
 - repository scan outcomes: `ERROR`, `PASS`, `REVIEW`, or `FAIL`
 - structural findings by pattern `H1` through `H7`, plus Python pipeline findings `P1` and `P2`
 - JSON output for CI via `--format json`
+- conservative `scan --fix` for one exact standalone `Don't be verbose` instruction; `--dry-run` previews and `--backup` saves the original bytes
 - preflight states: `ALLOW`, `NOTICE`, `HOLD`, `UNAVAILABLE`, or `ERROR`
 - preflight evidence uses exact code-point spans and stable `PF001`-`PF005` IDs
 - scan reports explain the HERM confidence coverage proxies separately from the structural verdict
@@ -87,4 +88,5 @@ python -m build
 - new or changed detector behavior has a covering test and a fixture in `samples/` if user-visible
 - `lintlang scan samples/clean_config.yaml` still exits clean
 - README, `AGENTS.md`, and CLI `--help` output stay consistent with the change
+- automatic rewrites remain exact, scope-checked, and fail closed; semantic suggestions stay manual
 - no new performance, accuracy, or production-readiness claim was added without evidence
