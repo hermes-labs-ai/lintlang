@@ -13,6 +13,7 @@ from __future__ import annotations
 import re
 
 from . import __version__
+from .herm import confidence_breakdown
 from .patterns import Finding, Severity
 from .scanner import ScanResult, describe_inspected
 
@@ -108,6 +109,45 @@ def _severity_summary(findings: list[Finding]) -> str:
     return ", ".join(parts) if parts else "0 findings"
 
 
+def _confidence_lines(result: ScanResult, *, markdown: bool = False) -> list[str]:
+    """Render the exact coverage proxies behind this result's HERM label."""
+    breakdown = confidence_breakdown(result.herm)
+    label = str(breakdown["label"])
+    coverage = int(breakdown["coverage_percent"])
+    thresholds = breakdown["confidence_thresholds"]
+    band = {
+        "high": f"high ≥{round(float(thresholds['high_minimum_coverage']) * 100)}%",
+        "medium": f"medium ≥{round(float(thresholds['medium_minimum_coverage']) * 100)}%",
+        "low": f"low <{round(float(thresholds['medium_minimum_coverage']) * 100)}%",
+    }[label]
+    drivers = breakdown["drivers"]
+    if markdown:
+        lines = [f"**Confidence:** {label} ({coverage}% coverage proxy; {band})"]
+        if drivers:
+            for driver in drivers:
+                penalty = round(float(driver["coverage_penalty"]) * 100)
+                lines.append(
+                    f"- **{driver['id']}** (-{penalty} percentage points): "
+                    f"{driver['reason']} {driver['guidance']}"
+                )
+        else:
+            lines.append("No coverage-proxy deductions were triggered.")
+        lines.append(str(breakdown["interpretation"]))
+        return lines
+
+    lines = [f"  Confidence: {label.upper()} ({coverage}% coverage proxy; {band})"]
+    if drivers:
+        for driver in drivers:
+            title = "Primary driver" if driver["id"] == breakdown["primary_driver"] else "Driver"
+            penalty = round(float(driver["coverage_penalty"]) * 100)
+            lines.append(f"    {title}: {driver['reason']} (-{penalty} percentage points)")
+            lines.append(f"      {driver['guidance']}")
+    else:
+        lines.append("    No coverage-proxy deductions were triggered.")
+    lines.append(f"    {breakdown['interpretation']}")
+    return lines
+
+
 # ── Terminal Report ────────────────────────────────────────────────
 
 
@@ -141,6 +181,7 @@ def format_terminal(
         lines.append(f"  {icon} {BOLD}{vcolor}{verdict}{RESET} — {_severity_summary(findings)}")
     if result.input_error is None and result.skipped is None:
         lines.append(f"  {DIM}Inspected: {describe_inspected(result.inspected)}{RESET}")
+        lines.extend(_confidence_lines(result))
     for note in result.notes:
         lines.append(f"  {YELLOW}Not inspected: {note}{RESET}")
     if baseline_count is not None:
@@ -252,6 +293,8 @@ def format_markdown(
     if result.input_error is None and result.skipped is None:
         lines.append("")
         lines.append(f"**Inspected:** {describe_inspected(result.inspected)}")
+        lines.append("")
+        lines.extend(_confidence_lines(result, markdown=True))
     for note in result.notes:
         lines.append("")
         lines.append(f"**Not inspected:** {note}")

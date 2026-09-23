@@ -58,6 +58,7 @@ python -m build
 - JSON output for CI via `--format json`
 - preflight states: `ALLOW`, `NOTICE`, `HOLD`, `UNAVAILABLE`, or `ERROR`
 - preflight evidence uses exact code-point spans and stable `PF001`-`PF005` IDs
+- scan reports explain the HERM confidence coverage proxies separately from the structural verdict
 
 ## Success means
 
