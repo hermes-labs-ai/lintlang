@@ -29,24 +29,24 @@ and does not rewrite the file or block a tool call.
 
 2. **Resolve a runner, in this order.** Stop at the first that works.
 
-   - `lintlang --version` prints `lintlang 0.6.0` → use `lintlang` for
+   - `lintlang --version` prints `lintlang 0.7.0` → use `lintlang` for
      both the version check and scan.
    - Otherwise, if `uvx` is available and the pinned release runs, use it
      with no persistent install and no PATH change:
 
      ```bash
-     uvx --from lintlang==0.6.0 lintlang --version
+     uvx --from lintlang==0.7.0 lintlang --version
      ```
 
-     Use `uvx --from lintlang==0.6.0 lintlang` for the scan too. Keep the
-     `==0.6.0` pin so an unreviewed newer release is never fetched.
+     Use `uvx --from lintlang==0.7.0 lintlang` for the scan too. Keep the
+     `==0.7.0` pin so an unreviewed newer release is never fetched.
      This downloads the package into uv's cache once; the scan itself still
      makes no network call.
    - Otherwise, if `lintlang --version` succeeded with another version,
      use that installed `lintlang` command and report its version with the
-     result; available checks and findings may differ from 0.6.0.
+     result; available checks and findings may differ from 0.7.0.
    - If neither runner works, stop and relay the install line:
-     `python -m pip install lintlang==0.6.0`. Do not install anything
+     `python -m pip install lintlang==0.7.0`. Do not install anything
      persistently on the user's machine yourself.
 
 3. **Scan, once, with JSON output.** Run one of these commands, matching the
@@ -59,7 +59,7 @@ and does not rewrite the file or block a tool call.
 
    ```bash
    file='./prompt.md' # replace with the exact selected path, shell-quoted
-   uvx --from lintlang==0.6.0 lintlang scan --format json -- "$file"
+   uvx --from lintlang==0.7.0 lintlang scan --format json -- "$file"
    ```
 
    Set `file` before running the chosen command; `./prompt.md` is only an

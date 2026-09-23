@@ -1,8 +1,27 @@
 # Changelog
 
-## Unreleased
+## [0.7.0] - 2026-09-23
 
 ### Added
+
+- A conservative `lintlang scan --fix` path for instruction documents applies
+  a bounded in-place rewrite and declines files without a leading instruction
+  section or edits that would introduce an example. Use `--dry-run` to preview
+  without writing or `--backup` to preserve the original bytes before writing;
+  automatic repair is not a safety verdict.
+- HERM confidence output now names its coverage drivers, so a low confidence
+  label can be traced to missing or sparse evidence rather than read as a
+  detector accuracy measurement.
+- Native distribution entry points now include an on-demand Pi scan skill,
+  a GitHub Copilot CLI audit skill, and Cursor marketplace packaging for the
+  portable Claude Code audit skill. Each invokes the standalone scanner on
+  selected files; none scans a whole host session or proves runtime behavior.
+- A Dev Container Feature installs an exact LintLang release in an isolated
+  environment. Its default remains the published `0.6.0` package until the
+  0.7.0 package is available; the version option can select a later release.
+- A second Agent Plugins 1.0 manifest at the Claude Code plugin root makes
+  its existing skill discoverable by hosts using that format. The automatic
+  Claude Code hook remains a separate surface.
 
 - Tool definitions are found by shape, wherever they sit. Previously only a
   root `tools`/`functions` list of `name` + `parameters`/`input_schema` objects
@@ -29,6 +48,12 @@
   the rest. Clean and skipped files in a multi-file scan are summary rows.
 
 ### Changed
+
+- Terminal scans on a TTY end with one dim package-version and repository
+  pointer. Redirected output, JSON, Markdown, and SARIF omit the pointer.
+- `lintlang init --github` now generates a workflow pinned to the v0.6.0
+  Action commit. Existing generated files are reported as different and are
+  not overwritten without `--force`.
 
 - Concrete short tool descriptions no longer fail solely on length. One-sided
   tool-description containment respects distinct input property schemas.
@@ -158,6 +183,16 @@
   explicit priority ordering is unchanged.
 
 ### Fixed
+
+- Direct-format tool entries with a non-string `name` now produce a located
+  input error instead of an internal attribute error. The result remains
+  `ERROR` with exit code 1.
+- H2 no longer treats a finite `loop over` or `loop through` instruction as
+  indefinite without an explicit continuation term. H4 no longer treats a
+  domain invariant such as `Always maintain backward compatibility` as
+  cross-context memory. Their actual unbounded and memory-carrying forms
+  remain findings; a file whose only HIGH or CRITICAL findings were these
+  false positives can now move from FAIL to REVIEW or PASS.
 
 - **Verdict change, in both directions.** H2 no longer reports an
   unbounded-behavior phrase that the prompt forbids. `Do not continue

@@ -624,7 +624,7 @@ From a source checkout:
 lintlang scan samples/bad_tool_descriptions.yaml
 ```
 
-Excerpt from `lintlang 0.6.0`:
+Excerpt from `lintlang 0.7.0`:
 
 ```text
 FAIL — 1 CRITICAL, 1 HIGH, 5 MEDIUM, 3 LOW
@@ -643,7 +643,7 @@ Only the install reaches the network to obtain the package and dependencies.
 Every `lintlang scan` below is offline.
 
 ```bash
-python -m pip install lintlang==0.6.0
+python -m pip install lintlang==0.7.0
 
 cat > /tmp/agent.yaml <<'YAML'
 system_prompt: |
@@ -661,7 +661,7 @@ YAML
 lintlang scan /tmp/agent.yaml --fail-on fail
 ```
 
-`lintlang 0.6.0` reports `FAIL — 1 CRITICAL, 1 HIGH, 1 MEDIUM` and exits `1`.
+`lintlang 0.7.0` reports `FAIL — 1 CRITICAL, 1 HIGH, 1 MEDIUM` and exits `1`.
 H1.1 identifies the empty tool description. This is a successful detection; do
 not hide the exit status with `|| true`. To use the newest package instead, run
 `python -m pip install --upgrade lintlang` and re-read the counts below as approximate.
@@ -719,7 +719,7 @@ left alone; review it before replacing it with `--force`. See
 Use the same inputs and outcomes with PowerShell-native temporary paths:
 
 ```powershell
-python -m pip install lintlang==0.6.0
+python -m pip install lintlang==0.7.0
 $badPath = Join-Path $env:TEMP "agent.yaml"
 $fixedPath = Join-Path $env:TEMP "agent-fixed.yaml"
 

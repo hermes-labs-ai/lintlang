@@ -16,7 +16,7 @@ Use lintlang-audit to scan .github/copilot-instructions.md and report its verdic
 The skill scans the named agent instruction, tool definition, or prompt file
 with LintLang and summarizes its static findings. It does not scan all files
 automatically or change the target. Install the scanner separately with
-`python -m pip install lintlang==0.6.0`, or have `uvx` available to run that
+`python -m pip install lintlang==0.7.0`, or have `uvx` available to run that
 release on demand. The plugin itself does not include the Python package.
 Python 3.10+ is required for the scanner. A scan makes no LLM or network calls;
 installing the scanner may download packages. A `PASS` verdict only means that
