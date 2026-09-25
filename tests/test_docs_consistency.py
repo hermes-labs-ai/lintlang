@@ -98,8 +98,10 @@ def test_reference_failing_demo_count_matches_the_fixture():
     assert f"FAIL — {summary}" in _text("llms-full.txt")
 
 
-def test_readme_links_to_checkout_free_first_run():
-    assert "[No instruction file yet? Try the checkout-free first run.]" in _text("README.md")
+def test_readme_starts_with_directory_scan():
+    readme = _text("README.md")
+    assert "uvx lintlang scan ." in readme
+    assert "No instruction file yet?" not in readme
 
 
 def test_owning_guides_match_baseline_and_scan_default_contracts():
@@ -155,14 +157,11 @@ def test_relative_documentation_links_resolve(document):
 def test_readme_routes_to_the_owning_guides():
     readme = _text("README.md")
     for target in (
-        "docs/research.md", "docs/integrations.md", "docs/github.md", "docs/baselines.md",
-        "llms-full.txt", "INTENT.md", "CONTRIBUTING.md", "SECURITY.md", "CHANGELOG.md", "LICENSE",
-        "integrations/claude-code/README.md", "integrations/copilot-cli/README.md",
-        "docs/gemini-cli-extension.md",
-        "mega-linter-plugin-lintlang/README.md",
+        "docs/integrations.md", "docs/github.md", "docs/baselines.md",
+        "llms-full.txt", "CONTRIBUTING.md", "SECURITY.md", "CHANGELOG.md", "LICENSE",
     ):
         assert f"]({target})" in readme, target
-    assert "## Evidence\n" in readme
+    assert "https://github.com/bytedance/deer-flow/pull/5656" in readme
     assert "## Code scanning\n" in _text("docs/github.md")
 
 
