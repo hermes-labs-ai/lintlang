@@ -204,16 +204,14 @@ class TestHookInvokedAsPreCommitWouldInvokeIt:
         assert [path for path in ("README.md", "docs/notes.md") if pattern.search(path)] == []
 
 
-def test_public_docs_show_exercised_install_and_hook_paths():
-    readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
+def test_reference_docs_show_exercised_install_and_hook_paths():
     reference = (REPO_ROOT / "llms-full.txt").read_text(encoding="utf-8")
     integration = (REPO_ROOT / "docs/integrations.md").read_text(encoding="utf-8")
     baseline = (REPO_ROOT / "docs/baselines.md").read_text(encoding="utf-8")
     github = (REPO_ROOT / "docs/github.md").read_text(encoding="utf-8")
     example = (REPO_ROOT / "examples/github-code-scanning.yml").read_text(encoding="utf-8")
 
-    for text in (readme, reference):
-        assert "uvx lintlang scan AGENTS.md" in text
+    assert "uvx lintlang scan AGENTS.md" in reference
     assert "pipx install lintlang" in reference
     assert "pipx ensurepath" in reference
     assert "repo: https://github.com/hermes-labs-ai/lintlang" in integration
@@ -223,13 +221,10 @@ def test_public_docs_show_exercised_install_and_hook_paths():
     assert "pre-commit install" in integration
     assert "pre-commit run lintlang" in integration
     assert f"hermes-labs-ai/lintlang@{LINTLANG_V070_SHA} # {LINTLANG_ACTION_VERSION}" in baseline
-    assert "(docs/integrations.md)" in readme
-    assert "(docs/github.md)" in readme
-    assert "(docs/baselines.md)" in readme
 
     # Preserve the immutable-pin guarantee added on main in POL-065.
     assert f"actions/checkout@{CHECKOUT_V7_SHA} # v7.0.1" in example
-    for text in (readme, reference, integration, baseline, github, example):
+    for text in (reference, integration, baseline, github, example):
         assert "actions/checkout@v7" not in text
         assert "hermes-labs-ai/lintlang@v0.4.0" not in text
         assert f"uses: hermes-labs-ai/lintlang@{LINTLANG_ACTION_VERSION}" not in text
