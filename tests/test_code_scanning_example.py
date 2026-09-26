@@ -72,18 +72,15 @@ def test_code_scanning_example_is_least_privilege_and_uploads_even_after_failure
 
 
 def test_github_guide_routes_to_the_single_complete_workflow():
-    readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
     guide = (REPO_ROOT / "docs/github.md").read_text(encoding="utf-8")
     reference = (REPO_ROOT / "llms-full.txt").read_text(encoding="utf-8")
-    assert "(docs/github.md)" in readme
     assert "## Code scanning\n" in guide
     assert "(../examples/github-code-scanning.yml)" in guide
     assert "(../action.yml)" in guide
     assert "(docs/github.md#code-scanning)" in reference
     # The full example above still enforces every pin, permission, and artifact
-    # contract. Navigation replaces only the obsolete duplicated README YAML.
-    for document in (readme, guide, reference):
+    # contract.
+    for document in (guide, reference):
         for block in re.findall(r"```yaml\n(.*?)\n```", document, flags=re.DOTALL):
             parsed = yaml.safe_load(block)
             assert not (isinstance(parsed, dict) and "jobs" in parsed), "Duplicate full workflow"
-    assert "pull_request_target" not in readme

@@ -17,9 +17,9 @@ REPLACEMENTS = (
 
 
 def product_docs(root: Path) -> list[Path]:
-    candidates = [root / "README.md", root / "llms.txt", root / "llms-full.txt"]
+    candidates = [root / "llms.txt", root / "llms-full.txt"]
     candidates.extend(sorted((root / "docs").rglob("*.md")))
-    return [path for path in candidates if path.is_file()]
+    return [path for path in candidates if path.is_file() and path.name.lower() != "readme.md"]
 
 
 def synchronized(text: str, version: str) -> str:

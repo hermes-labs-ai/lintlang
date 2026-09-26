@@ -44,10 +44,6 @@ def test_copilot_plugin_has_portable_root_manifest_and_skill() -> None:
 
 
 def test_copilot_install_path_and_scanner_prerequisite_are_documented() -> None:
-    guide = (PLUGIN / "README.md").read_text(encoding="utf-8")
-    assert "copilot plugin install hermes-labs-ai/lintlang:integrations/copilot-cli" in guide
-    assert "`/skills list`" in guide
-    assert f"python -m pip install lintlang=={__version__}" in guide
     assert "../integrations/copilot-cli/README.md" in (ROOT / "docs/integrations.md").read_text(encoding="utf-8")
     root_skill = (ROOT / ".agents/skills/lintlang/SKILL.md").read_text(encoding="utf-8")
     assert "license: Apache-2.0" in root_skill

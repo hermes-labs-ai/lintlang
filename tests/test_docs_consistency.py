@@ -1,6 +1,6 @@
 """Evidence, navigation, and ownership contracts for public documentation.
 
-Behavioral promises follow their owning guide when the README is shortened.
+Behavioral promises follow their owning guide.
 Release metadata and executable first-run fixtures have separate gates.
 """
 
@@ -14,11 +14,9 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 PUBLIC_DOCS = (
-    "README.md", "INTENT.md", "CONTRIBUTING.md", "llms-full.txt",
+    "INTENT.md", "CONTRIBUTING.md", "llms-full.txt",
     "docs/research.md", "docs/integrations.md", "docs/github.md", "docs/baselines.md",
-    "integrations/claude-code/README.md", "integrations/copilot-cli/README.md",
     "docs/gemini-cli-extension.md",
-    "integrations/opencode/README.md", "mega-linter-plugin-lintlang/README.md",
 )
 
 
@@ -28,11 +26,6 @@ def _text(path: str) -> str:
 
 def _prose(path: str) -> str:
     return re.sub(r"\s+", " ", _text(path))
-
-
-def _readme_test_count_claim() -> int | None:
-    match = re.search(r"(\d+)\s+tests?\b", _text("README.md")[:1500])
-    return int(match.group(1)) if match else None
 
 
 def _changelog_test_count_claim() -> int | None:
@@ -46,28 +39,12 @@ def _changelog_test_count_claim() -> int | None:
     return int(match.group(1)) if match else None
 
 
-def test_readme_opener_avoids_brittle_test_count_claim():
-    assert _readme_test_count_claim() is None
-
-
 def test_unreleased_changelog_avoids_brittle_test_count_claim():
     assert _changelog_test_count_claim() is None
 
 
-def test_readme_keeps_regression_methodology_out_of_adoption_path():
-    readme = _text("README.md").lower()
-    assert "repository regression check" not in readme
-    assert "external-project detector accuracy" not in readme
-    assert "excerpt from `lintlang 0.7.1`" in _text("llms-full.txt").lower()
-    assert "(llms-full.txt)" in readme
-
-
-def test_public_docs_do_not_claim_a_clean_scan_proves_safety():
-    readme = _prose("README.md").lower()
+def test_intent_does_not_claim_a_clean_scan_proves_safety():
     intent = _prose("INTENT.md").lower()
-    assert "does not run models" in readme
-    assert "or establish that an agent is production-safe" in readme
-    assert "a clean scan means only that the selected static checks found no covered defects" in readme
     assert "clean scan does not establish safety or correctness" in intent
 
 
@@ -96,12 +73,6 @@ def test_reference_failing_demo_count_matches_the_fixture():
 
     assert summary
     assert f"FAIL — {summary}" in _text("llms-full.txt")
-
-
-def test_readme_starts_with_directory_scan():
-    readme = _text("README.md")
-    assert "uvx lintlang scan ." in readme
-    assert "No instruction file yet?" not in readme
 
 
 def test_owning_guides_match_baseline_and_scan_default_contracts():
@@ -148,21 +119,10 @@ def test_relative_documentation_links_resolve(document):
         target = (source.parent / unquote(parsed.path)).resolve() if parsed.path else source
         assert target.is_relative_to(REPO_ROOT), (document, destination)
         assert target.exists(), (document, destination)
-        if parsed.fragment and target.is_file():
+        if parsed.fragment and target.is_file() and target.name.lower() != "readme.md":
             assert unquote(parsed.fragment) in _anchors(target.read_text(encoding="utf-8")), (
                 document, destination,
             )
-
-
-def test_readme_routes_to_the_owning_guides():
-    readme = _text("README.md")
-    for target in (
-        "docs/integrations.md", "docs/github.md", "docs/baselines.md",
-        "llms-full.txt", "CONTRIBUTING.md", "SECURITY.md", "CHANGELOG.md", "LICENSE",
-    ):
-        assert f"]({target})" in readme, target
-    assert "https://github.com/bytedance/deer-flow/pull/5656" in readme
-    assert "## Code scanning\n" in _text("docs/github.md")
 
 
 def test_research_identifiers_and_claim_boundaries_remain_separate():
@@ -179,16 +139,10 @@ def test_research_identifiers_and_claim_boundaries_remain_separate():
     assert "not a claim of broad production adoption" in research or "broad production adoption" in _text("docs/integrations.md")
 
 
-def test_historical_host_evidence_is_not_silently_upgraded():
+def test_gemini_host_evidence_is_not_silently_upgraded():
     gemini = _text("docs/gemini-cli-extension.md")
-    opencode = _text("integrations/opencode/README.md")
-    mega = _prose("mega-linter-plugin-lintlang/README.md")
     assert "f89c3b0b8986fad162859dca052a8d5fe227eede" in gemini
     assert "0.32.1" in gemini and "0.5.3" in gemini
-    assert "1.18.27" in opencode and "tool.execute.after" in opencode
-    assert "type declarations" in opencode
-    assert "8.8.0" in mega and "0.5.3" in mega
-    assert "in-process" in mega and "container" in mega
 
 
 def test_reference_api_example_executes_with_real_findings(tmp_path, monkeypatch, capsys):

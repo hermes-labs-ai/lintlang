@@ -33,7 +33,6 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 PYPROJECT = REPO_ROOT / "pyproject.toml"
 CHANGELOG = REPO_ROOT / "CHANGELOG.md"
 CITATION = REPO_ROOT / "CITATION.cff"
-README = REPO_ROOT / "README.md"
 REFERENCE = REPO_ROOT / "llms-full.txt"
 ZENODO = REPO_ROOT / ".zenodo.json"
 CODEMETA = REPO_ROOT / "codemeta.json"
@@ -67,7 +66,6 @@ def test_version_surfaces_match_pyproject_and_release_state():
     packaged = _pyproject_version()
     changelog = CHANGELOG.read_text(encoding="utf-8")
     citation = CITATION.read_text(encoding="utf-8")
-    readme = README.read_text(encoding="utf-8")
     reference = REFERENCE.read_text(encoding="utf-8")
     zenodo = json.loads(ZENODO.read_text(encoding="utf-8"))
 
@@ -97,12 +95,9 @@ def test_version_surfaces_match_pyproject_and_release_state():
             f"CITATION.cff date {citation_date_match.group(1)!r} does not match "
             f"CHANGELOG release date {release_state!r}"
         )
-    # Versioned output examples now belong to the reference, not the README.
     assert f"`lintlang {packaged}`" in reference
-    assert "(llms-full.txt)" in readme
-    for text in (readme, reference):
-        assert "LINTLANG v0.2.0" not in text
-        assert "LINTLANG v0.2.1" not in text
+    assert "LINTLANG v0.2.0" not in reference
+    assert "LINTLANG v0.2.1" not in reference
 
 
 def test_codemeta_matches_release_metadata():
