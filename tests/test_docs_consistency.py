@@ -117,11 +117,9 @@ def test_relative_documentation_links_resolve(document):
         if parsed.scheme or parsed.netloc:
             continue
         target = (source.parent / unquote(parsed.path)).resolve() if parsed.path else source
-        if target.name.lower() == "readme.md":
-            continue
         assert target.is_relative_to(REPO_ROOT), (document, destination)
         assert target.exists(), (document, destination)
-        if parsed.fragment and target.is_file():
+        if parsed.fragment and target.is_file() and target.name.lower() != "readme.md":
             assert unquote(parsed.fragment) in _anchors(target.read_text(encoding="utf-8")), (
                 document, destination,
             )
