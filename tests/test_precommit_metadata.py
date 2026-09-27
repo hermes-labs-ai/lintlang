@@ -215,7 +215,7 @@ def test_reference_docs_show_exercised_install_and_hook_paths():
     assert "pipx install lintlang" in reference
     assert "pipx ensurepath" in reference
     assert "repo: https://github.com/hermes-labs-ai/lintlang" in integration
-    assert "rev: v0.7.1" in integration
+    assert "rev: v0.8.0" in integration
     assert "id: lintlang" in integration
     assert "args: [AGENTS.md, --fail-on, fail]" in integration
     assert "pre-commit install" in integration

@@ -547,7 +547,7 @@ def detect_h3(config: AgentConfig) -> list[Finding]:
             required_list = []
 
         # Phantom required fields
-        for req_name in required_list:
+        for req_index, req_name in enumerate(required_list):
             if req_name not in properties:
                 findings.append(
                     Finding(
@@ -555,12 +555,19 @@ def detect_h3(config: AgentConfig) -> list[Finding]:
                         pattern_name="Schema-Intent Mismatch",
                         severity=Severity.HIGH,
                         location=f"tool:{tool.name}.parameters.required",
+                        source_region=(
+                            config.source_map.region(f"{tool.schema_path}.required[{req_index}]")
+                            if config.source_map and tool.schema_path else None
+                        ),
                         description=f"Required field '{req_name}' in tool '{tool.name}' does not exist in properties.",
                         suggestion=f"Either add '{req_name}' to properties or remove it from required.",
                     )
                 )
 
-        _check_properties(findings, tool.name, properties, "parameters", tool.description)
+        _check_properties(
+            findings, tool.name, properties, "parameters", tool.description,
+            config.source_map, f"{tool.schema_path}.properties" if tool.schema_path else "",
+        )
 
     # Check schemas list too
     for i, schema in enumerate(config.schemas):
@@ -577,6 +584,10 @@ def detect_h3(config: AgentConfig) -> list[Finding]:
                         pattern_name="Schema-Intent Mismatch",
                         severity=Severity.MEDIUM,
                         location=f"schema[{i}].{prop_name}",
+                        source_region=(
+                            config.source_map.key_region(f"{config.schema_paths[i]}.properties.{prop_name}")
+                            if config.source_map and i < len(config.schema_paths) else None
+                        ),
                         description=f"Schema property '{prop_name}' is generic and undescribed.",
                         suggestion="Add specific descriptions to help the LLM understand the semantic intent.",
                     )
@@ -587,10 +598,13 @@ def detect_h3(config: AgentConfig) -> list[Finding]:
 
 def _check_properties(
     findings: list[Finding], tool_name: str, properties: dict, path: str, tool_description: str = "",
+    source_map=None, source_path: str = "",
 ) -> None:
     """Check properties for schema-intent issues, including nested objects."""
     for prop_name, prop_def in properties.items():
         full_path = f"{path}.{prop_name}"
+        prop_path = f"{source_path}.{prop_name}" if source_path else ""
+        prop_region = source_map.key_region(prop_path) if source_map and prop_path else None
         if not isinstance(prop_def, dict):
             continue  # `true` / `false` are valid JSON Schema and say nothing to lint
 
@@ -613,6 +627,7 @@ def _check_properties(
                     pattern_name="Schema-Intent Mismatch",
                     severity=Severity.MEDIUM,
                     location=f"tool:{tool_name}.{full_path}",
+                    source_region=prop_region,
                     description=f"Parameter '{prop_name}' in tool '{tool_name}' has no description.",
                     suggestion="Add a description explaining what this parameter means semantically, not just its type.",
                 )
@@ -626,6 +641,7 @@ def _check_properties(
                     pattern_name="Schema-Intent Mismatch",
                     severity=Severity.LOW,
                     location=f"tool:{tool_name}.{full_path}",
+                    source_region=prop_region,
                     description=f"Parameter '{prop_name}' in tool '{tool_name}' uses a generic name.",
                     suggestion=f"Rename '{prop_name}' to something specific: e.g., 'user_email' instead of 'data', 'search_query' instead of 'input'.",
                 )
@@ -655,6 +671,7 @@ def _check_properties(
                             pattern_name="Schema-Intent Mismatch",
                             severity=Severity.HIGH,
                             location=f"tool:{tool_name}.{full_path}",
+                            source_region=prop_region,
                             description=f"Parameter '{prop_name}' has {union_key} with {len(undescribed)}/{len(variants)} undescribed variants.",
                             suggestion=f"Add a description to each {union_key} variant explaining WHEN to use it. Without this, the LLM has no basis for choosing.",
                         )
@@ -663,7 +680,8 @@ def _check_properties(
         # Recurse into nested object properties
         if prop_def.get("type") == "object" and "properties" in prop_def:
             _check_properties(
-                findings, tool_name, prop_def["properties"], full_path, tool_description
+                findings, tool_name, prop_def["properties"], full_path, tool_description,
+                source_map, f"{prop_path}.properties" if prop_path else "",
             )
 
 

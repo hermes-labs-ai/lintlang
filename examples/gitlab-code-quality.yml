@@ -1,0 +1,26 @@
+# Copy this job into .gitlab-ci.yml and choose the instruction path to scan.
+lintlang-code-quality:
+  image: python:3.11-slim
+  stage: test
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+  before_script:
+    - python -m pip install lintlang==0.8.0
+  script:
+    - |
+      set +e
+      lintlang scan AGENTS.md --format gitlab --fail-on fail > gl-code-quality-report.json
+      report_status=$?
+      lintlang scan AGENTS.md --format json --fail-on fail > lintlang-full.json
+      full_status=$?
+      set -e
+      if [ "$report_status" -ne 0 ]; then exit "$report_status"; fi
+      exit "$full_status"
+  artifacts:
+    when: always
+    reports:
+      codequality: gl-code-quality-report.json
+    paths:
+      - gl-code-quality-report.json
+      - lintlang-full.json

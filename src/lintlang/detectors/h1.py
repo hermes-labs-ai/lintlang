@@ -550,6 +550,7 @@ def detect_h1(config: AgentConfig) -> list[Finding]:
                     severity=Severity.CRITICAL,
                     location=f"tool:{tool.name}",
                     description=f"Tool '{tool.name}' has no description.",
+                    source_region=tool.source_region,
                     suggestion="Add a specific, disambiguating description that explains WHEN to use this tool, not just WHAT it does.",
                 )
             )
@@ -579,6 +580,7 @@ def detect_h1(config: AgentConfig) -> list[Finding]:
                     severity=Severity.HIGH,
                     location=f"tool:{tool.name}",
                     description=f"Tool '{tool.name}' has a very short description ({len(desc)} chars): \"{desc}\"",
+                    source_region=tool.description_region or tool.source_region,
                     suggestion="Expand description to include: purpose, when to use vs alternatives, expected input shape, output behavior.",
                     evidence=desc,
                 )
@@ -598,6 +600,7 @@ def detect_h1(config: AgentConfig) -> list[Finding]:
                     severity=Severity.MEDIUM,
                     location=f"tool:{tool.name}",
                     description=f"Tool '{tool.name}' starts with vague verb '{first_word}'.",
+                    source_region=tool.description_region or tool.source_region,
                     suggestion=f"Replace '{first_word}' with a specific action verb. Instead of 'Handle user data', use 'Validate and persist user profile updates to the database'.",
                     evidence=desc[:80],
                 )
@@ -617,6 +620,7 @@ def detect_h1(config: AgentConfig) -> list[Finding]:
                     severity=Severity.CRITICAL,
                     location=f"tool:{tool.name}",
                     description=f"Duplicate tool name '{tool.name}' (also at index {seen_names[lower_name]}). LLM cannot distinguish between identically-named tools.",
+                    source_region=tool.source_region,
                     suggestion="Give each tool a unique, descriptive name.",
                 )
             )
@@ -662,6 +666,7 @@ def detect_h1(config: AgentConfig) -> list[Finding]:
                         pattern_name="Tool Description Ambiguity",
                         severity=Severity.MEDIUM,
                         location=f"tool:{alias.name} vs tool:{canonical.name}",
+                        source_region=alias.description_region or alias.source_region,
                         description=(
                             f"Tool '{alias.name}' declares itself an alias of "
                             f"'{canonical.name}'. Both are offered to the model, which "
@@ -725,6 +730,7 @@ def detect_h1(config: AgentConfig) -> list[Finding]:
                         pattern_name="Tool Description Ambiguity",
                         severity=Severity.HIGH,
                         location=f"tool:{t1.name} vs tool:{t2.name}",
+                        source_region=t1.description_region or t1.source_region,
                         description=f"Tools '{t1.name}' and '{t2.name}' have {overlap:.0%} word overlap — LLM may confuse them.",
                         suggestion="Differentiate descriptions by adding WHEN to use each tool. E.g., 'Use X for new records, use Y for updates to existing records'.",
                         evidence=f"'{t1.description[:50]}...' vs '{t2.description[:50]}...'",
@@ -754,6 +760,7 @@ def detect_h1(config: AgentConfig) -> list[Finding]:
                         # there are numbers to justify it.
                         severity=Severity.MEDIUM,
                         location=f"tool:{t1.name} vs tool:{t2.name}",
+                        source_region=t1.description_region or t1.source_region,
                         description=(
                             f"Tools '{t1.name}' and '{t2.name}' carry no differentia — "
                             "every meaning-bearing term in one is present, or has a synonym, "
@@ -781,6 +788,7 @@ def detect_h1(config: AgentConfig) -> list[Finding]:
                         # warn-only; see the H1.6 severity note above
                         severity=Severity.MEDIUM,
                         location=f"tool:{dominated.name} vs tool:{dominant.name}",
+                        source_region=dominated.description_region or dominated.source_region,
                         description=(
                             f"Tool '{dominated.name}' is dominated by '{dominant.name}' — "
                             f"every meaning-bearing term in '{dominated.name}' also appears, "

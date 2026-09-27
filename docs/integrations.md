@@ -11,6 +11,7 @@ plugin, validate every host-specific setting, or establish provider compatibilit
 | --- | --- | --- | --- | --- |
 | GitHub Actions | Pull request or configured CI event | Actions enabled; committed input path | Action defaults to blocking HIGH/CRITICAL | [GitHub guide](github.md) |
 | GitHub Code Scanning | SARIF upload after a scan | Eligible repository, feature enabled, upload permissions | Scan gate and upload outcome are separate | [Code scanning](github.md#code-scanning) |
+| GitLab Code Quality | Merge request and default-branch CI job | GitLab CI/CD; committed input path | Optional `--fail-on` gate | [GitLab guide](gitlab.md) |
 | pre-commit | Commit hook or explicit run | pre-commit and a configured input path | Advisory by default; opt-in severity gate | [pre-commit setup](#pre-commit) |
 | Claude Code | Supported `Write`/`Edit`; named-file audit on request | Claude Code plugin support; scanner runner | Non-blocking guidance; no file rewriting | [Claude Code guide](../integrations/claude-code/README.md) |
 | Cursor | Named-file audit on request | Cursor marketplace plugin support; scanner runner | Advisory verdict; no file rewriting | [Cursor setup](../integrations/claude-code/README.md#use-in-cursor) |
@@ -50,7 +51,7 @@ other hooks:
 ```yaml
 repos:
   - repo: https://github.com/hermes-labs-ai/lintlang
-    rev: v0.7.1
+    rev: v0.8.0
     hooks:
       - id: lintlang
 ```

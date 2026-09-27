@@ -99,7 +99,8 @@ Include MEDIUM findings in the gate:
 lintlang scan . --fail-on review
 ```
 
-LintLang also emits JSON and SARIF for automation and GitHub Code Scanning.
+LintLang also emits JSON, SARIF, and GitLab Code Quality reports for automation.
+See the [GitLab CI guide](docs/gitlab.md) for a copyable Code Quality job.
 
 ## Put it in CI
 

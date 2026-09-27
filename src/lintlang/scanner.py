@@ -356,21 +356,7 @@ def scan_config(
     severity_order = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
     structural.sort(key=lambda f: severity_order.get(f.severity.value, 5))
 
-    # Give every finding that knows where its evidence sits a file line. Only
-    # text inputs: a prompt embedded in YAML/JSON has no recoverable line here.
-    if config.kind in ("instructions", "prompt"):
-        for finding in structural:
-            if finding.offset is not None and finding.source_region is None:
-                line = config.prompt_line_offset + config.system_prompt.count("\n", 0, finding.offset) + 1
-                finding.source_region = SourceRegion(line, line)
-                # Quote the offending line, whole: a fixed character window cuts
-                # words in half and drags in the neighbouring lines.
-                prompt = config.system_prompt
-                start = prompt.rfind("\n", 0, finding.offset) + 1
-                end = prompt.find("\n", finding.offset)
-                text_line = prompt[start : end if end != -1 else len(prompt)].strip()
-                if text_line:
-                    finding.evidence = text_line if len(text_line) <= 200 else text_line[:197] + "..."
+    _locate_config_findings(config, structural)
 
     inspected, notes, skipped = _coverage(config)
     return ScanResult(
@@ -384,26 +370,41 @@ def scan_config(
     )
 
 
-def _locate_tool_findings(result: ScanResult, text: str) -> None:
-    """Give a tool finding the line on which the tool's name is declared.
-
-    Only when that name is declared exactly once in the file, so the line is a
-    fact and not a guess."""
-    if re.search(r"(?:^|[\s:\[,-])[&*][A-Za-z_][\w-]*\s*(?:$|[\s,\]}])", text, re.MULTILINE) and not text.lstrip().startswith(("{", "[")):
-        return  # YAML anchors/aliases: the defective text may live on another line
-    cache: dict[str, int | None] = {}
-    for finding in result.structural_findings:
-        if finding.source_region is not None or not finding.location.startswith("tool:"):
+def _locate_config_findings(config: AgentConfig, findings: list[Finding]) -> None:
+    """Attach only positions supported by parsed nodes or text offsets."""
+    for finding in findings:
+        if finding.source_region is not None:
             continue
-        name = finding.location.removeprefix("tool:").split(" vs ")[0].split(".parameters")[0]
-        if name not in cache:
-            declared = [
-                m.start()
-                for m in re.finditer(rf"""["']?name["']?\s*[:=]\s*["']?{re.escape(name)}["']?\s*(?:,|$)""", text, re.MULTILINE)
-            ]
-            cache[name] = text.count("\n", 0, declared[0]) + 1 if len(declared) == 1 else None
-        if cache[name] is not None:
-            finding.source_region = SourceRegion(cache[name], cache[name])
+        if config.kind in ("instructions", "prompt") and finding.offset is not None:
+            line = config.prompt_line_offset + config.system_prompt.count("\n", 0, finding.offset) + 1
+            finding.source_region = SourceRegion(line, line)
+            # Text evidence may be quoted as the entire physical line.
+            prompt = config.system_prompt
+            start = prompt.rfind("\n", 0, finding.offset) + 1
+            end = prompt.find("\n", finding.offset)
+            text_line = prompt[start : end if end != -1 else len(prompt)].strip()
+            if text_line:
+                finding.evidence = text_line if len(text_line) <= 200 else text_line[:197] + "..."
+        elif finding.location == "system_prompt" and config.system_prompt:
+            if config.kind in ("instructions", "prompt"):
+                finding.source_region = SourceRegion(config.prompt_line_offset + 1, config.prompt_line_offset + 1)
+            elif config.source_map and config.prompt_segments:
+                segment = next(
+                    (part for part in config.prompt_segments if finding.offset is not None
+                     and part[0] <= finding.offset < part[1]),
+                    config.prompt_segments[0] if finding.offset is None else None,
+                )
+                if segment:
+                    begin, end, path = segment
+                    value = config.system_prompt[begin:end]
+                    local_offset = finding.offset - begin if finding.offset is not None else None
+                    finding.source_region = config.source_map.scalar_region(path, value, local_offset)
+        elif config.source_map and finding.location == "messages":
+            finding.source_region = config.source_map.region(config.message_collection_path)
+        elif config.source_map and finding.location.startswith("messages["):
+            match = re.match(r"messages\[(\d+)\]$", finding.location)
+            if match and int(match.group(1)) < len(config.message_paths):
+                finding.source_region = config.source_map.region(config.message_paths[int(match.group(1))])
 
 
 def _enforce_explicit(result: ScanResult, explicit: bool) -> ScanResult:
@@ -441,7 +442,6 @@ def scan_file(path: str | Path, patterns: list[str] | None = None, explicit: boo
         text = path.read_text(encoding="utf-8")
         config = parse_source(text, path)
         result = scan_config(config, patterns=patterns)
-        _locate_tool_findings(result, text)
         return _enforce_explicit(result, explicit)
     except Exception as error:
         return input_error_result(path, f"Failed to parse: {error}")
@@ -464,7 +464,6 @@ def scan_source(
             return _enforce_explicit(scan_python_source(text, path, patterns=patterns), explicit)
         config = parse_source(text, path)
         result = scan_config(config, patterns=patterns)
-        _locate_tool_findings(result, text)
         return _enforce_explicit(result, explicit)
     except Exception as error:
         return input_error_result(path, f"Failed to parse: {error}")

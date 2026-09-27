@@ -45,6 +45,7 @@ lintlang scan AGENTS.md
 lintlang scan config.yaml prompts/
 lintlang scan config.yaml --format json
 lintlang scan config.yaml --format sarif > lintlang.sarif
+lintlang scan AGENTS.md --format gitlab > gl-code-quality-report.json
 lintlang scan config.yaml --fail-on fail
 lintlang scan config.yaml --fail-on review
 lintlang scan config.yaml --min-severity high
@@ -96,8 +97,8 @@ checks; they still run in Python extraction mode when an H-series filter is set.
 
 `--min-severity` accepts `info` (default), `low`, `medium`, `high`, or `critical`.
 It filters structural findings before verdict computation and baseline matching.
-`--format`/`-f` accepts `terminal` (default), `markdown`, `json`, or `sarif`.
-`--no-suggestions` hides suggestions in terminal, Markdown, and SARIF reports;
+`--format`/`-f` accepts `terminal` (default), `markdown`, `json`, `sarif`, or `gitlab`.
+`--no-suggestions` hides suggestions in terminal, Markdown, SARIF, and GitLab reports;
 it does not remove the JSON `suggestion` field or redact finding evidence.
 `--fail-under` is a separate legacy HERM quality-score gate; prefer `--fail-on`
 for structural findings. None of these flags changes what arbitrary prose means.
@@ -519,6 +520,19 @@ fingerprints. Descriptions and suggestions can still contain source-derived
 text; SARIF is not a guarantee that diagnostics contain no sensitive information.
 Treat JSON and ordinary scan output as potentially sensitive too.
 
+`--format gitlab` writes a single GitLab Code Quality JSON array. Each
+structural finding with an evidence-backed source line has a repository-relative
+path, integer beginning line, specific check code, stable fingerprint,
+description, and GitLab severity. Prompt text offsets map to physical lines
+when safe; whole-prompt and structured YAML/JSON findings anchor to the actual
+prompt, scalar, message, schema, or tool construct. An unexpected finding with
+no supported source line cannot satisfy GitLab's required line field: the
+report omits it, reports the count on standard error, and exits nonzero even
+in advisory mode. Input, baseline, and outside-root path failures also remain
+nonzero while stdout stays a valid array.
+The [GitLab guide](docs/gitlab.md) provides a copyable CI job and complete
+severity mapping.
+
 Use a report path different from every input and baseline. Shell redirection can
 truncate an input before the CLI starts; the CLI cannot undo that. The Action's
 `sarif-file` route guards input/baseline aliases and writes via a temporary file.
@@ -624,7 +638,7 @@ From a source checkout:
 lintlang scan samples/bad_tool_descriptions.yaml
 ```
 
-Excerpt from `lintlang 0.7.1`:
+Excerpt from `lintlang 0.8.0`:
 
 ```text
 FAIL — 1 CRITICAL, 1 HIGH, 5 MEDIUM, 3 LOW
@@ -643,7 +657,7 @@ Only the install reaches the network to obtain the package and dependencies.
 Every `lintlang scan` below is offline.
 
 ```bash
-python -m pip install lintlang==0.7.1
+python -m pip install lintlang==0.8.0
 
 cat > /tmp/agent.yaml <<'YAML'
 system_prompt: |
@@ -661,7 +675,7 @@ YAML
 lintlang scan /tmp/agent.yaml --fail-on fail
 ```
 
-`lintlang 0.7.1` reports `FAIL — 1 CRITICAL, 1 HIGH, 1 MEDIUM` and exits `1`.
+`lintlang 0.8.0` reports `FAIL — 1 CRITICAL, 1 HIGH, 1 MEDIUM` and exits `1`.
 H1.1 identifies the empty tool description. This is a successful detection; do
 not hide the exit status with `|| true`. To use the newest package instead, run
 `python -m pip install --upgrade lintlang` and re-read the counts below as approximate.
@@ -719,7 +733,7 @@ left alone; review it before replacing it with `--force`. See
 Use the same inputs and outcomes with PowerShell-native temporary paths:
 
 ```powershell
-python -m pip install lintlang==0.7.1
+python -m pip install lintlang==0.8.0
 $badPath = Join-Path $env:TEMP "agent.yaml"
 $fixedPath = Join-Path $env:TEMP "agent-fixed.yaml"
 

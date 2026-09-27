@@ -17,7 +17,7 @@ from lintlang.sarif import (
     prepare_sarif_results,
     repository_artifact_uri,
 )
-from lintlang.scanner import ScanResult, input_error_result, scan_file
+from lintlang.scanner import ScanResult, input_error_result, scan_file, scan_source
 
 SCHEMA_PATH = Path(__file__).parent / "schemas" / "sarif-schema-2.1.0.json"
 OASIS_SCHEMA_SHA256 = "c3b4bb2d6093897483348925aaa73af03b3e3f4bd4ca38cef26dcb4212a2682e"
@@ -274,21 +274,24 @@ def test_ast_provenance_carries_separate_p1_p2_and_extracted_h_regions(tmp_path)
 
 
 @pytest.mark.parametrize(
-    ("name", "content"),
+    ("name", "content", "expected"),
     [
         (
             "duplicate-keys.yaml",
             "system_prompt: first value\n"
             "system_prompt: Respond in JSON and Markdown. Respond in JSON and Markdown.\n",
+            [("H6", 2, 2)],
         ),
         (
             "repeated.json",
             '{"system_prompt":"Respond in JSON and Markdown. Respond in JSON and Markdown."}',
+            [("H6", 1, 1)],
         ),
         (
             "multiline-unicode.yaml",
             "system_prompt: |\n  Be careful with caf\N{LATIN SMALL LETTER E WITH ACUTE} input.\n"
             "  Respond in JSON and Markdown.\n",
+            [("H5", 2, 2), ("H6", 1, 3)],
         ),
         (
             "aliases.yaml",
@@ -296,10 +299,11 @@ def test_ast_provenance_carries_separate_p1_p2_and_extracted_h_regions(tmp_path)
             "tools:\n"
             "  - name: first\n    description: *shared\n"
             "  - name: second\n    description: *shared\n",
+            [("H1.3", 1, 1), ("H1.3", 1, 1), ("H1.5", 1, 1)],
         ),
     ],
 )
-def test_structured_parser_edge_cases_never_fabricate_regions(tmp_path, name, content):
+def test_structured_parser_edge_cases_use_evidenced_regions(tmp_path, name, content, expected):
     source = tmp_path / "configs with spaces" / name
     source.parent.mkdir(exist_ok=True)
     source.write_text(content, encoding="utf-8")
@@ -309,7 +313,111 @@ def test_structured_parser_edge_cases_never_fabricate_regions(tmp_path, name, co
     results = _document({str(source): scan_result}, tmp_path)["runs"][0]["results"]
 
     assert results
-    assert all("region" not in result["locations"][0]["physicalLocation"] for result in results)
+    actual = sorted(
+        (
+            result["ruleId"],
+            result["locations"][0]["physicalLocation"]["region"]["startLine"],
+            result["locations"][0]["physicalLocation"]["region"].get("endLine", result["locations"][0]["physicalLocation"]["region"]["startLine"]),
+        )
+        for result in results
+    )
+    assert actual == expected
+
+
+@pytest.mark.parametrize("name", ["bad_agent_config.json", "mixed_issues.yaml", "bad_tool_descriptions.yaml"])
+def test_shipped_bad_config_findings_all_have_source_regions(name):
+    result = scan_file(Path(__file__).parents[1] / "samples" / name)
+    assert result.input_error is None
+    assert result.structural_findings
+    assert all(finding.source_region is not None for finding in result.structural_findings)
+
+
+def test_nested_literal_prompt_maps_match_and_whole_construct_to_different_lines():
+    source = (
+        "agent:\n  prompt: |\n    Keep trying until success.\n"
+        "    Respond in JSON and Markdown.\n"
+    )
+    result = scan_source(source, "nested.yaml")
+    lines = {(f.code, f.description): f.source_region for f in result.structural_findings}
+
+    assert any(code == "H2" and region == SourceRegion(3, 3) for (code, _), region in lines.items())
+    assert any(code == "H6" and region == SourceRegion(2, 4) for (code, _), region in lines.items())
+
+
+def test_duplicate_nested_tools_and_schema_fields_use_their_own_nodes():
+    source = (
+        "mcpServers:\n  alpha:\n    tools:\n"
+        "      - name: query\n        description: Handle data.\n"
+        "        inputSchema:\n          type: object\n          required: [ghost]\n"
+        "          properties:\n            payload:\n              type: object\n"
+        "              properties:\n                data:\n                  type: string\n"
+        "      - name: query\n        description: Handle data.\n"
+        "        inputSchema:\n          type: object\n          properties:\n"
+        "            data:\n              type: string\n"
+    )
+    result = scan_source(source, "tools.yaml")
+    assert result.input_error is None
+    assert all(f.source_region is not None for f in result.structural_findings)
+    assert next(f.source_region for f in result.structural_findings if f.code == "H1.4") == SourceRegion(15, 15)
+    assert next(f.source_region for f in result.structural_findings if "required field" in f.description.lower()) == SourceRegion(8, 8)
+    assert {
+        f.source_region.start_line for f in result.structural_findings
+        if f.code == "H3" and f.location.endswith(".data")
+    } == {13, 20}
+
+
+def test_aliased_schema_finding_points_to_the_anchor_field():
+    source = (
+        "definitions:\n  shared: &schema\n    type: object\n"
+        "    properties:\n      data:\n        type: string\n"
+        "tools:\n  - name: query\n    description: Handle data.\n"
+        "    inputSchema: *schema\n"
+    )
+    result = scan_source(source, "alias.yaml")
+    assert result.input_error is None
+    assert {
+        f.source_region for f in result.structural_findings if f.code == "H3"
+    } == {SourceRegion(5, 5)}
+
+
+def test_standalone_schema_property_uses_its_key_line():
+    source = "schemas:\n  - type: object\n    properties:\n      data:\n        type: string\n"
+    result = scan_source(source, "schemas.yaml")
+    assert [(f.location, f.source_region) for f in result.structural_findings] == [
+        ("schema[0].data", SourceRegion(4, 4))
+    ]
+
+
+def test_jsonc_comments_and_json_surrogate_pair_preserve_source_lines():
+    source = (
+        "{\n  // preceding comment\n"
+        '  "system_prompt": "\\ud83d\\ude00 Respond in JSON and Markdown.",\n'
+        "}\n"
+    )
+    result = scan_source(source, "commented.json")
+    assert result.input_error is None
+    assert [(f.code, f.source_region) for f in result.structural_findings] == [("H6", SourceRegion(3, 3))]
+
+
+def test_message_collection_and_individual_message_have_distinct_regions():
+    source = (
+        "messages:\n  - role: system\n    content: first\n"
+        "  - role: system\n    content: second\n"
+        "  - role: user\n    content: first\n"
+        "  - role: user\n    content: second\n"
+    )
+    result = scan_source(source, "messages.yaml")
+    by_location = {f.location: f.source_region for f in result.structural_findings if f.code == "H7"}
+    assert by_location["messages"] == SourceRegion(2, 9)
+    assert by_location["messages[3]"] == SourceRegion(8, 9)
+
+
+def test_root_json_message_array_uses_array_region():
+    source = '[\n {"role":"system","content":"one"},\n {"role":"system","content":"two"}\n]'
+    result = scan_source(source, "messages.json")
+    assert [(f.location, f.source_region) for f in result.structural_findings] == [
+        ("messages", SourceRegion(1, 4))
+    ]
 
 
 def test_input_errors_are_execution_failures_not_clean_results(tmp_path):

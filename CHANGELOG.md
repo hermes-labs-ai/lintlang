@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.8.0] - 2026-09-27
+
+### Added
+
+- Native GitLab Code Quality output through `lintlang scan --format gitlab`,
+  with repository-relative locations, stable fingerprints, and a CI example
+  for merge requests and the default branch. Incomplete reports fail explicitly
+  instead of hiding findings behind a successful export.
+- Parser-backed source locations for structured prompts, tools, schemas, and
+  messages, plus source spans for whole-prompt checks. The shared provenance
+  also improves existing terminal, JSON, and SARIF reports.
+
 ## [0.7.1] - 2026-09-23
 
 ### Fixed

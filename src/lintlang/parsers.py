@@ -16,8 +16,9 @@ from pathlib import Path
 
 import yaml
 
-from .ingestion import discover_tools
+from .ingestion import DESCRIPTION_KEYS, discover_tools
 from .patterns import AgentConfig, SkillMeta, ToolDef, is_localization_reference
+from .source_map import SourceMap
 
 
 def parse_file(path: str | Path) -> AgentConfig:
@@ -79,31 +80,50 @@ def _strip_jsonc(text: str) -> str:
     return re.sub(r",(\s*[}\]])", r"\1", without_comments)
 
 
+def _mask_jsonc(text: str) -> str:
+    """Keep positions stable for syntax marks while preserving parse semantics."""
+    without_comments = _JSONC_TOKEN.sub(
+        lambda m: m.group() if m.group().startswith('"') else re.sub(r"[^\n]", " ", m.group()), text
+    )
+    return re.sub(r",(?=\s*[}\]])", " ", without_comments)
+
+
+def _source_map(text: str, data: object) -> SourceMap | None:
+    try:
+        root = yaml.compose(text, Loader=_TolerantLoader)
+    except yaml.YAMLError:
+        return None
+    return SourceMap(text, root, data) if root is not None else None
+
+
 def parse_yaml(text: str, source_file: str = "") -> AgentConfig:
     """Parse YAML agent config."""
     data = yaml.load(text, Loader=_TolerantLoader)  # noqa: S506 - SafeLoader subclass
+    locations = _source_map(text, data)
     if isinstance(data, list):
-        return _normalize({}, source_file, document=data)
+        return _normalize({}, source_file, document=data, source_map=locations)
     if not isinstance(data, dict):
         return AgentConfig(system_prompt=text, source_file=source_file, raw={}, kind="prompt")
-    return _normalize(data, source_file)
+    return _normalize(data, source_file, source_map=locations)
 
 
 def parse_json(text: str, source_file: str = "") -> AgentConfig:
     """Parse JSON agent config."""
+    marked_text = text
     try:
         data = json.loads(text)
     except json.JSONDecodeError as strict_error:
         # JSON with comments / trailing commas (.vscode/*.json, tsconfig.json).
         try:
             data = json.loads(_strip_jsonc(text))
+            marked_text = _mask_jsonc(text)
         except json.JSONDecodeError:
             raise strict_error from None
     if isinstance(data, list):
-        return _normalize({}, source_file, document=data)
+        return _normalize({}, source_file, document=data, source_map=_source_map(marked_text, data))
     if not isinstance(data, dict):
         raise ValueError("JSON root must be an object or an array")
-    return _normalize(data, source_file)
+    return _normalize(data, source_file, source_map=_source_map(marked_text, data))
 
 
 _FRONT_MATTER = re.compile(r"\A(?:\ufeff)?---[ \t]*\r?\n(.*?)\r?\n---[ \t]*(?:\r?\n|\Z)", re.DOTALL)
@@ -207,18 +227,35 @@ def _skill_meta(meta: dict, raw_front_matter: str, source_file: str) -> SkillMet
     )
 
 
-def _normalize(data: dict, source_file: str, document: object = None) -> AgentConfig:
+def _set_prompt_parts(config: AgentConfig, parts: list[tuple[str, str]]) -> None:
+    position = 0
+    segments: list[tuple[int, int, str]] = []
+    for index, (path, value) in enumerate(parts):
+        if index:
+            position += 2  # the two newlines inserted by normalization
+        segments.append((position, position + len(value), path))
+        position += len(value)
+    config.system_prompt = "\n\n".join(value for _, value in parts)
+    config.prompt_segments = segments
+
+
+def _normalize(
+    data: dict, source_file: str, document: object = None, source_map: SourceMap | None = None
+) -> AgentConfig:
     """Normalize various config formats to AgentConfig.
 
     ``document`` is the parsed root when it is not a mapping (a root array of
     tools, messages, or prompt-bearing records); ``data`` is then empty.
     """
     config = AgentConfig(raw=data, source_file=source_file)
+    config.source_map = source_map
+    root_prompt_path = ""
 
     # Extract system prompt
     for key in ("system_prompt", "system", "systemPrompt", "instructions", "prompt"):
         if key in data and isinstance(data[key], str):
             config.system_prompt = data[key]
+            root_prompt_path = key
             # An MCP server's instructions describe its interface; they are
             # not the host agent's complete system prompt or execution budget.
             if key == "instructions" and isinstance(data.get("server"), dict) and "tools" in data:
@@ -230,9 +267,9 @@ def _normalize(data: dict, source_file: str, document: object = None) -> AgentCo
     has_root_prompt = bool(config.system_prompt)
     nested = _nested_prompts(data if document is None else document)
     if nested:
-        texts = [config.system_prompt] if config.system_prompt else []
-        texts += [text for _, text in nested if text != config.system_prompt]
-        config.system_prompt = "\n\n".join(texts)
+        parts = [(root_prompt_path, config.system_prompt)] if config.system_prompt else []
+        parts += [(path, text) for path, text in nested if text != config.system_prompt]
+        _set_prompt_parts(config, parts)
         config.prompt_paths = [path for path, _ in nested]
         # Several templates joined together are not ONE chat prompt: counting
         # "instructions" or demanding one output contract across them is
@@ -240,6 +277,8 @@ def _normalize(data: dict, source_file: str, document: object = None) -> AgentCo
         # even when the same config also contains subordinate templates.
         if not has_root_prompt:
             config.kind = "templates"
+    elif config.system_prompt:
+        _set_prompt_parts(config, [(root_prompt_path, config.system_prompt)])
 
     # Extract tools — by shape, wherever they sit (see ingestion.py)
     _validate_root_tool_names(data)
@@ -248,17 +287,41 @@ def _normalize(data: dict, source_file: str, document: object = None) -> AgentCo
     config.unclaimed = found.unclaimed
     config.dropped = found.dropped
     for item in found.tools:
-        config.tools.append(
-            ToolDef(
-                name=item.name,
-                description=item.description,
-                parameters=item.parameters,
-                path=item.path,
-                group=item.group,
-                owner=item.owner,
-                has_schema=item.has_schema,
-            )
+        source_path = item.path
+        schema_path = source_map.path_for_value(item.parameters, under=item.path) if source_map else ""
+        # Missing descriptions belong to this declaration, while described
+        # tools can point to the prose the detector actually inspected.
+        tool_region = None
+        if source_map:
+            for name_path in (f"{item.path}.function.name", f"{item.path}.custom.name", f"{item.path}.name"):
+                tool_region = source_map.scalar_region(name_path, item.name)
+                if tool_region:
+                    break
+            if tool_region is None:
+                tool_region = source_map.key_region(item.path) or source_map.region(item.path)
+        description_region = None
+        if source_map and item.description:
+            for prefix in (f"{item.path}.function", f"{item.path}.custom", item.path):
+                for key in DESCRIPTION_KEYS:
+                    description_region = source_map.scalar_region(f"{prefix}.{key}", item.description)
+                    if description_region:
+                        break
+                if description_region:
+                    break
+        tool = ToolDef(
+            name=item.name,
+            description=item.description,
+            parameters=item.parameters,
+            path=item.path,
+            group=item.group,
+            owner=item.owner,
+            has_schema=item.has_schema,
         )
+        tool.source_path = source_path
+        tool.schema_path = schema_path
+        tool.source_region = tool_region
+        tool.description_region = description_region
+        config.tools.append(tool)
 
     for item in found.tools:
         if is_localization_reference(item.description):
@@ -269,13 +332,17 @@ def _normalize(data: dict, source_file: str, document: object = None) -> AgentCo
     messages_data = _root_message_sequence(document) if document is not None else data.get("messages", [])
     if isinstance(messages_data, list):
         config.messages = messages_data
+        config.message_collection_path = "" if document is not None else "messages"
+        config.message_paths = [
+            f"{config.message_collection_path}[{index}]" for index in range(len(messages_data))
+        ]
         # Also extract system prompt from messages if not already found
         if not config.system_prompt:
-            for msg in messages_data:
+            for index, msg in enumerate(messages_data):
                 if isinstance(msg, dict) and msg.get("role") == "system":
                     content = msg.get("content", "")
                     if isinstance(content, str):
-                        config.system_prompt = content
+                        _set_prompt_parts(config, [(f"{config.message_paths[index]}.content", content)])
                     break
 
     # Extract schemas (structured output definitions)
@@ -284,8 +351,12 @@ def _normalize(data: dict, source_file: str, document: object = None) -> AgentCo
             val = data[key]
             if isinstance(val, dict):
                 config.schemas.append(val)
+                config.schema_paths.append(key)
             elif isinstance(val, list):
-                config.schemas.extend(v for v in val if isinstance(v, dict))
+                for index, member in enumerate(val):
+                    if isinstance(member, dict):
+                        config.schemas.append(member)
+                        config.schema_paths.append(f"{key}[{index}]")
 
     # Extract constraints
     for key in ("constraints", "config", "settings", "parameters"):

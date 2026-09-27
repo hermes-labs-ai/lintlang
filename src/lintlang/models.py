@@ -10,6 +10,10 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 from enum import Enum
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .source_map import SourceMap
 
 
 class Severity(Enum):
@@ -117,6 +121,15 @@ class AgentConfig:
     """Front matter of a SKILL.md / agent definition, when the file has one."""
     prompt_line_offset: int = 0
     """Lines of the source file that precede ``system_prompt`` (front matter)."""
+    def __post_init__(self) -> None:
+        # Parser provenance is independent per instance and internal to scans.
+        # Keep it outside dataclass fields so the existing public model shape
+        # (including dataclass serialization) stays compatible.
+        self.source_map: SourceMap | None = None
+        self.prompt_segments: list[tuple[int, int, str]] = []
+        self.message_paths: list[str] = []
+        self.message_collection_path: str = ""
+        self.schema_paths: list[str] = []
 
 
 @dataclass
@@ -131,6 +144,11 @@ class ToolDef:
     two MCP servers may each legitimately expose a tool called ``search``."""
     owner: str = ""
     has_schema: bool = False
+    def __post_init__(self) -> None:
+        self.source_path: str = ""
+        self.schema_path: str = ""
+        self.source_region: SourceRegion | None = None
+        self.description_region: SourceRegion | None = None
 
 
 def is_localization_reference(text: str) -> bool:

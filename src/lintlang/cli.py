@@ -135,7 +135,7 @@ def main(argv: list[str] | None = None) -> int:
     scan_parser.add_argument(
         "--format",
         "-f",
-        choices=["terminal", "markdown", "json", "sarif"],
+        choices=["terminal", "markdown", "json", "sarif", "gitlab"],
         default="terminal",
         help="Output format (default: terminal)",
     )
@@ -455,6 +455,7 @@ def _cmd_scan(args: argparse.Namespace) -> int:
 
     input_errors = [result for result in results.values() if result.input_error is not None]
     sarif_output_errors: list[str] = []
+    gitlab_omitted = 0
     pending_baseline = None
     if baseline_path:
         from .baseline import BaselineError, apply_baseline, create_baseline
@@ -643,6 +644,35 @@ def _cmd_scan(args: argparse.Namespace) -> int:
             print(f"Error: SARIF output error: {error}", file=sys.stderr)
             print(format_sarif_error(str(error)), end="")
             return 1
+    elif args.format == "gitlab":
+        from .gitlab import format_gitlab
+        from .sarif import find_repository_root, prepare_sarif_results
+
+        invocation_root = Path.cwd()
+        repository_root = find_repository_root(invocation_root)
+        gitlab_results, location_errors = prepare_sarif_results(
+            results,
+            repository_root=repository_root,
+            source_base=invocation_root,
+        )
+        for error in location_errors:
+            print(f"Error: GitLab output error: {error}", file=sys.stderr)
+        document, omitted = format_gitlab(
+            gitlab_results,
+            repository_root=repository_root,
+            source_base=invocation_root,
+            show_suggestions=not args.no_suggestions,
+        )
+        print(document, end="")
+        gitlab_omitted = omitted
+        if omitted:
+            print(
+                f"GitLab Code Quality omitted {omitted} finding(s) without an evidence-backed "
+                "source line; they still count toward the scan verdict and exit status. "
+                "Use --format json or sarif for all findings.",
+                file=sys.stderr,
+            )
+        sarif_output_errors = location_errors
 
     # Summary table for multi-file terminal scans
     if args.format == "terminal" and len(results) > 1:
@@ -717,6 +747,9 @@ def _cmd_scan(args: argparse.Namespace) -> int:
             print(f"\nQuality score {min_score:.1f} is below threshold {args.fail_under:.1f}", file=sys.stderr)
             return 1
 
+    if gitlab_omitted:
+        return 1
+
     return 0
 
 
@@ -727,7 +760,9 @@ def _empty_scan_failure(
     import json
 
     print(f"Error: {message}", file=sys.stderr)
-    if args.format == "sarif":
+    if args.format == "gitlab":
+        print("[]")
+    elif args.format == "sarif":
         from .sarif import format_sarif_error
 
         print(format_sarif_error(message), end="")
@@ -760,7 +795,9 @@ def _baseline_failure(args: argparse.Namespace, message: str) -> int:
     import json
 
     print(f"Error: Baseline: {message}", file=sys.stderr)
-    if args.format == "sarif":
+    if args.format == "gitlab":
+        print("[]")
+    elif args.format == "sarif":
         from .sarif import format_sarif_error
 
         print(format_sarif_error(f"Baseline error: {message}"), end="")
