@@ -388,6 +388,113 @@ def test_standalone_schema_property_uses_its_key_line():
     ]
 
 
+def test_standalone_root_mcp_yaml_tool_uses_real_root_nodes():
+    source = (
+        "name: query\n"
+        "description: Handle data.\n"
+        "inputSchema:\n  type: object\n  required: [ghost]\n"
+        "  properties:\n    data:\n      type: string\n"
+    )
+    result = scan_source(source, "tool.yaml")
+    assert result.input_error is None
+    assert len(result.structural_findings) == 5
+    assert all(f.source_region is not None for f in result.structural_findings)
+    assert {f.source_region for f in result.structural_findings if f.code.startswith("H1")} == {
+        SourceRegion(2, 2)
+    }
+    assert next(f.source_region for f in result.structural_findings if "Required field" in f.description) == SourceRegion(5, 5)
+    assert {f.source_region for f in result.structural_findings if f.location.endswith(".data")} == {
+        SourceRegion(7, 7)
+    }
+
+
+def test_standalone_root_openai_json_wrapper_uses_inner_nodes():
+    source = (
+        '{\n  "type": "function",\n  "function": {\n    "name": "query",\n'
+        '    "description": "Handle data.",\n    "parameters": {\n'
+        '      "type": "object",\n      "required": ["ghost"],\n'
+        '      "properties": {"data": {"type": "string"}}\n    }\n  }\n}'
+    )
+    result = scan_source(source, "tool.json")
+    assert result.input_error is None
+    assert len(result.structural_findings) == 5
+    assert all(f.source_region is not None for f in result.structural_findings)
+    assert {f.source_region for f in result.structural_findings if f.code.startswith("H1")} == {
+        SourceRegion(5, 5)
+    }
+    assert next(f.source_region for f in result.structural_findings if "Required field" in f.description) == SourceRegion(8, 8)
+    assert {f.source_region for f in result.structural_findings if f.location.endswith(".data")} == {
+        SourceRegion(9, 9)
+    }
+
+
+def test_yaml_merge_fields_point_to_anchor_declarations():
+    source = (
+        "defaults: &base\n  description: Handle data.\n"
+        "  inputSchema:\n    type: object\n    required: [ghost]\n"
+        "    properties:\n      data:\n        type: string\n"
+        "tools:\n  - <<: *base\n    name: query\n"
+    )
+    result = scan_source(source, "merge.yaml")
+    assert result.input_error is None
+    assert len(result.structural_findings) == 5
+    assert all(f.source_region is not None for f in result.structural_findings)
+    assert {f.source_region for f in result.structural_findings if f.code.startswith("H1")} == {
+        SourceRegion(2, 2)
+    }
+    assert next(f.source_region for f in result.structural_findings if "Required field" in f.description) == SourceRegion(5, 5)
+    assert {f.source_region for f in result.structural_findings if f.location.endswith(".data")} == {
+        SourceRegion(7, 7)
+    }
+
+
+def test_yaml_merge_local_overrides_own_their_fields_even_before_merge_key():
+    source = (
+        "defaults: &base\n  description: Handle data.\n"
+        "  inputSchema:\n    type: object\n    required: [old_missing]\n"
+        "    properties:\n      data:\n        type: string\n"
+        "tools:\n  - description: Process data.\n    <<: *base\n    name: query\n"
+        "    inputSchema:\n      type: object\n      required: [new_missing]\n"
+        "      properties:\n        value:\n          type: string\n"
+    )
+    result = scan_source(source, "override.yaml")
+    assert result.input_error is None
+    assert all(f.source_region is not None for f in result.structural_findings)
+    assert {f.source_region for f in result.structural_findings if f.code.startswith("H1")} == {
+        SourceRegion(10, 10)
+    }
+    required = [f for f in result.structural_findings if "Required field" in f.description]
+    assert len(required) == 1 and "new_missing" in required[0].description
+    assert required[0].source_region == SourceRegion(15, 15)
+    assert {f.source_region for f in result.structural_findings if f.location.endswith(".value")} == {
+        SourceRegion(17, 17)
+    }
+
+
+def test_yaml_merge_list_first_mapping_wins_provenance():
+    source = (
+        "definitions:\n  first: &first\n    name: query\n    description: Handle data.\n"
+        "    inputSchema:\n      type: object\n      required: [first_missing]\n"
+        "      properties:\n        data:\n          type: string\n"
+        "  second: &second\n    name: query\n    description: Process data.\n"
+        "    inputSchema:\n      type: object\n      required: [second_missing]\n"
+        "      properties:\n        value:\n          type: string\n"
+        "tools:\n  - <<: [*first, *second]\n"
+    )
+    result = scan_source(source, "merge-list.yaml")
+    assert result.input_error is None
+    assert all(f.source_region is not None for f in result.structural_findings)
+    assert {f.source_region for f in result.structural_findings if f.code.startswith("H1")} == {
+        SourceRegion(4, 4)
+    }
+    required = [f for f in result.structural_findings if "Required field" in f.description]
+    assert len(required) == 1 and "first_missing" in required[0].description
+    assert required[0].source_region == SourceRegion(7, 7)
+    assert {f.source_region for f in result.structural_findings if f.location.endswith(".data")} == {
+        SourceRegion(9, 9)
+    }
+
+
 def test_jsonc_comments_and_json_surrogate_pair_preserve_source_lines():
     source = (
         "{\n  // preceding comment\n"

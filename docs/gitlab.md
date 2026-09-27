@@ -1,51 +1,58 @@
 # GitLab Code Quality
 
-LintLang can write a GitLab Code Quality report directly. From the repository
-root, scan the instruction files your agents actually read:
+Catch agent-configuration problems during code review. LintLang brings ambiguous
+tool descriptions, conflicting instructions, and missing constraints into
+GitLab merge requests as Code Quality findings, with source locations, severity,
+and suggested fixes.
+
+## Add it to your pipeline
+
+Copy the [LintLang CI job](../examples/gitlab-code-quality.yml) into your
+`.gitlab-ci.yml`, then replace `AGENTS.md` with the files or directories you want
+to check. The job installs LintLang 0.8.0 and runs on merge requests and the default
+branch. Run the default-branch pipeline first so GitLab has a comparison report.
+
+The example blocks on HIGH or CRITICAL findings and keeps the reports available
+when the job fails. Change `--fail-on fail` to `--fail-on review` to include
+MEDIUM findings, or remove the option for advisory checks. A full JSON report is
+also available as a job artifact, including scores and scan coverage details.
+
+To generate a report locally, run this from your repository root:
 
 ```bash
 lintlang scan AGENTS.md --format gitlab --fail-on fail > gl-code-quality-report.json
 ```
 
-The maintained [CI job](../examples/gitlab-code-quality.yml) installs the
-v0.8.0 package, runs on merge requests and the default branch, and publishes
-`gl-code-quality-report.json` through `artifacts:reports:codequality`. The
-default-branch pipeline provides the comparison report for merge requests. Copy
-the job into `.gitlab-ci.yml` and replace `AGENTS.md` with your actual input or
-list of inputs. The example also stores a full JSON report with verdicts,
-coverage notes, and HERM data. It retains the scan's failure status and uploads
-both files even when the gate fails.
+Use the same input paths for your GitLab report and full JSON report. Choose
+report destinations outside the scanned inputs; shell redirection overwrites
+the destination before the scan starts.
 
-The report is one JSON array, including when there are no reportable findings.
-Each entry has `description`, `check_name`, `fingerprint`, `severity`, and a
-`location` with a repository-relative `path` and positive integer
-`lines.begin`. Paths do not start with `./`. LintLang maps CRITICAL to GitLab
-`blocker`, HIGH to `critical`, MEDIUM to `major`, LOW to `minor`, and INFO to
-`info`. Fingerprints are deterministic across scan order and preceding line
-shifts; identical repeated findings in a file receive distinct fingerprints
-in source order. Changing a finding's code, logical location, description, or
-relative file path changes its fingerprint.
+## Read the findings
 
-Locations come from source evidence. For prompt text, LintLang uses an exact
-text offset when it can map that offset safely to a physical line. Whole-prompt
-findings point to the actual prompt construct. Structured YAML/JSON findings
-use the parsed scalar, message, schema, or tool construct that produced them;
-when a decoded scalar cannot be mapped to a precise content line, its real
-source start line is used. LintLang does not assign an arbitrary first line of
-the file.
+Each finding includes a rule code, description, suggested action, severity, and
+repository-relative file location. Unchanged findings stay matched when unrelated
+lines move, so merge requests highlight new and resolved issues.
 
-If an unexpected or programmatically supplied finding still has no supported
-source line, GitLab cannot represent it. LintLang omits it from the Code Quality
-array, prints the omitted count to standard error, and exits nonzero even in
-advisory mode. Inspect the full JSON report or `--format sarif` for that finding.
-Baselines and severity filters apply before reporting, just as for other output
-formats. Input, baseline, and outside-root path errors return a nonzero status;
-the report remains a valid JSON array, and diagnostics go to standard error.
-GitLab Code Quality carries structural findings, not HERM scores or coverage
-notes.
+LintLang maps its severities to GitLab's categories:
 
-Write the report to a path outside the scanned inputs. Shell redirection opens
-the destination before LintLang starts and can truncate an input if they share
-a path. This report is generated locally; LintLang does not upload it itself.
-See [GitLab's report format](https://docs.gitlab.com/ci/testing/code_quality/#code-quality-report-format)
-for the receiving contract.
+| LintLang | GitLab |
+| --- | --- |
+| CRITICAL | blocker |
+| HIGH | critical |
+| MEDIUM | major |
+| LOW | minor |
+| INFO | info |
+
+A finding about specific text points to that text where its source line can be
+resolved. A finding about a whole prompt, tool, schema, or message points to the
+start of that construct. Multiline values that transform whitespace or escapes
+may also point to the enclosing value.
+
+Baselines and severity filters work as they do with other output formats. If an
+input cannot be scanned or a finding cannot be assigned a valid source location,
+the command fails with a diagnostic on standard error. The full JSON artifact
+retains the scan details for troubleshooting.
+
+The output follows [GitLab's Code Quality report format](https://docs.gitlab.com/ci/testing/code_quality/#code-quality-report-format).
+GitLab receives the report through the CI job's `artifacts:reports:codequality`
+setting; the local scanner does not upload files.

@@ -13,6 +13,7 @@ from collections import defaultdict
 
 import yaml
 
+from .ingestion import SCHEMA_KEYS
 from .models import SourceRegion
 
 
@@ -25,6 +26,39 @@ class SourceMap:
         self._ambiguous: set[str] = set()
         self.identity_paths: dict[int, list[str]] = defaultdict(list)
         self._walk(root, data, "", set(), ())
+
+    @classmethod
+    def _mapping_entries(
+        cls, node: yaml.MappingNode, ancestors: set[int]
+    ) -> list[tuple[yaml.Node, yaml.Node]]:
+        """Mirror SafeLoader merge precedence without mutating syntax nodes.
+
+        A merge list gives its first mapping priority; explicit keys on the
+        receiving mapping override every inherited key. Keeping the winning
+        syntax node also keeps the anchor's original source mark.
+        """
+        if id(node) in ancestors:
+            return []
+        ancestors = ancestors | {id(node)}
+        merged: list[tuple[yaml.Node, yaml.Node]] = []
+        local: list[tuple[yaml.Node, yaml.Node]] = []
+        for key_node, child_node in node.value:
+            if key_node.tag != "tag:yaml.org,2002:merge":
+                local.append((key_node, child_node))
+            elif isinstance(child_node, yaml.MappingNode):
+                merged.extend(cls._mapping_entries(child_node, ancestors))
+            elif isinstance(child_node, yaml.SequenceNode):
+                for member in reversed(child_node.value):
+                    if isinstance(member, yaml.MappingNode):
+                        merged.extend(cls._mapping_entries(member, ancestors))
+        # SafeLoader constructs the flattened pairs in order and lets the
+        # last value for each key win. Do that before descending, so an
+        # overridden inherited object cannot leave stale child positions.
+        effective: dict[str, tuple[yaml.Node, yaml.Node]] = {}
+        for key_node, child_node in (*merged, *local):
+            if isinstance(key_node, yaml.ScalarNode):
+                effective[key_node.value] = (key_node, child_node)
+        return list(effective.values())
 
     def _walk(
         self, node: yaml.Node, value: object, path: str,
@@ -41,7 +75,7 @@ class SourceMap:
             return  # recursive YAML alias
         ancestors = ancestors | {id(node)}
         if isinstance(node, yaml.MappingNode) and isinstance(value, dict):
-            for key_node, child_node in node.value:
+            for key_node, child_node in self._mapping_entries(node, set()):
                 if not isinstance(key_node, yaml.ScalarNode):
                     continue
                 key = key_node.value
@@ -75,10 +109,18 @@ class SourceMap:
     def path_for_value(self, value: object, under: str = "") -> str:
         """Find the exact parsed container within an owning tool or schema."""
         candidates = self.identity_paths.get(id(value), ())
-        return next(
-            (path for path in candidates if path not in self._ambiguous
-             and (path.startswith(f"{under}.") or path == under)),
-            "",
+        available = (
+            path for path in candidates
+            if path and path not in self._ambiguous
+            and (not under or path.startswith(f"{under}.") or path == under)
+        )
+        # A standalone tool's discovery path is synthetic, whereas its source
+        # root is empty. Schema-key identity outranks an earlier alias under
+        # definitions; otherwise use the nearest owner-relative path.
+        return min(
+            available,
+            key=lambda path: (path.rsplit(".", 1)[-1] not in SCHEMA_KEYS, path.count(".") + path.count("["), path),
+            default="",
         )
 
     def scalar_region(self, path: str, value: str, offset: int | None = None) -> SourceRegion | None:

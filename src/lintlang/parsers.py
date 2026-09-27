@@ -239,6 +239,10 @@ def _set_prompt_parts(config: AgentConfig, parts: list[tuple[str, str]]) -> None
     config.prompt_segments = segments
 
 
+def _source_child(path: str, key: str) -> str:
+    return f"{path}.{key}" if path else key
+
+
 def _normalize(
     data: dict, source_file: str, document: object = None, source_map: SourceMap | None = None
 ) -> AgentConfig:
@@ -287,23 +291,31 @@ def _normalize(
     config.unclaimed = found.unclaimed
     config.dropped = found.dropped
     for item in found.tools:
-        source_path = item.path
-        schema_path = source_map.path_for_value(item.parameters, under=item.path) if source_map else ""
+        source_path = "" if item.path == "<root>" else item.path
+        schema_path = source_map.path_for_value(item.parameters, under=source_path) if source_map else ""
         # Missing descriptions belong to this declaration, while described
         # tools can point to the prose the detector actually inspected.
         tool_region = None
         if source_map:
-            for name_path in (f"{item.path}.function.name", f"{item.path}.custom.name", f"{item.path}.name"):
+            for name_path in (
+                _source_child(source_path, "function.name"),
+                _source_child(source_path, "custom.name"),
+                _source_child(source_path, "name"),
+            ):
                 tool_region = source_map.scalar_region(name_path, item.name)
                 if tool_region:
                     break
             if tool_region is None:
-                tool_region = source_map.key_region(item.path) or source_map.region(item.path)
+                tool_region = source_map.key_region(source_path) or source_map.region(source_path)
         description_region = None
         if source_map and item.description:
-            for prefix in (f"{item.path}.function", f"{item.path}.custom", item.path):
+            for prefix in (
+                _source_child(source_path, "function"),
+                _source_child(source_path, "custom"),
+                source_path,
+            ):
                 for key in DESCRIPTION_KEYS:
-                    description_region = source_map.scalar_region(f"{prefix}.{key}", item.description)
+                    description_region = source_map.scalar_region(_source_child(prefix, key), item.description)
                     if description_region:
                         break
                 if description_region:
