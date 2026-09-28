@@ -86,13 +86,14 @@ jobs:
           test "$BAD_ACTION_OUTCOME" = failure
           python - <<'PY'
           import json
+          from importlib.metadata import version
           from pathlib import Path
 
           clean = json.loads(Path("lintlang-clean.sarif").read_text())
           bad = json.loads(Path("lintlang-bad.sarif").read_text())
           assert clean["version"] == bad["version"] == "2.1.0"
           for report in (clean, bad):
-              assert report["runs"][0]["tool"]["driver"]["semanticVersion"] == "0.7.0"
+              assert report["runs"][0]["tool"]["driver"]["semanticVersion"] == version("lintlang")
           assert not clean["runs"][0]["results"]
           assert {"H1.1", "H3"} <= {result["ruleId"] for result in bad["runs"][0]["results"]}
           PY
