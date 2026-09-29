@@ -13,7 +13,7 @@
 [![License](https://img.shields.io/pypi/l/lintlang)](LICENSE)
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/hermes-labs-ai/lintlang/badge)](https://scorecard.dev/viewer/?uri=github.com/hermes-labs-ai/lintlang)
 
-[Product page](https://lintlang.ai/) · [Playground](https://hermes-labs.ai/lintlang#playground) · [PyPI](https://pypi.org/project/lintlang/) · [Docs](llms-full.txt)
+[Product page](https://lintlang.ai/) · [Playground](https://hermes-labs.ai/lintlang#playground) · [PyPI](https://pypi.org/project/lintlang/) · [Docs](llms-full.txt) · [简体中文](docs/zh-CN/README.md)
 
 </div>
 
