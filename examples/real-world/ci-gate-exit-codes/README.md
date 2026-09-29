@@ -13,7 +13,7 @@ A pull request check runs `lintlang scan ... --fail-on <level>` and blocks the m
 | unreadable manifest, `--fail-on fail` | `ERROR`: input error | 1 |
 | unreadable manifest, `--allow-uninspected --fail-on fail` | `SKIPPED — nothing inspected (this is not a PASS)` | 0 |
 
-`--fail-on fail` blocks HIGH and CRITICAL findings; `--fail-on review` also blocks MEDIUM. Without a gate, every scan above would exit `0`.
+`--fail-on fail` blocks HIGH and CRITICAL findings; `--fail-on review` also blocks MEDIUM. Without a gate, the four finding scans above would exit `0`; the unreadable manifest still exits `1`, because an input error is not a finding, unless you pass `--allow-uninspected`.
 
 The last two rows use `input-unrecognized-shape.json`, a real registry file that lists its parameters under `arguments` instead of `inputSchema`, `input_schema` or `parameters`. LintLang found a named, described object it could not read as a tool and refused to call that a pass. Passing `--allow-uninspected` turns the error into an explicit `SKIPPED` that also exits `0`. Use it only when uninspected files are expected, because it lets a file through that no rule looked at.
 
