@@ -17,7 +17,7 @@
 
 </div>
 
-LintLang is a local, deterministic static linter for the instructions and tool interfaces an AI agent is given. It flags ambiguous tool choices, conflicting output-format requirements, schema gaps, missing bounds, and other setup defects before the agent runs.
+LintLang is a local, deterministic static linter for the instructions and tool interfaces an AI agent is given. It flags ambiguous tool choices, mixed output formats, schema gaps, missing bounds, and other setup defects before the agent runs.
 
 **Point it at a project directory.** LintLang finds supported agent-facing content inside the files you already use: MCP and function-tool definitions nested in JSON/YAML, parameter schemas, system prompts, messages, output contracts, `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `SKILL.md`, and supported Python prompt code.
 
@@ -44,7 +44,7 @@ LintLang catches problems like:
 - **Ambiguous tools** — sibling tools that overlap without a clear reason for the model to choose one over another.
 - **Missing bounds** — retries, loops, or tool use without explicit stopping or progress conditions.
 - **Schema mismatches** — missing required fields, unclear parameters, and schemas that do not communicate enough intent.
-- **Conflicting output formats and missing priorities** — several output formats named without saying when each applies, and long instruction lists with no stated priority order. LintLang does not detect semantic contradictions between two instructions (for example "always do X" next to "never do X").
+- **Mixed output formats and missing priorities** — a prompt that names more than one output format (H6 flags any two recognized formats, even when each is scoped to a case), and long instruction lists with no stated priority order (H5). LintLang does not detect semantic contradictions between two instructions, for example "always do X" next to "never do X".
 - **SKILL.md defects** — missing or invalid metadata, unclear usage criteria, and skill names that do not match their directory.
 - **Context and message errors** — stale project references, unbounded persistence, malformed roles, and broken tool-message sequences.
 - **Embedded agent logic** — supported Python prompts, literal tool definitions, and selected pipeline thresholds.

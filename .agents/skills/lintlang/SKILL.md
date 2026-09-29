@@ -9,7 +9,7 @@ compatibility: Requires Python 3.10+; installs via pip or runs standalone via `u
 
 LintLang statically analyzes the natural-language instructions that control AI
 agents — system prompts, tool descriptions, and configs — catching ambiguous
-tools, missing limits, and conflicting output-format requirements before they reach an agent
+tools, missing limits, and mixed output formats before they reach an agent
 at runtime. It is zero-LLM: deterministic pattern and structural checks only,
 no model calls, no telemetry, no network access.
 

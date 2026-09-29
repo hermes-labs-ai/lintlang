@@ -1,6 +1,6 @@
 ---
 name: lintlang
-description: Lint AI agent instruction files (SKILL.md, CLAUDE.md, AGENTS.md, GEMINI.md), tool definitions, system prompts, and agent configs with the deterministic LintLang CLI. Use when writing, editing, or reviewing agent instructions to catch ambiguous tool descriptions, missing stop conditions, schema/description mismatches, conflicting output-format requirements, or prompts embedded in Python before they reach runtime. Zero-LLM static analysis; no model calls and no network calls during a scan.
+description: Lint AI agent instruction files (SKILL.md, CLAUDE.md, AGENTS.md, GEMINI.md), tool definitions, system prompts, and agent configs with the deterministic LintLang CLI. Use when writing, editing, or reviewing agent instructions to catch ambiguous tool descriptions, missing stop conditions, schema/description mismatches, mixed output formats, or prompts embedded in Python before they reach runtime. Zero-LLM static analysis; no model calls and no network calls during a scan.
 version: 1.0.0
 compatibility: Needs the lintlang CLI on PATH, or uvx / Python 3.10+ with pip to fetch it. Scans run fully offline once the CLI is present.
 metadata:
@@ -24,7 +24,7 @@ telemetry, no network access during a scan.
 
 Invoke this skill when writing, editing, or reviewing agent instructions and
 you need to catch ambiguous tool descriptions, missing stop conditions,
-schema/description mismatches, conflicting output-format requirements, or prompts embedded in
+schema/description mismatches, mixed output formats, or prompts embedded in
 Python — before they reach a runtime agent.
 
 ## Resolve a runner, in this order

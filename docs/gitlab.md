@@ -1,7 +1,7 @@
 # GitLab Code Quality
 
 Catch agent-configuration problems during code review. LintLang brings ambiguous
-tool descriptions, conflicting output-format requirements, and missing constraints into
+tool descriptions, mixed output formats, and missing constraints into
 GitLab merge requests as Code Quality findings, with source locations, severity,
 and suggested fixes.
 
