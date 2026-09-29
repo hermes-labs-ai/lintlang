@@ -484,7 +484,7 @@ def _is_test_code(filepath: Path, base_dir: Path) -> bool:
 def scan_directory(
     directory: str | Path,
     patterns: list[str] | None = None,
-    extensions: tuple[str, ...] = (".yaml", ".yml", ".json", ".txt", ".md", ".prompt", ".py"),
+    extensions: tuple[str, ...] = (".yaml", ".yml", ".json", ".txt", ".md", ".mdc", ".prompt", ".py"),
     exclude: list[str] | None = None,
 ) -> dict[str, ScanResult]:
     """Scan all matching files in a directory.

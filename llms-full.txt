@@ -176,7 +176,7 @@ a byte-identical-output promise.
 | Input | Recognized content and limits |
 | --- | --- |
 | `.yaml`, `.yml`, `.json` | Tool definitions found by shape anywhere in the document (object or array root); top-level prompt, message and schema fields |
-| `.md` | An instruction DOCUMENT (AGENTS.md, CLAUDE.md, a SKILL.md body). YAML front matter is kept out of the body; selection metadata is checked only on explicit definition paths |
+| `.md`, `.mdc` | An instruction DOCUMENT (AGENTS.md, CLAUDE.md, a SKILL.md body, or a Cursor rule). YAML front matter is kept out of the body; selection metadata is checked only on explicit definition paths |
 | `.txt`, `.prompt` | Source text as a chat system prompt |
 | `.py` | AST-extracted strings that the code uses as prompts, and supported numeric assignments; not general Python linting |
 
@@ -482,7 +482,7 @@ for path, scanned in results.items():
 `skipped`. Load/parse failures use the `input_error` channel; inputs with no
 recognized agent-facing content return `SKIPPED`, never `PASS`.
 `scan_directory(directory, patterns=None,
-extensions=(".yaml", ".yml", ".json", ".txt", ".md", ".prompt", ".py"),
+extensions=(".yaml", ".yml", ".json", ".txt", ".md", ".mdc", ".prompt", ".py"),
 exclude=None)` returns a path-keyed result dictionary. Directory failures remain
 represented in that dictionary. Severity gates are CLI policy, not exceptions
 raised by `compute_verdict`.

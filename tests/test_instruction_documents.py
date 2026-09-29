@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import json
+
 import pytest
 
+from lintlang.cli import main
 from lintlang.report import compute_verdict
 from lintlang.scanner import scan_file
 
@@ -170,3 +173,20 @@ def test_ordinary_markdown_metadata_is_not_skill_selection(tmp_path, path, front
 def test_selection_definition_metadata_keeps_findings(tmp_path, path, front, code):
     result = scan(tmp_path, path, f"---\n{front}\n---\n\nBody.\n")
     assert code in {f.code for f in result.structural_findings}
+
+
+@pytest.mark.parametrize("front,code,exit_code", [
+    ("name: reviewer", "H1.1", 1),
+    ("description: Writes a status summary from a template.", "H1.8", 0),
+])
+def test_directory_cli_scans_cursor_rules_without_classifying_assets(tmp_path, capsys, front, code, exit_code):
+    rule = ".cursor/rules/reviewer.mdc"
+    controls = [".cursor/rules/assets/template.mdc", "docs/page.mdc", "docs/page.md"]
+    for path in [rule, *controls]:
+        scan(tmp_path, path, f"---\n{front}\n---\n\nBody.\n")
+
+    assert main(["scan", str(tmp_path), "--patterns", "H1", "--format", "json", "--fail-on", "fail"]) == exit_code
+    results = {item["file"]: item for item in json.loads(capsys.readouterr().out)}
+    assert code in {finding["code"] for finding in results[str(tmp_path / rule)]["structural_findings"]}
+    for path in controls:
+        assert not any(finding["pattern_id"] == "H1" for finding in results[str(tmp_path / path)]["structural_findings"])
