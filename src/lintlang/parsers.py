@@ -149,6 +149,21 @@ def _is_documented_instruction_path(source_file: str) -> bool:
     )
 
 
+def _is_selection_metadata_path(source_file: str) -> bool:
+    """Recognize selection definitions, without inheriting a directory's assets."""
+    path = Path(source_file)
+    if path.name == "SKILL.md":
+        return True
+    if path.suffix.lower() not in _MARKDOWN_SUFFIXES:
+        return False
+    parts = path.parts
+    if parts[-3:-1] == (".claude", "agents"):
+        return True
+    if any(parts[index:index + 2] == (".claude", "commands") for index in range(len(parts) - 2)):
+        return True
+    return path.suffix.lower() == ".mdc" and parts[-3:-1] == (".cursor", "rules")
+
+
 def _markdown_is_chat_prompt(body: str) -> bool:
     """Recognize explicit chat-prompt evidence without relying on a filename."""
     return bool(_CHAT_PROMPT_HEADING.search(body) or _CHAT_ROLE_OPENING.search(body))
@@ -161,8 +176,8 @@ def parse_text(text: str, source_file: str = "") -> AgentConfig:
     distinct from Markdown that explicitly presents itself as a chat prompt.
     Chat-prompt shape checks apply only when the content supplies that evidence.
 
-    YAML front matter carrying ``name`` / ``description`` is the selection-time
-    metadata of a skill or sub-agent. It is read as such and kept out of the
+    YAML front matter carrying ``name`` / ``description`` on a selection
+    definition path is the selection-time metadata of a skill or sub-agent. It is read as such and kept out of the
     body, so its keys are neither linted as prose nor silently ignored.
     """
     suffix = Path(source_file).suffix.lower()
@@ -179,12 +194,9 @@ def parse_text(text: str, source_file: str = "") -> AgentConfig:
         if isinstance(meta, dict):
             offset = text[: match.end()].count("\n")
             body = text[match.end() :]
-            # `name` alone is not skill metadata: GitHub issue templates carry
-            # `name` + `about`. A skill is a SKILL.md, a file under a skills /
-            # agents / commands directory, or front matter with a description.
-            parents = {part.lower() for part in Path(source_file).parts[:-1]}
-            is_skill_file = Path(source_file).name == "SKILL.md" or bool(parents & {"skills", "agents", "commands"})
-            if "description" in meta or ("name" in meta and is_skill_file):
+            # Selection metadata belongs to an explicit definition path;
+            # description/name keys in docs and nested assets are ordinary metadata.
+            if _is_selection_metadata_path(source_file) and ("description" in meta or "name" in meta):
                 skill = _skill_meta(meta, match.group(1), source_file)
 
     kind = "prompt"

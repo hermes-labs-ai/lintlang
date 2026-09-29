@@ -176,7 +176,7 @@ a byte-identical-output promise.
 | Input | Recognized content and limits |
 | --- | --- |
 | `.yaml`, `.yml`, `.json` | Tool definitions found by shape anywhere in the document (object or array root); top-level prompt, message and schema fields |
-| `.md` | An instruction DOCUMENT (AGENTS.md, CLAUDE.md, a SKILL.md body). YAML front matter with `name`/`description` is read as skill metadata and kept out of the body |
+| `.md` | An instruction DOCUMENT (AGENTS.md, CLAUDE.md, a SKILL.md body). YAML front matter is kept out of the body; selection metadata is checked only on explicit definition paths |
 | `.txt`, `.prompt` | Source text as a chat system prompt |
 | `.py` | AST-extracted strings that the code uses as prompts, and supported numeric assignments; not general Python linting |
 
@@ -249,8 +249,9 @@ files), CONTRIBUTING, and SECURITY are skipped. Python test code (`tests/`, `tes
 during a walk: it holds fixtures, not what an agent is given, and its explicit result keeps that exclusion visible. A `.txt` file met during a walk
 is scanned only if it contains prompt language; name it explicitly to scan it
 regardless. Front matter is read as skill metadata only when it has a
-`description`, or a `name` in a `SKILL.md` or under a `skills`/`agents`/`commands`
-directory, so GitHub issue templates are not skills. Symlink files and directories are not followed during
+`name` or `description` in `SKILL.md`, a Markdown file directly in `.claude/agents`
+or anywhere below `.claude/commands`, or a `.mdc` file directly in `.cursor/rules`. Ordinary
+docs pages and supporting assets outside these explicit definition paths are not selection definitions. Symlink files and directories are not followed during
 directory discovery. Explicit file scans do not use these directory exclusions.
 Traversal errors remain input errors rather than disappearing as clean results.
 
@@ -342,8 +343,8 @@ prose; `not_inspected` names unresolved tool and schema descriptions. No sibling
 files or remote localization resources are fetched. Skill source catalogs with
 `repo` and `skillPath` are explicitly skipped; their bodies are not present.
 
-For a Markdown file with `name`/`description` front matter (a skill or sub-agent
-definition) the description is the selection-time text, so H1.1 (no description,
+For an explicit selection definition path with `name`/`description` front matter
+(`SKILL.md`, `.claude/agents/*.md`, `.claude/commands/**/*.md`, or `.cursor/rules/*.mdc`) the description is the selection-time text, so H1.1 (no description,
 HIGH) and H1.2 (under 20 characters, MEDIUM) apply to it, located at
 `frontmatter.description` with its line. H1.8 looks for trigger vocabulary ("use
 when", "if the user", "before", a description written as the situation); it is a

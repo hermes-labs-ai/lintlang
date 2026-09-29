@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from lintlang.report import compute_verdict
 from lintlang.scanner import scan_file
 
@@ -138,3 +140,30 @@ class TestDanglingReferences:
             "Copy `src/your_tool.py`.\n```\ncat src/missing.py\n```\n"
         )
         assert self.repo(tmp_path, body) == []
+
+
+@pytest.mark.parametrize("path", [
+    "skills/my-skill/assets/report-template.md",
+    "agents/reviewer/assets/template.md",
+    "commands/review/assets/template.md",
+    "docs/getting-started.md",
+    "docs/commands/scan.md",
+])
+@pytest.mark.parametrize("front", ["name: '{name}'", "description: Install the tool and run your first scan."])
+def test_ordinary_markdown_metadata_is_not_skill_selection(tmp_path, path, front):
+    result = scan(tmp_path, path, f"---\n{front}\n---\n\nBody.\n")
+    assert not any(f.pattern_id == "H1" for f in result.structural_findings)
+    assert result.inspected.get("skills", 0) == 0
+
+
+@pytest.mark.parametrize("path", [
+    "my-skill/SKILL.md", ".claude/agents/reviewer.md", ".claude/commands/review.md",
+    ".cursor/rules/style.mdc", ".claude/commands/release/deploy.md",
+])
+@pytest.mark.parametrize("front,code", [
+    ("name: reviewer", "H1.1"),
+    ("description: Writes a status summary from a template.", "H1.8"),
+])
+def test_selection_definition_metadata_keeps_findings(tmp_path, path, front, code):
+    result = scan(tmp_path, path, f"---\n{front}\n---\n\nBody.\n")
+    assert code in {f.code for f in result.structural_findings}
