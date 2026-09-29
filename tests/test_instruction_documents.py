@@ -148,6 +148,9 @@ class TestDanglingReferences:
     "commands/review/assets/template.md",
     "docs/getting-started.md",
     "docs/commands/scan.md",
+    ".claude/agents/reviewer.mdc",
+    ".claude/commands/review.mdc",
+    ".claude/commands/release/deploy.mdc",
 ])
 @pytest.mark.parametrize("front", ["name: '{name}'", "description: Install the tool and run your first scan."])
 def test_ordinary_markdown_metadata_is_not_skill_selection(tmp_path, path, front):

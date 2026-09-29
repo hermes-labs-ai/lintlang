@@ -157,9 +157,11 @@ def _is_selection_metadata_path(source_file: str) -> bool:
     if path.suffix.lower() not in _MARKDOWN_SUFFIXES:
         return False
     parts = path.parts
-    if parts[-3:-1] == (".claude", "agents"):
+    if path.suffix.lower() == ".md" and parts[-3:-1] == (".claude", "agents"):
         return True
-    if any(parts[index:index + 2] == (".claude", "commands") for index in range(len(parts) - 2)):
+    if path.suffix.lower() == ".md" and any(
+        parts[index:index + 2] == (".claude", "commands") for index in range(len(parts) - 2)
+    ):
         return True
     return path.suffix.lower() == ".mdc" and parts[-3:-1] == (".cursor", "rules")
 
