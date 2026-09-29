@@ -91,7 +91,7 @@ def test_vendored_inputs_match_recorded_checksums():
     import hashlib
 
     recorded = {
-        "okta-tool-manifest/input.json": "2b740b09adb53c9cbea690940208167df10edd710d3fc2a68ece53e9cde0c130",
+        "okta-tool-manifest/input.json": "635119ee73ab64163f9a2f6d51ada013f1002d5cdfee47a1381be759b1bfcc92",
         "baseline-tool-manifest/input.json": "48a6434dbfe98eb10428e2b45a57030f924c29aa1d107ff3be6ec59b4bab36a1",
         "ci-gate-exit-codes/input-unrecognized-shape.json": (
             "9756a1e9176917945823cbd2c8d5eb763b4c83e6257235a369474cf079919f33"

@@ -5,7 +5,7 @@ Five worked examples, each a directory with stable paths, so any of them can be 
 | Example | Input | Shows |
 | --- | --- | --- |
 | [openrouter-skill-benchmarks](openrouter-skill-benchmarks/) | A published `SKILL.md`, pinned by commit | A clean PASS with one LOW finding on a real skill file |
-| [okta-tool-manifest](okta-tool-manifest/) | A 108-tool MCP manifest | A HIGH H1.2 and two MEDIUM H1.6 findings with file and line locations |
+| [okta-tool-manifest](okta-tool-manifest/) | A 16-tool excerpt of a real MCP manifest | A HIGH H1.2 and two MEDIUM H1.6 findings with file and line locations |
 | [skill-empty-description](skill-empty-description/) | A `SKILL.md` with an empty `description:` | HIGH H1.1, the exit code, and the one-line fix |
 | [ci-gate-exit-codes](ci-gate-exit-codes/) | The two examples above plus an unreadable manifest | What `--fail-on` does to the exit code, and why an input error is never a pass |
 | [baseline-tool-manifest](baseline-tool-manifest/) | A 15-tool MCP manifest | Adopting a gate on existing findings with `--write-baseline` and `--baseline` |

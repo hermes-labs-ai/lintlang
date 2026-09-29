@@ -5,7 +5,7 @@ $ lintlang scan ../okta-tool-manifest/input.json --min-severity high --fail-on f
   ──────────────────────────────────────────────────
 
   ❌ FAIL — 1 HIGH
-  Inspected: 108 tools (108 described, 108 with a schema)
+  Inspected: 16 tools (16 described, 16 with a schema)
   Confidence: LOW (65% coverage proxy; low <75%)
     Primary driver: Prompt-like framing was not detected in the text. (-25 percentage points)
       If this file is intended as agent instructions, make its role or purpose explicit. Reference material may naturally remain lower-confidence on this proxy.
@@ -15,7 +15,7 @@ $ lintlang scan ../okta-tool-manifest/input.json --min-severity high --fail-on f
 
   H1: Tool Description Ambiguity
 
-    ! [HIGH] H1.2 ../okta-tool-manifest/input.json:2047  tool:activate_policy
+    ! [HIGH] H1.2 ../okta-tool-manifest/input.json:309  tool:activate_policy
       Tool 'activate_policy' has a very short description (18 chars): "Activate a policy."
       Evidence: "Activate a policy."
       → Expand description to include: purpose, when to use vs alternatives, expected input shape, output behavior.
@@ -34,7 +34,7 @@ $ lintlang scan ../okta-tool-manifest/input.json --min-severity medium --pattern
   ──────────────────────────────────────────────────
 
   ❌ FAIL — 1 HIGH, 2 MEDIUM
-  Inspected: 108 tools (108 described, 108 with a schema)
+  Inspected: 16 tools (16 described, 16 with a schema)
   Confidence: LOW (65% coverage proxy; low <75%)
     Primary driver: Prompt-like framing was not detected in the text. (-25 percentage points)
       If this file is intended as agent instructions, make its role or purpose explicit. Reference material may naturally remain lower-confidence on this proxy.
@@ -44,7 +44,7 @@ $ lintlang scan ../okta-tool-manifest/input.json --min-severity medium --pattern
 
   H1: Tool Description Ambiguity
 
-    ! [HIGH] H1.2 ../okta-tool-manifest/input.json:2047  tool:activate_policy
+    ! [HIGH] H1.2 ../okta-tool-manifest/input.json:309  tool:activate_policy
       Tool 'activate_policy' has a very short description (18 chars): "Activate a policy."
       Evidence: "Activate a policy."
       → Expand description to include: purpose, when to use vs alternatives, expected input shape, output behavior.
@@ -54,7 +54,7 @@ $ lintlang scan ../okta-tool-manifest/input.json --min-severity medium --pattern
       Evidence: "'Confirm and execute application deletion after receiving confirmation.'"
       → Stop exposing 'confirm_delete_application' to the model, or state what it is for that the other is not. An alias kept for callers does not need to be in the tool list.
 
-    ~ [MEDIUM] H1.6 ../okta-tool-manifest/input.json:1802  tool:confirm_delete_group vs tool:delete_group
+    ~ [MEDIUM] H1.6 ../okta-tool-manifest/input.json:236  tool:confirm_delete_group vs tool:delete_group
       Tool 'confirm_delete_group' declares itself an alias of 'delete_group'. Both are offered to the model, which has no basis for preferring one, and no description distinguishes them because none is meant to.
       Evidence: "'Confirm and execute group deletion after receiving confirmation. .. de'"
       → Stop exposing 'confirm_delete_group' to the model, or state what it is for that the other is not. An alias kept for callers does not need to be in the tool list.
