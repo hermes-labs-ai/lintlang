@@ -1,0 +1,3 @@
+scan input.json --fail-on review
+scan input.json --write-baseline .lintlang-baseline.json
+scan input.json --baseline .lintlang-baseline.json --fail-on review
