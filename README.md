@@ -141,6 +141,7 @@ LintLang does not run models, observe runtime tool choices, or establish that an
 - [Technical reference](llms-full.txt) — supported structures, detector behavior, CLI, JSON, and SARIF
 - [GitHub CI and Code Scanning](docs/github.md)
 - [Baselines](docs/baselines.md)
+- [Research: relational tool-description analysis (H1.6)](docs/research.md) — the [Tool Differentia technical note](https://doi.org/10.5281/zenodo.21817243) and its scope, and the [taxonomy of epistemic failure modes](https://doi.org/10.5281/zenodo.19042468) that motivates the tool
 - [Integrations](docs/integrations.md)
 - [Changelog](CHANGELOG.md)
 
