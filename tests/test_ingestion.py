@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import pytest
 
@@ -17,6 +18,29 @@ SCHEMA = {"type": "object", "properties": {"q": {"type": "string", "description"
 
 def names(data) -> list[str]:
     return [t.name for t in discover_tools(data).tools]
+
+
+@pytest.mark.parametrize(
+    ("fixture", "inspected", "exit_code", "verdict"),
+    [
+        ("crewai-backstory.yaml", {"system_prompt": 1, "nested_prompts": 1}, 0, "PASS"),
+        ("crewai-role-goal.yaml", {}, 1, "ERROR"),
+        ("autogen-system-message.json", {}, 1, "ERROR"),
+    ],
+)
+def test_framework_config_extraction_boundary(fixture, inspected, exit_code, verdict, capsys):
+    path = Path(__file__).resolve().parents[1] / "samples" / "framework-configs" / fixture
+    assert scan_file(path).inspected == inspected
+    assert main(["scan", str(path), "--format", "json"]) == exit_code
+    output = capsys.readouterr()
+    row = json.loads(output.out)[0]
+    assert row["inspected"] == inspected
+    assert row["verdict"] == verdict
+    if exit_code:
+        assert "Nothing was inspected" in output.err
+        assert "Nothing was inspected" in row["input_error"]
+    else:
+        assert row["input_error"] is None
 
 
 class TestShapes:

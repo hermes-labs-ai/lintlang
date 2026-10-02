@@ -242,6 +242,25 @@ Recognized schema fields are `response_format`, `output_schema`, `schema`, and
 and `parameters`. These are extraction rules, not comprehensive provider-schema
 validation.
 
+### Framework configs
+
+Framework names do not select a dedicated parser. The same YAML/JSON extraction
+rules above apply. These fixtures pin the following shapes when each file is
+scanned explicitly on its own with the default options:
+
+| File shape / fixture | Inspected content | Default exit |
+| --- | --- | --- |
+| [CrewAI agent with a long backstory](samples/framework-configs/crewai-backstory.yaml) | The nested `researcher.backstory` (at least 40 characters) is checked as a template; `role` and the short `goal` are not inspected. This fixture is PASS. | 0 |
+| [CrewAI agent with only role and short goal](samples/framework-configs/crewai-role-goal.yaml) | Nothing inspected: `role` is not a prompt key and this nested `goal` is shorter than 40 characters. | 1 (ERROR) |
+| [AutoGen-style name and system_message](samples/framework-configs/autogen-system-message.json) | Nothing inspected: `system_message` is not a recognized prompt key. | 1 (ERROR) |
+
+Nested `goal` and `backstory` strings are inspected when they reach the
+40-character minimum; that minimum is a nested-extraction rule, not a limit on
+the top-level recognized prompt fields listed above. Inspected templates are
+not evidence that every framework field was understood. Default scans are
+advisory for structural findings; the exit-1 cases here are input/coverage
+errors, as described in [Verdicts and exit behavior](#verdicts-and-exit-behavior).
+
 An explicitly named file with an unknown extension is tried as JSON, then YAML,
 then text. Directory discovery uses the listed, case-sensitive extensions only.
 Directories are traversed in sorted order; dependency/cache/build trees,
