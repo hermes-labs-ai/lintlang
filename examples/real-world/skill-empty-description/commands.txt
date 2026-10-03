@@ -1,0 +1,3 @@
+scan broken/release-notes-drafter/SKILL.md
+scan broken/release-notes-drafter/SKILL.md --fail-on fail
+scan fixed/release-notes-drafter/SKILL.md --fail-on fail
