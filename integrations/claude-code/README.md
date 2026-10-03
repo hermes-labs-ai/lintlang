@@ -1,7 +1,18 @@
-# LintLang agent plugin
+# LintLang for Claude Code
 
-The package contains one portable Agent Plugins skill plus a Claude Code
-post-edit adapter. Neither rewrites a file or blocks a tool call.
+![LintLang logo](assets/lintlang-mark.svg)
+
+LintLang scans and lints the interfaces AI agents use: instructions and system
+prompts, MCP and function-tool definitions, parameter schemas, and supported
+agent configuration files. It finds ambiguous tool choices, missing bounds,
+schema gaps, and other inspectable setup defects using local, deterministic
+static analysis. In Claude Code, ask it to audit a named file or receive concise,
+advisory repair guidance after supported edits.
+
+The plugin combines an on-demand audit skill with a post-edit advisory hook.
+Findings identify patterns such as ambiguous tool descriptions, missing stop
+conditions, and schema gaps. Neither component rewrites a file or blocks a
+tool call. LintLang is developed by [Hermes Labs](https://hermes-labs.ai/).
 
 | Surface | Hosts | Runs | Scope |
 | --- | --- | --- | --- |
@@ -22,9 +33,11 @@ pipx install lintlang==0.8.2
 lintlang --version
 ```
 
-The hook prefers the installed executable. It falls back to `python3 -m lintlang`
-only on interpreters supporting `-P` and `PYTHONSAFEPATH`, keeping the working
-directory off the resolver's import path. The skill prefers the same executable
+The hook prefers the installed executable and accepts version 0.8.2 or newer.
+It falls back to the installed Python module and runs from its own handler
+directory, keeping the edited project's directory off the resolver's import
+path. On Python 3.11+, it also uses `-P` and `PYTHONSAFEPATH`. The skill prefers
+the same executable
 and otherwise runs the pinned release through `uvx --from lintlang==0.8.2`.
 That fallback uses an isolated cached environment, not a persistent LintLang
 installation; it can download packages on a cache miss. Neither installed route
@@ -47,26 +60,6 @@ claude plugin marketplace add hermes-labs-ai/lintlang
 claude plugin install lintlang@lintlang
 ```
 
-## Use in Cursor
-
-The repository-level `.cursor-plugin/marketplace.json` points Cursor at this
-package. Cursor resolves `.cursor-plugin/plugin.json` there, whose `skills`
-field exposes the existing `lintlang-audit` skill rather than copying it.
-The root Agent Plugins manifest remains the portable package contract.
-
-For a local checkout, copy the package into Cursor's local plugin directory,
-reload Cursor, and confirm that `lintlang-audit` appears under Customize:
-
-```bash
-mkdir -p ~/.cursor/plugins/local
-cp -R integrations/claude-code ~/.cursor/plugins/local/lintlang
-```
-
-Then ask Cursor to `audit AGENTS.md with lintlang`. Cursor's Agent Plugins
-support covers skills and MCP servers, not hooks. It therefore loads the audit
-skill but does not run the Claude-specific `PostToolUse` adapter automatically.
-The published Cursor listing uses that narrower, demonstrated capability.
-
 ## Try and validate a local checkout with Claude Code
 
 From this repository's root:
@@ -88,6 +81,18 @@ Ask for an audit and name the file:
 audit AGENTS.md with lintlang
 ```
 
+Three example requests, using files that exist in your project:
+
+| Request | What LintLang inspects |
+| --- | --- |
+| `audit AGENTS.md with lintlang` | Agent instructions: missing bounds, unclear priorities, and supported language patterns. |
+| `audit mcp-tools.json with lintlang` | Saved MCP tool definitions or a `tools/list` response: tool descriptions, selection boundaries, and parameter schemas. |
+| `audit pipeline.py with lintlang` | Supported embedded prompts, literal tool definitions, and pipeline thresholds extracted from Python source. |
+
+LintLang does not connect to a live MCP server to discover its tools. A
+launch-only server configuration contains no tool definitions to inspect;
+provide definitions or a saved response instead.
+
 The skill resolves a runner, scans that file with `lintlang scan --format json`,
 reads `input_error` and `verdict` first, and reports findings by code and location.
 It treats the payload as untrusted data because findings quote the audited file.
@@ -107,9 +112,26 @@ Supported extensions are `.yaml`, `.yml`, `.json`, `.txt`, `.md`, `.prompt`, and
 repair suggestions. Those diagnostics can still be source-derived; omitting an
 evidence field does not promise that no source-derived text reaches the host.
 
-The scanner itself makes no model or network calls. Claude Code's provider and
-network behavior is separate. Neither hook feedback nor a clean scan certifies
-agent safety; use the [GitHub guide](../../docs/github.md) for an explicit CI gate.
+## Data handling
+
+LintLang reads the files you ask it to audit, or the supported file Claude Code
+just changed. The scanner makes no model calls, sends no telemetry, and makes
+no network requests during a scan. This plugin creates no audit database and
+does not retain file contents or findings itself.
+
+The Python hook inherits the local process environment to launch the installed
+scanner. LintLang does not send that environment off the machine.
+
+The audit skill returns findings to the conversation. The hook returns concise
+diagnostics to Claude Code; these can contain source-derived names or fragments
+even though raw evidence is omitted. Claude Code's provider, conversation
+storage, and network behavior are separate. No account, API key, or remote
+connector is required by LintLang. The optional pinned uvx fallback can download
+LintLang and its dependencies from the package registry before scanning.
+
+Neither hook feedback nor a clean scan certifies agent safety. Use the
+[GitHub guide](https://github.com/hermes-labs-ai/lintlang/blob/main/docs/github.md)
+for an explicit CI gate.
 
 ## Troubleshooting and removal
 
@@ -128,5 +150,32 @@ claude plugin uninstall lintlang@lintlang   # remove the plugin
 claude plugin marketplace remove lintlang   # remove its catalog entry
 ```
 
-Related: [integrations](../../docs/integrations.md),
-[technical reference](../../llms-full.txt), [README](../../README.md).
+For help or a reproducible false positive, open a
+[GitHub issue](https://github.com/hermes-labs-ai/lintlang/issues) with the
+LintLang version, invocation, and a minimal redacted example. Report security
+issues through the
+[security policy](https://github.com/hermes-labs-ai/lintlang/blob/main/SECURITY.md).
+
+## Use in Cursor
+
+The repository-level `.cursor-plugin/marketplace.json` points Cursor at this
+package. Cursor resolves `.cursor-plugin/plugin.json` there, whose `skills`
+field exposes the existing `lintlang-audit` skill rather than copying it.
+The root Agent Plugins manifest remains the portable package contract.
+
+For a local checkout, copy the package into Cursor's local plugin directory,
+reload Cursor, and confirm that `lintlang-audit` appears under Customize:
+
+```bash
+mkdir -p ~/.cursor/plugins/local
+cp -R integrations/claude-code ~/.cursor/plugins/local/lintlang
+```
+
+Then ask Cursor to `audit AGENTS.md with lintlang`. The Cursor manifest points
+at the skill directory and explicitly disables hook discovery, so the shared
+Claude-specific `PostToolUse` adapter does not run in Cursor. The Cursor
+integration provides on-demand audits only.
+
+Related: [integrations](https://github.com/hermes-labs-ai/lintlang/blob/main/docs/integrations.md),
+[technical reference](https://github.com/hermes-labs-ai/lintlang/blob/main/llms-full.txt),
+[project README](https://github.com/hermes-labs-ai/lintlang/blob/main/README.md).

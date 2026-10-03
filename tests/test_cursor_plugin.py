@@ -29,7 +29,7 @@ def test_cursor_marketplace_resolves_the_existing_agent_plugin() -> None:
     assert (plugin_root / "skills/lintlang-audit/SKILL.md").is_file()
 
 
-def test_cursor_wrapper_reuses_the_portable_skill_without_claiming_the_hook() -> None:
+def test_cursor_wrapper_reuses_the_portable_skill_and_disables_hook_discovery() -> None:
     plugin_root = ROOT / "integrations/claude-code"
     cursor = _json(plugin_root / ".cursor-plugin/plugin.json")
     portable = _json(plugin_root / "plugin.json")
@@ -37,11 +37,18 @@ def test_cursor_wrapper_reuses_the_portable_skill_without_claiming_the_hook() ->
     assert cursor["name"] == portable["name"] == "lintlang"
     assert cursor["version"] == portable["version"]
     assert cursor["author"] == portable["author"]
-    assert cursor["skills"] == "skills/*/SKILL.md"
-    assert "hooks" not in cursor
+    # Cursor resolves explicit component directories literally, not as globs.
+    assert cursor["skills"] == "skills/"
+    skills_root = plugin_root / cursor["skills"]
+    assert skills_root.is_dir()
+    assert skills_root.resolve().is_relative_to(plugin_root.resolve())
 
-    skill_files = list(plugin_root.glob(cursor["skills"]))
+    skill_files = list(skills_root.glob("*/SKILL.md"))
     assert skill_files == [plugin_root / "skills/lintlang-audit/SKILL.md"]
+
+    # An absent field would auto-discover the adjacent Claude-only adapter.
+    assert (plugin_root / "hooks/hooks.json").is_file()
+    assert cursor["hooks"] == {"hooks": {}}
 
     logo = plugin_root / cursor["logo"]
     assert logo.is_file()

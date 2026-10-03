@@ -1,13 +1,20 @@
 {
   "$schema": "https://anthropic.com/claude-code/plugin.schema.json",
   "name": "lintlang",
+  "displayName": "LintLang",
   "version": "0.8.2",
-  "description": "Audits agent configs, system prompts, and tool definitions with LintLang on request, and returns concise repair guidance after Claude Code changes a supported language-bearing file.",
+  "description": "Lint agent-facing interfaces: instructions, prompts, MCP and function-tool definitions, and parameter schemas. Local, deterministic audits with advisory feedback after supported Claude Code edits.",
   "author": {
     "name": "Hermes Labs",
-    "email": "roli@hermes-labs.ai"
+    "email": "roli@hermes-labs.ai",
+    "url": "https://hermes-labs.ai/"
   },
   "homepage": "https://lintlang.ai/",
   "repository": "https://github.com/hermes-labs-ai/lintlang",
-  "license": "Apache-2.0"
+  "license": "Apache-2.0",
+  "icon": "./assets/lintlang-mark.png",
+  "documentationUrl": "https://github.com/hermes-labs-ai/lintlang/blob/main/integrations/claude-code/README.md",
+  "supportUrl": "https://github.com/hermes-labs-ai/lintlang/issues",
+  "privacyPolicyUrl": "https://github.com/hermes-labs-ai/lintlang/blob/main/integrations/claude-code/README.md#data-handling",
+  "keywords": ["linting", "agent-configs", "system-prompts", "tool-definitions", "static-analysis"]
 }

@@ -23,5 +23,8 @@
     "linting",
     "developer-tools"
   ],
-  "skills": "skills/*/SKILL.md"
+  "skills": "skills/",
+  "hooks": {
+    "hooks": {}
+  }
 }
