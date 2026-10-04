@@ -89,8 +89,9 @@ def main(argv: list[str] | None = None) -> int:
         help=(
             "Also scan recognized agent instruction files found under ROOT "
             "(default: '.'): AGENTS.md, CLAUDE.md, GEMINI.md, SKILL.md, "
-            "agent.yaml/.yml/.json, .github/copilot-instructions.md, and "
-            "*.instructions.md under .github/instructions/. Symlinks are not "
+            "agent.yaml/.yml/.json, .github/copilot-instructions.md, "
+            "*.instructions.md under .github/instructions/, and *.mdc under "
+            ".cursor/rules/. Symlinks are not "
             "followed; a skipped one is named on stderr. Explicit inputs still "
             "win and are unioned with the discovered set."
         ),
