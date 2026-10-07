@@ -1,0 +1,339 @@
+[
+  {
+    "name": "list_applications",
+    "description": "List all applications from the Okta organization.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "q": {
+          "type": "string",
+          "description": "Searches for applications by label, property, or link"
+        },
+        "after": {
+          "type": "string",
+          "description": "Specifies the pagination cursor for the next page of results"
+        },
+        "limit": {
+          "type": "integer",
+          "description": "Specifies the number of results per page (min 20, max 100)"
+        },
+        "filter": {
+          "type": "string",
+          "description": "Filters applications by status, user.id, group.id, or credentials.signing.kid"
+        },
+        "expand": {
+          "type": "string",
+          "description": "Expands the app user object to include the user's profile or expand the app group object to include the group's profile"
+        },
+        "include_non_deleted": {
+          "type": "boolean",
+          "description": "Include non-deleted applications in the results"
+        },
+        "fetch_all": {
+          "type": "boolean",
+          "description": "If True, automatically fetch all pages of results. Default: False."
+        }
+      }
+    }
+  },
+  {
+    "name": "get_application",
+    "description": "Get an application by ID from the Okta organization.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "app_id": {
+          "type": "string",
+          "description": "The ID of the application to retrieve"
+        },
+        "expand": {
+          "type": "string",
+          "description": "Expands the app user object to include the user's profile or expand the app group object"
+        }
+      },
+      "required": [
+        "app_id"
+      ]
+    }
+  },
+  {
+    "name": "create_application",
+    "description": "Create a new application in the Okta organization.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "app_config": {
+          "type": "object",
+          "description": "The application configuration including name, label, signOnMode, settings, etc."
+        },
+        "activate": {
+          "type": "boolean",
+          "description": "Execute activation lifecycle operation after creation. Defaults to True."
+        }
+      },
+      "required": [
+        "app_config"
+      ]
+    }
+  },
+  {
+    "name": "update_application",
+    "description": "Update an application by ID in the Okta organization.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "app_id": {
+          "type": "string",
+          "description": "The ID of the application to update"
+        },
+        "app_config": {
+          "type": "object",
+          "description": "The updated application configuration"
+        }
+      },
+      "required": [
+        "app_id",
+        "app_config"
+      ]
+    }
+  },
+  {
+    "name": "delete_application",
+    "description": "Delete an application by ID from the Okta organization. This tool deletes an application by its ID from the Okta organization. The user will be asked for confirmation before the deletion proceeds.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "app_id": {
+          "type": "string",
+          "description": "The ID of the application to delete"
+        }
+      },
+      "required": [
+        "app_id"
+      ]
+    }
+  },
+  {
+    "name": "confirm_delete_application",
+    "description": "Confirm and execute application deletion after receiving confirmation. .. deprecated:: This tool exists for backward compatibility with clients that do not support MCP elicitation.  New clients should rely on the built-in elicitation prompt in ``delete_application`` instead. This function MUST ONLY be called after the human user has explicitly typed 'DELETE' as confirmation. NEVER call this function automatically after delete_application.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "app_id": {
+          "type": "string",
+          "description": "The ID of the application to delete"
+        },
+        "confirmation": {
+          "type": "string",
+          "description": "Must be 'DELETE' to confirm deletion"
+        }
+      },
+      "required": [
+        "app_id",
+        "confirmation"
+      ]
+    }
+  },
+  {
+    "name": "activate_application",
+    "description": "Activate an application in the Okta organization.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "app_id": {
+          "type": "string",
+          "description": "The ID of the application to activate"
+        }
+      },
+      "required": [
+        "app_id"
+      ]
+    }
+  },
+  {
+    "name": "deactivate_application",
+    "description": "Deactivate an application in the Okta organization.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "app_id": {
+          "type": "string",
+          "description": "The ID of the application to deactivate"
+        }
+      },
+      "required": [
+        "app_id"
+      ]
+    }
+  },
+  {
+    "name": "list_groups",
+    "description": "List all the groups from the Okta organization with pagination support. If search, filter, or q is specified, it will list only those groups that satisfy the condition.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "search": {
+          "type": "string",
+          "description": "The value of the search string when searching for some specific set of groups."
+        },
+        "filter": {
+          "type": "string",
+          "description": "A filter string to filter groups by Okta profile attributes."
+        },
+        "q": {
+          "type": "string",
+          "description": "A query string to search groups by Okta profile attributes."
+        },
+        "fetch_all": {
+          "type": "boolean",
+          "description": "If True, automatically fetch all pages of results. Default: False."
+        },
+        "after": {
+          "type": "string",
+          "description": "Pagination cursor for fetching results after this point."
+        },
+        "limit": {
+          "type": "integer",
+          "description": "Maximum number of groups to return per page (min 20, max 100). The search, filter, and q are performed on group profile attributes."
+        }
+      }
+    }
+  },
+  {
+    "name": "get_group",
+    "description": "Get a group by ID from the Okta organization This tool retrieves a group by its ID from the Okta organization.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "group_id": {
+          "type": "string",
+          "description": "The ID of the group to retrieve."
+        }
+      },
+      "required": [
+        "group_id"
+      ]
+    }
+  },
+  {
+    "name": "delete_group",
+    "description": "Delete a group by ID from the Okta organization. This tool deletes a group by its ID from the Okta organization. The user will be asked for confirmation before the deletion proceeds.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "group_id": {
+          "type": "string",
+          "description": "The ID of the group to delete."
+        }
+      },
+      "required": [
+        "group_id"
+      ]
+    }
+  },
+  {
+    "name": "confirm_delete_group",
+    "description": "Confirm and execute group deletion after receiving confirmation. .. deprecated:: This tool exists for backward compatibility with clients that do not support MCP elicitation.  New clients should rely on the built-in elicitation prompt in ``delete_group`` instead. This function MUST ONLY be called after the human user has explicitly typed 'DELETE' as confirmation. NEVER call this function automatically after delete_group.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "group_id": {
+          "type": "string",
+          "description": "The ID of the group to delete."
+        },
+        "confirmation": {
+          "type": "string",
+          "description": "Must be 'DELETE' to confirm deletion."
+        }
+      },
+      "required": [
+        "group_id",
+        "confirmation"
+      ]
+    }
+  },
+  {
+    "name": "list_policies",
+    "description": "List all the policies from the Okta organization with pagination support.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "description": "Specifies the type of policy to return. Available policy types are: OKTA_SIGN_ON, PASSWORD, MFA_ENROLL, IDP_DISCOVERY, ACCESS_POLICY, PROFILE_ENROLLMENT, POST_AUTH_SESSION, ENTITY_RISK"
+        },
+        "status": {
+          "type": "string",
+          "description": "Refines the query by the status of the policy - ACTIVE or INACTIVE."
+        },
+        "q": {
+          "type": "string",
+          "description": "A query string to search policies by name."
+        },
+        "limit": {
+          "type": "integer",
+          "description": "Number of results to return per page (min 20, max 100). Default: 20."
+        },
+        "after": {
+          "type": "string",
+          "description": "Pagination cursor for the next page of policies."
+        },
+        "fetch_all": {
+          "type": "boolean",
+          "description": "If True, automatically fetch all pages. Default: False."
+        }
+      },
+      "required": [
+        "type"
+      ]
+    }
+  },
+  {
+    "name": "get_policy",
+    "description": "Retrieve a specific policy by ID.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "policy_id": {
+          "type": "string",
+          "description": "The ID of the policy to retrieve."
+        }
+      },
+      "required": [
+        "policy_id"
+      ]
+    }
+  },
+  {
+    "name": "activate_policy",
+    "description": "Activate a policy.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "policy_id": {
+          "type": "string",
+          "description": "The ID of the policy to activate."
+        }
+      },
+      "required": [
+        "policy_id"
+      ]
+    }
+  },
+  {
+    "name": "deactivate_policy",
+    "description": "Deactivate a policy. The user will be asked for confirmation before the deactivation proceeds.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "policy_id": {
+          "type": "string",
+          "description": "The ID of the policy to deactivate."
+        }
+      },
+      "required": [
+        "policy_id"
+      ]
+    }
+  }
+]
