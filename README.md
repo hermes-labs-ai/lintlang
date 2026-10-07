@@ -82,7 +82,7 @@ What we can claim today, and what we can't:
 - **1108 tests** across 46 test modules, green on every release.
 - **Regression corpus** (`evals/corpus/cases.jsonl`): immutable case IDs with positive/negative controls per phrase class. It guards detector boundaries against drift — it does not estimate accuracy or false-positive rates.
 - **Sample detection check** (`evals/sample-detection-rate.sh`): 4 deliberately-broken fixtures must fail, 1 clean fixture must pass. A release gate, not a benchmark.
-- **Field evidence:** lintlang findings merged upstream, including bytebase/dbhub PR #447.
+- **Field evidence:** lintlang findings merged upstream, including bytedance/deer-flow PR #5656 (skill name/directory mismatch — the skill declared `vercel-deploy` but lived under `vercel-deploy-claimable`, merged by the maintainer) and bytebase/dbhub PR #447.
 
 What we don't publish yet: accuracy and false-positive rates on real-world projects. The corpus measures reproducible boundaries, not prevalence. A real-world detection benchmark is the next eval milestone — see `evals/corpus/README.md`.
 
