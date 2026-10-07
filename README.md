@@ -33,7 +33,7 @@ uvx lintlang scan .
 
 </div>
 
-What a finding looks like (real output, `samples/bad_tool_descriptions.yaml`):
+Below, by contrast, is unedited terminal output on a bundled fixture: two of the ten findings from `lintlang scan samples/bad_tool_descriptions.yaml`, long lines wrapped.
 
 ```text
   ❌ FAIL — 1 CRITICAL, 1 HIGH, 5 MEDIUM, 3 LOW
@@ -47,15 +47,16 @@ What a finding looks like (real output, `samples/bad_tool_descriptions.yaml`):
       Tools 'get_user_info' and 'fetch_user_data' carry no differentia — every meaning-bearing term in one is
       present, or has a synonym, in the other. Both descriptions may be accurate and still give a model nothing
       to choose between them.
+      Evidence: "'Get user info' vs 'Get user data from the system'"
+      → Name a condition that selects one over the other. State what each tool is for that the other is NOT
+      for — e.g. 'use X for orders already placed, use Y for carts not yet submitted'.
 ```
-
-LintLang is developed by [Hermes Labs](https://hermes-labs.ai/).
 
 ## How LintLang differs
 
-- **From LLM-as-judge reviewers:** zero model calls. Deterministic — the same input always produces the same findings — so it belongs in CI, where non-determinism is a bug.
+- **From LLM-as-judge reviewers:** no model calls and no network access during a scan. `pyyaml` is the only runtime dependency, and the test suite runs the CLI with outbound sockets disabled (`tests/test_first_run_recipe.py`). Findings and verdicts are deterministic: the same tree produces byte-identical JSON and SARIF (`tests/test_sarif.py`); only the terminal summary's elapsed time varies. That is what lets it gate CI.
 - **From generic linters:** agent-aware. It reads tool descriptions, system prompts, `SKILL.md`, MCP definitions, and parameter schemas as instructions a model will act on, not as prose.
-- Every finding names the exact line and proposes a concrete fix, not a score.
+- Every finding names the file and proposes a specific fix, and cites the line wherever the parser can justify one. LintLang never invents line numbers.
 
 ## What LintLang catches
 
@@ -74,17 +75,6 @@ LintLang catches problems like:
 Each result says what LintLang inspected. Content with no recognized agent-facing structures is reported as `SKIPPED`, never `PASS`. Tool comparisons are within one parsed input; a directory scan does not combine tools from separate files into one selection namespace.
 
 For exact extraction rules and detector behavior, see the [technical reference](llms-full.txt).
-
-## Measured
-
-What we can claim today, and what we can't:
-
-- **1108 tests** across 46 test modules, green on every release.
-- **Regression corpus** (`evals/corpus/cases.jsonl`): immutable case IDs with positive/negative controls per phrase class. It guards detector boundaries against drift — it does not estimate accuracy or false-positive rates.
-- **Sample detection check** (`evals/sample-detection-rate.sh`): 4 deliberately-broken fixtures must fail, 1 clean fixture must pass. A release gate, not a benchmark.
-- **Field evidence:** lintlang findings merged upstream, including bytedance/deer-flow PR #5656 (skill name/directory mismatch — the skill declared `vercel-deploy` but lived under `vercel-deploy-claimable`, merged by the maintainer) and bytebase/dbhub PR #447.
-
-What we don't publish yet: accuracy and false-positive rates on real-world projects. The corpus measures reproducible boundaries, not prevalence. A real-world detection benchmark is the next eval milestone — see `evals/corpus/README.md`.
 
 ## Quickstart
 
@@ -161,6 +151,18 @@ lintlang scan . \
 
 See [GitHub CI and Code Scanning](docs/github.md) and [baseline adoption](docs/baselines.md).
 
+## Measured
+
+What we can claim today, and what we can't:
+
+- **1100 passing tests** across 46 test modules (plus 3 skipped and 5 expected failures), run in CI on Python 3.10–3.13 on every pull request and push to `main`. Every tagged release from v0.3.1 through v0.8.2 points at a commit with a passing CI run; the publish workflow checks tag/version parity and builds, it does not re-run the suite. Reproduce with `pip install -e ".[dev]" && pytest -q`.
+- **Regression corpus** (`evals/corpus/cases.jsonl`, 2 cases and 23 variants today): immutable case IDs with positive/negative controls per phrase class, each linked to a focused test. It guards detector boundaries against drift — it does not estimate accuracy or false-positive rates.
+- **Sample detection check** (`evals/sample-detection-rate.sh`): 4 deliberately-broken fixtures must fail, 1 clean fixture must pass. A release gate, not a benchmark.
+- **Daily proof loop** (`.github/workflows/proof-benchmark.yml`): a clean clone scans a broken fixture to SARIF, swaps in the clean one, and must go fail → pass in under 300 seconds. It proves the wiring and timing, not accuracy.
+- **Field evidence:** lintlang findings merged upstream, including bytedance/deer-flow PR #5656 (H1.9 skill name/directory mismatch — the skill declared `vercel-deploy` but lived under `vercel-deploy-claimable`, merged by the maintainer) and bytebase/dbhub PR #447 (H4.5 — a `CLAUDE.md` path that no longer existed in the tree).
+
+What we don't publish yet: accuracy and false-positive rates on real-world projects. The corpus measures reproducible boundaries, not prevalence. Reproducible false positives are the most useful bug reports; see [Contributing](#contributing).
+
 ## Integrations
 
 LintLang works with GitHub Actions, GitHub Code Scanning, pre-commit, Claude Code, Cursor, GitHub Copilot CLI, Gemini CLI, Pi, OpenCode, Hermes Agent, and MegaLinter.
@@ -183,6 +185,8 @@ LintLang does not run models, observe runtime tool choices, or establish that an
 Bug reports, disputed findings, reproducible false positives, documentation corrections, and focused contributions are welcome.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) and [SECURITY.md](SECURITY.md).
+
+LintLang is developed by [Hermes Labs](https://hermes-labs.ai/).
 
 ## License
 
