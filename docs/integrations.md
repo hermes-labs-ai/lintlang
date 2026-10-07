@@ -67,8 +67,9 @@ pre-commit run lintlang --all-files
 The hook natively selects pre-commit's own changed-file list, filtered to a
 conservative `files:` regex that matches only recognized agent-instruction
 paths: `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, or `SKILL.md` at any depth;
-`agent.yaml`/`.yml`/`.json`; `.github/copilot-instructions.md`; and
-`*.instructions.md` under `.github/instructions/`. It runs — and scans every changed file that
+`agent.yaml`/`.yml`/`.json`; `.github/copilot-instructions.md`;
+`*.instructions.md` under `.github/instructions/`; and `*.mdc` under
+`.cursor/rules/`. It runs — and scans every changed file that
 matches — only when a commit or `--all-files` touches one of those paths; it
 does not run unconditionally on unrelated commits, and it does not need a
 configured path for that default behavior.

@@ -57,7 +57,8 @@ do not guess, and do not silently sweep a whole repository. For a repo-wide
 check, `lintlang scan --discover [ROOT]` finds recognized instruction files
 itself (`AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `SKILL.md`, `agent.yaml` /
 `.yml` / `.json`, `.github/copilot-instructions.md`, `*.instructions.md`
-under `.github/instructions/`); name the discovered set before scanning it.
+under `.github/instructions/`, and `*.mdc` under `.cursor/rules/`); name the
+discovered set before scanning it.
 
 Scan once, with JSON output, using the runner from above:
 

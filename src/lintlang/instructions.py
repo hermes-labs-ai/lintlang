@@ -15,6 +15,8 @@ Only exact, documented instruction surfaces:
 * ``*.instructions.md`` files directly or indirectly under a
   ``.github/instructions`` directory — the spelling the vendor documents for
   that layout, not every Markdown file that happens to live there
+* ``*.mdc`` files directly or indirectly under a ``.cursor/rules`` directory
+  — ordinary Markdown in that directory is not an instruction surface
 
 Case policy
 -----------
@@ -32,14 +34,13 @@ file that merely has a supported extension. Generic directory scanning
 (``scanner.scan_directory``) keeps its separate, broader extension sweep; this
 module never changes it.
 
-Known omissions
----------------
-Editor and host layouts that are not recognized, deliberately: ``.cursor/rules``,
-``.claude/agents``, and ``.windsurfrules``. Each would need its own file-shape
-decision (a rules directory is not one instruction document, and an agent
-definition is not a prompt file), and adding a surface here widens discovery,
-the pre-commit ``files:`` regex, and ``lintlang init`` at once. Pass such a file
-as an explicit scan argument, which is always canonical.
+Editor and host boundaries
+--------------------------
+Cursor project rules are recognized when they use the documented ``.mdc``
+spelling under ``.cursor/rules``. Other editor and host layouts remain
+deliberately unrecognized: ``.claude/agents`` and ``.windsurfrules``. The
+Cursor rule decision is intentionally narrow: ordinary Markdown in that
+directory is not an instruction surface.
 """
 
 from __future__ import annotations
@@ -54,6 +55,7 @@ __all__ = [
     "RECOGNIZED_INSTRUCTION_RELATIVE_PATHS",
     "RECOGNIZED_INSTRUCTION_DIRECTORIES",
     "RECOGNIZED_INSTRUCTION_DIRECTORY_SUFFIXES",
+    "RECOGNIZED_INSTRUCTION_CURSOR_RULE_SUFFIXES",
     "discover_instruction_files",
     "is_recognized_instruction_path",
 ]
@@ -83,6 +85,10 @@ RECOGNIZED_INSTRUCTION_DIRECTORIES = frozenset({".github/instructions"})
 #: directory is not an instruction file; ``.instructions.md`` is the spelling
 #: the layout documents.
 RECOGNIZED_INSTRUCTION_DIRECTORY_SUFFIXES = frozenset({".instructions.md"})
+
+#: Filename suffixes accepted recursively inside .cursor/rules.
+#: Cursor project rules use .mdc; ordinary Markdown stays out of discovery.
+RECOGNIZED_INSTRUCTION_CURSOR_RULE_SUFFIXES = frozenset({".mdc"})
 
 
 def _parts(path: str | os.PathLike[str]) -> tuple[str, ...]:
@@ -137,6 +143,17 @@ def is_recognized_instruction_path(path: str | os.PathLike[str]) -> bool:
             for index in range(len(ancestors) - width + 1):
                 if ancestors[index : index + width] == directory:
                     return True
+
+    if any(
+        len(name) > len(suffix) and name.endswith(suffix)
+        for suffix in RECOGNIZED_INSTRUCTION_CURSOR_RULE_SUFFIXES
+    ):
+        directory = (".cursor", "rules")
+        ancestors = parts[:-1]
+        width = len(directory)
+        for index in range(len(ancestors) - width + 1):
+            if ancestors[index : index + width] == directory:
+                return True
 
     return False
 

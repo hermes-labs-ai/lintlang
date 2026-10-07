@@ -51,6 +51,8 @@ RECOGNIZED_PATHS = [
     ".github/copilot-instructions.md",
     ".github/instructions/foo.instructions.md",
     ".github/instructions/nested/foo.instructions.md",
+    ".cursor/rules/style.mdc",
+    ".cursor/rules/nested/review.mdc",
 ]
 
 # Paths that must NOT be selected by the hook's `files:` regex.
@@ -67,6 +69,9 @@ UNRECOGNIZED_PATHS = [
     ".github/instructions/foo.md",
     ".github/instructions/README.md",
     ".github/instructions/.instructions.md",
+    ".cursor/rules/README.md",
+    ".cursor/rules/style.md",
+    ".cursor/rules/.mdc",
     "pyproject.toml",
 ]
 
@@ -118,6 +123,12 @@ class TestHookInvokedAsPreCommitWouldInvokeIt:
             "Review the diff. Summarize each change in one sentence.\n", encoding="utf-8"
         )
         (instructions / "notes.md").write_text("Scratch notes.\n", encoding="utf-8")
+        cursor_rules = root / ".cursor" / "rules"
+        cursor_rules.mkdir(parents=True)
+        (cursor_rules / "review.mdc").write_text(
+            "Review changed code with the project conventions.\n", encoding="utf-8"
+        )
+        (cursor_rules / "README.md").write_text("Cursor notes.\n", encoding="utf-8")
 
     @classmethod
     def _selected_filenames(cls, root: Path) -> list[str]:
@@ -155,7 +166,7 @@ class TestHookInvokedAsPreCommitWouldInvokeIt:
         self._repository(tmp_path)
         filenames = self._selected_filenames(tmp_path)
 
-        assert filenames == [".github/instructions/review.instructions.md", "AGENTS.md"]
+        assert filenames == [".cursor/rules/review.mdc", ".github/instructions/review.instructions.md", "AGENTS.md"]
 
         completed = self._run(tmp_path, [], filenames)
 
