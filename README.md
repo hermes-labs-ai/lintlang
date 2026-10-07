@@ -33,7 +33,29 @@ uvx lintlang scan .
 
 </div>
 
+What a finding looks like (real output, `samples/bad_tool_descriptions.yaml`):
+
+```text
+  ❌ FAIL — 1 CRITICAL, 1 HIGH, 5 MEDIUM, 3 LOW
+  Inspected: 5 tools (4 described, 5 with a schema), system prompt
+
+    !! [CRITICAL] H1.1 samples/bad_tool_descriptions.yaml:34  tool:process_ticket
+      Tool 'process_ticket' has no description.
+      → Add a specific, disambiguating description that explains WHEN to use this tool, not just WHAT it does.
+
+    ~ [MEDIUM] H1.6 samples/bad_tool_descriptions.yaml:10  tool:get_user_info vs tool:fetch_user_data
+      Tools 'get_user_info' and 'fetch_user_data' carry no differentia — every meaning-bearing term in one is
+      present, or has a synonym, in the other. Both descriptions may be accurate and still give a model nothing
+      to choose between them.
+```
+
 LintLang is developed by [Hermes Labs](https://hermes-labs.ai/).
+
+## How LintLang differs
+
+- **From LLM-as-judge reviewers:** zero model calls. Deterministic — the same input always produces the same findings — so it belongs in CI, where non-determinism is a bug.
+- **From generic linters:** agent-aware. It reads tool descriptions, system prompts, `SKILL.md`, MCP definitions, and parameter schemas as instructions a model will act on, not as prose.
+- Every finding names the exact line and proposes a concrete fix, not a score.
 
 ## What LintLang catches
 
@@ -52,6 +74,17 @@ LintLang catches problems like:
 Each result says what LintLang inspected. Content with no recognized agent-facing structures is reported as `SKIPPED`, never `PASS`. Tool comparisons are within one parsed input; a directory scan does not combine tools from separate files into one selection namespace.
 
 For exact extraction rules and detector behavior, see the [technical reference](llms-full.txt).
+
+## Measured
+
+What we can claim today, and what we can't:
+
+- **1108 tests** across 46 test modules, green on every release.
+- **Regression corpus** (`evals/corpus/cases.jsonl`): immutable case IDs with positive/negative controls per phrase class. It guards detector boundaries against drift — it does not estimate accuracy or false-positive rates.
+- **Sample detection check** (`evals/sample-detection-rate.sh`): 4 deliberately-broken fixtures must fail, 1 clean fixture must pass. A release gate, not a benchmark.
+- **Field evidence:** lintlang findings merged upstream, including bytebase/dbhub PR #447.
+
+What we don't publish yet: accuracy and false-positive rates on real-world projects. The corpus measures reproducible boundaries, not prevalence. A real-world detection benchmark is the next eval milestone — see `evals/corpus/README.md`.
 
 ## Quickstart
 
