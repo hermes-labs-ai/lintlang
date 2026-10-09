@@ -29,16 +29,16 @@ Use Claude Code with plugin support. Install the tested scanner release with
 Python 3.10+ so `lintlang` is on the host's `PATH`:
 
 ```bash
-pipx install lintlang==0.8.2
+pipx install lintlang==0.8.8
 lintlang --version
 ```
 
-The hook prefers the installed executable and accepts version 0.8.2 or newer.
+The hook prefers the installed executable and accepts version 0.8.8 or newer.
 It falls back to the installed Python module and runs from its own handler
 directory, keeping the edited project's directory off the resolver's import
 path. On Python 3.11+, it also uses `-P` and `PYTHONSAFEPATH`. The skill prefers
 the same executable
-and otherwise runs the pinned release through `uvx --from lintlang==0.8.2`.
+and otherwise runs the pinned release through `uvx --from lintlang==0.8.8`.
 That fallback uses an isolated cached environment, not a persistent LintLang
 installation; it can download packages on a cache miss. Neither installed route
 needs a checkout of this repository.

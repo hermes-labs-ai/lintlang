@@ -32,6 +32,7 @@ def _action_env(tmp_path: Path, source: Path, baseline: Path | None = None, **ex
         "PATH": f"{lintlang_bin}{os.pathsep}{os.environ['PATH']}",
         "PYTHONPATH": str(REPO_ROOT / "src"),
         "LINTLANG_PATH": str(source),
+        "LINTLANG_GATE": "false",  # Legacy fixtures exercise raw severity and format contracts.
         "LINTLANG_FAIL_ON": "fail",
         "LINTLANG_BASELINE": str(baseline) if baseline is not None else "",
         **extra,
@@ -52,7 +53,7 @@ def _run_action(output_format: str, tmp_path: Path, env: dict[str, str], cwd: Pa
 
 def _create_baseline(source: Path, baseline: Path, tmp_path: Path) -> bytes:
     completed = subprocess.run(
-        [sys.executable, "-m", "lintlang", "scan", str(source), "--write-baseline", str(baseline)],
+        [sys.executable, "-m", "lintlang", "scan", "--no-gate", str(source), "--write-baseline", str(baseline)],
         cwd=tmp_path,
         env={**os.environ, "PYTHONPATH": str(REPO_ROOT / "src")},
         text=True,
@@ -71,9 +72,11 @@ def test_marketplace_metadata_and_inputs_are_minimal():
     assert ACTION.get("outputs") is None
 
     inputs = ACTION["inputs"]
-    assert set(inputs) == {"path", "fail-on", "baseline", "python-version", "sarif-file"}
+    assert set(inputs) == {"path", "fail-on", "gate", "baseline", "python-version", "sarif-file"}
     assert inputs["path"]["required"] is True
     assert inputs["fail-on"]["default"] == ""
+    assert inputs["gate"]["default"] == "true"
+    assert inputs["gate"]["required"] is False
     assert inputs["baseline"]["required"] is False
     assert inputs["baseline"]["default"] == ""
     assert inputs["python-version"]["default"] == "3.12"
@@ -95,6 +98,7 @@ def test_selected_action_ref_is_installed_and_inputs_are_not_shell_interpolated(
     assert scan["if"] == "inputs.sarif-file == ''"
     assert scan["env"] == {
         "LINTLANG_PATH": "${{ inputs.path }}",
+        "LINTLANG_GATE": "${{ inputs.gate }}",
         "LINTLANG_FAIL_ON": "${{ inputs.fail-on }}",
         "LINTLANG_BASELINE": "${{ inputs.baseline }}",
     }
@@ -103,11 +107,15 @@ def test_selected_action_ref_is_installed_and_inputs_are_not_shell_interpolated(
     assert sarif_scan["if"] == "inputs.sarif-file != ''"
     assert sarif_scan["env"] == {
         "LINTLANG_PATH": "${{ inputs.path }}",
+        "LINTLANG_GATE": "${{ inputs.gate }}",
         "LINTLANG_FAIL_ON": "${{ inputs.fail-on }}",
         "LINTLANG_BASELINE": "${{ inputs.baseline }}",
         "LINTLANG_SARIF_FILE": "${{ inputs.sarif-file }}",
     }
     for step in (scan, sarif_scan):
+        assert 'case "$LINTLANG_GATE" in' in step["run"]
+        assert 'false) LINTLANG_ARGS+=(--no-gate) ;;' in step["run"]
+        assert "gate must be 'true' or 'false'" in step["run"]
         assert 'LINTLANG_FAIL_ON_TRIMMED="$(python -c \'import sys; print(sys.argv[1].strip())\' "$LINTLANG_FAIL_ON")"' in step["run"]
         assert 'if [ -n "$LINTLANG_FAIL_ON_TRIMMED" ]; then' in step["run"]
         assert 'LINTLANG_ARGS+=(--fail-on "$LINTLANG_FAIL_ON_TRIMMED")' in step["run"]
@@ -127,6 +135,7 @@ def test_explicit_fail_on_blocks_failing_fixture(tmp_path):
         "PATH": f"{lintlang_bin}{os.pathsep}{os.environ['PATH']}",
         "PYTHONPATH": str(REPO_ROOT / "src"),
         "LINTLANG_FAIL_ON": "fail",
+        "LINTLANG_GATE": "false",
     }
 
     outcomes = []
@@ -142,6 +151,43 @@ def test_explicit_fail_on_blocks_failing_fixture(tmp_path):
         outcomes.append(completed.returncode)
 
     assert outcomes == [0, 1]
+
+
+@pytest.mark.parametrize("output_format", ["terminal", "sarif"])
+def test_default_gate_blocks_retained_finding_through_action_shell(tmp_path, output_format):
+    source = REPO_ROOT / "samples/release_088/skills/audit/SKILL.md"
+    report = tmp_path / "gate.sarif"
+    env = _action_env(
+        tmp_path,
+        source,
+        LINTLANG_GATE="true",
+        LINTLANG_FAIL_ON="",
+        LINTLANG_SARIF_FILE=str(report),
+    )
+
+    completed = _run_action(output_format, tmp_path, env, cwd=REPO_ROOT)
+
+    assert completed.returncode == 1, completed.stdout + completed.stderr
+    if output_format == "sarif":
+        results = json.loads(report.read_text(encoding="utf-8"))["runs"][0]["results"]
+        assert any(result["properties"]["lintlangGateDecision"] == "KEEP" for result in results)
+    else:
+        assert "Gate: evaluated" in completed.stdout
+        assert "H1.8" in completed.stdout
+
+
+@pytest.mark.parametrize("output_format", ["terminal", "sarif"])
+def test_action_rejects_invalid_gate_input(tmp_path, output_format):
+    source = tmp_path / "agent.yaml"
+    source.write_text("system_prompt: Be concise.\n", encoding="utf-8")
+    report = tmp_path / "report.sarif"
+    env = _action_env(tmp_path, source, LINTLANG_GATE="maybe", LINTLANG_SARIF_FILE=str(report))
+
+    completed = _run_action(output_format, tmp_path, env)
+
+    assert completed.returncode == 2
+    assert "gate must be 'true' or 'false'" in completed.stderr
+    assert not report.exists()
 
 
 def _write_review_only_fixture(tmp_path: Path) -> Path:
@@ -166,7 +212,7 @@ def _write_review_only_fixture(tmp_path: Path) -> Path:
 @pytest.mark.parametrize(
     ("fail_on", "fixture", "expected"),
     [
-        # Advisory default: empty input never fails on verdicts.
+        # Explicit raw mode is advisory with an empty fail-on threshold.
         ("", "bad", 0),
         ("", "review-only", 0),
         # Whitespace-only input trims to empty: still advisory, exit 0.
@@ -197,6 +243,7 @@ def test_fail_on_thresholds(tmp_path, output_format, fail_on, fixture, expected)
         "PATH": f"{lintlang_bin}{os.pathsep}{os.environ['PATH']}",
         "PYTHONPATH": str(REPO_ROOT / "src"),
         "LINTLANG_PATH": source,
+        "LINTLANG_GATE": "false",
         "LINTLANG_FAIL_ON": fail_on,
         "LINTLANG_BASELINE": "",
         "LINTLANG_SARIF_FILE": str(tmp_path / "report.sarif"),
@@ -258,6 +305,7 @@ def test_sarif_step_writes_real_report_before_preserving_failing_verdict(tmp_pat
         "PATH": f"{lintlang_bin}{os.pathsep}{os.environ['PATH']}",
         "PYTHONPATH": str(REPO_ROOT / "src"),
         "LINTLANG_PATH": "samples/bad_tool_descriptions.yaml",
+        "LINTLANG_GATE": "false",
         "LINTLANG_FAIL_ON": "fail",
         "LINTLANG_SARIF_FILE": str(report),
     }
@@ -288,6 +336,7 @@ def test_sarif_step_rejects_output_that_is_the_input_without_overwriting_it(tmp_
         "PATH": f"{lintlang_bin}{os.pathsep}{os.environ['PATH']}",
         "PYTHONPATH": str(REPO_ROOT / "src"),
         "LINTLANG_PATH": str(source),
+        "LINTLANG_GATE": "false",
         "LINTLANG_FAIL_ON": "fail",
         "LINTLANG_SARIF_FILE": str(source),
     }
@@ -318,6 +367,7 @@ def test_sarif_step_rejects_an_existing_directory_as_the_output(tmp_path):
         "PATH": f"{lintlang_bin}{os.pathsep}{os.environ['PATH']}",
         "PYTHONPATH": str(REPO_ROOT / "src"),
         "LINTLANG_PATH": str(source),
+        "LINTLANG_GATE": "false",
         "LINTLANG_FAIL_ON": "fail",
         "LINTLANG_SARIF_FILE": str(report_directory),
     }
@@ -348,6 +398,7 @@ def test_sarif_step_does_not_add_its_output_to_a_directory_scan(tmp_path):
         "PATH": f"{lintlang_bin}{os.pathsep}{os.environ['PATH']}",
         "PYTHONPATH": str(REPO_ROOT / "src"),
         "LINTLANG_PATH": str(scan_root),
+        "LINTLANG_GATE": "false",
         "LINTLANG_FAIL_ON": "fail",
         "LINTLANG_SARIF_FILE": str(report),
     }

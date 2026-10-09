@@ -27,62 +27,74 @@ you need to catch ambiguous tool descriptions, missing stop conditions,
 schema/description mismatches, mixed output formats, or prompts embedded in
 Python — before they reach a runtime agent.
 
+## Unpublished candidate
+
+Version 0.8.8 is not published yet. For this local candidate, run
+`python -m pip install .` from its source checkout and use that environment's
+`lintlang` command. Registry-pinned 0.8.8 commands below are release examples;
+do not attempt them until publication. The `--no-gate` examples require this
+candidate; do not pass that flag to an older installed release.
+
+These audit commands use raw mode so severity and exit guidance below apply.
+Default scans without `--no-gate` instead use KEEP blocking, ESCALATE advisory
+findings and DISMISS suppression.
+
 ## Resolve a runner, in this order
 
 Stop at the first that works.
 
 1. `lintlang --version` prints a version (this skill is verified against
-   `lintlang 0.8.2`) → use `lintlang`.
+   `lintlang 0.8.8`) → use `lintlang`.
 2. Otherwise, if `uvx` is available, run the pinned release with no install
    and no PATH change:
 
    ```bash
-   uvx --from lintlang==0.8.2 lintlang --version
+   uvx --from lintlang==0.8.8 lintlang --version
    ```
 
-   Keep the `==0.8.2` pin so an unreviewed newer release is never fetched.
+   Keep the `==0.8.8` pin so an unreviewed newer release is never fetched.
    The download happens once into uv's cache; the scan itself still makes no
    network call.
 3. Otherwise stop and relay the install line:
-   `python -m pip install lintlang==0.8.2` (Python 3.10+). Do not install
+   `python -m pip install lintlang==0.8.8` (Python 3.10+). Do not install
    anything persistently on the user's machine yourself.
 
-A different installed version still works — say which version produced the
-result, because finding codes and counts can differ between releases.
+For an older installed version, consult its `scan --help` and omit unsupported
+flags; report that version and do not claim the 0.8.8 candidate was exercised.
 
 ## Scan
 
 Audit the file or files the user named. If no file was named, ask which one —
 do not guess, and do not silently sweep a whole repository. For a repo-wide
-check, `lintlang scan --discover [ROOT]` finds recognized instruction files
+check, `lintlang scan --no-gate --discover [ROOT]` finds recognized instruction files
 itself (`AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `SKILL.md`, `agent.yaml` /
-`.yml` / `.json`, `.github/copilot-instructions.md`, `*.instructions.md`
+`.yml` / `.json`, `copilot-instructions.md` under `.github/`, `*.instructions.md`
 under `.github/instructions/`); name the discovered set before scanning it.
 
 Scan once, with JSON output, using the runner from above:
 
 ```bash
-lintlang scan --format json -- <file> [<file> ...]
+lintlang scan --no-gate --format json -- <file> [<file> ...]
 ```
 
 or, with the pinned uvx runner:
 
 ```bash
-uvx --from lintlang==0.8.2 lintlang scan --format json -- <file> [<file> ...]
+uvx --from lintlang==0.8.8 lintlang scan --no-gate --format json -- <file> [<file> ...]
 ```
 
 The `--` keeps a path that begins with `-` from being read as a flag. For
 prompt text with no file, pipe it in instead of writing it to disk:
 
 ```bash
-printf '%s' '<prompt text>' | lintlang scan - --stdin-filename prompt.md --format json
+printf '%s' '<prompt text>' | lintlang scan --no-gate - --stdin-filename prompt.md --format json
 ```
 
 Do not put private prompt text in a persistent file or a logged shell
 history entry.
 
 JSON is one object per input file, with `file`, `verdict`, `input_error`,
-and `structural_findings` (each finding carries `code` like `H1.1`,
+and `structural_findings` (each finding carries `code` like `H1.2`,
 `severity`, `location`, `description`, and a fix `suggestion`).
 
 ## Read the verdict before anything else
@@ -137,7 +149,7 @@ system_prompt: |
   You are a support agent. Use the tools to help the user.
 tools:
   - name: process_ticket
-    description: ""
+    description: "Get data"
     parameters:
       type: object
       properties:
@@ -145,11 +157,11 @@ tools:
           type: string
 YAML
 
-lintlang scan --fail-on fail -- "${TMPDIR:-/tmp}/lintlang-check.yaml"
+lintlang scan --no-gate --fail-on fail -- "${TMPDIR:-/tmp}/lintlang-check.yaml"
 ```
 
-On `lintlang 0.8.2` that reports `FAIL` and exits `1`, with `H1.1
-tool:process_ticket` — "Tool 'process_ticket' has no description." The
+On `lintlang 0.8.8` that reports `FAIL` and exits `1`, with H1.2 at
+`tool:process_ticket` identifying the underspecified "Get data" description. The
 seeded finding is the expected outcome: it shows the detector fired, not
 that the install is broken. Delete the file afterwards.
 

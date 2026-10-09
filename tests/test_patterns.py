@@ -13,8 +13,6 @@ from lintlang.patterns import (
     detect_h2,
     detect_h3,
     detect_h4,
-    detect_h5,
-    detect_h6,
     detect_h7,
 )
 from lintlang.scanner import scan_file
@@ -62,9 +60,9 @@ class TestH1:
         assert len(critical) == 0
 
     def test_empty_description(self):
-        config = AgentConfig(tools=[ToolDef(name="broken", description="")])
-        findings = detect_h1(config)
-        assert any(f.severity == Severity.CRITICAL and "no description" in f.description for f in findings)
+        for description in ("", " ", "\n\t"):
+            config = AgentConfig(tools=[ToolDef(name="broken", description=description)])
+            assert detect_h1(config) == []
 
     def test_short_description(self):
         config = AgentConfig(tools=[ToolDef(name="short", description="Get data")])
@@ -640,7 +638,7 @@ class TestH2:
             assert len(self._critical(variant["text"])) == variant["expect"]["h2_critical"], variant["variant_id"]
 
     def test_negated_prohibition_scanner_fixture(self):
-        result = scan_file(SAMPLES_DIR / "h2_negated_prohibition.yaml")
+        result = scan_file(SAMPLES_DIR / "h2_negated_prohibition.yaml", gate=False)
 
         assert result.input_error is None
         assert [f for f in result.structural_findings if f.pattern_id == "H2"] == []
@@ -1485,259 +1483,6 @@ class TestH4:
         assert not any("no context boundary" in f.description.lower() for f in findings)
 
 
-# ── H5: Implicit Instruction Failure ───────────────────────────────
-
-
-class TestH5:
-    def test_no_prompt_returns_empty(self, empty_config):
-        assert detect_h5(empty_config) == []
-
-    def test_clean_config_minimal_findings(self, clean_tools_config):
-        findings = detect_h5(clean_tools_config)
-        # Clean config uses positive, explicit instructions
-        high_or_above = [f for f in findings if f.severity in (Severity.CRITICAL, Severity.HIGH)]
-        assert len(high_or_above) == 0
-
-    def test_many_negatives(self):
-        config = AgentConfig(system_prompt="Don't do this. Never do that. Avoid this. Do not do the other thing.")
-        findings = detect_h5(config)
-        assert any("negative instruction" in f.description.lower() for f in findings)
-
-    def test_vague_qualifiers(self):
-        config = AgentConfig(system_prompt="Be concise and helpful. Use common sense when responding.")
-        findings = detect_h5(config)
-        assert any("vague" in f.description.lower() or "inference" in f.description.lower() for f in findings)
-
-    def test_no_priority_with_many_instructions(self, bad_prompt_config):
-        findings = detect_h5(bad_prompt_config)
-        assert any("priority" in f.description.lower() for f in findings)
-
-    def test_per_negative_low_notices_are_not_emitted(self):
-        """The per-negative LOW notices were removed; only the density MEDIUM remains."""
-        prompt = (
-            "Do not install anything persistently on the user's machine.\n"
-            "Don't rewrite the user's file.\n"
-            "Never invent a finding that the tool did not report.\n"
-            "Avoid offering this skill for general linting.\n"
-            "Do not guess a runner that is not installed.\n"
-        )
-        findings = detect_h5(AgentConfig(system_prompt=prompt))
-        assert not any("could be reframed positively" in f.description for f in findings)
-
-    def test_negative_density_medium_survives(self):
-        """POSITIVE CONTROL: the aggregated >3-negatives density MEDIUM is unchanged."""
-        prompt = "Don't do this. Never do that. Avoid this. Do not do the other thing."
-        findings = detect_h5(AgentConfig(system_prompt=prompt))
-        density = [f for f in findings if "negative instructions" in f.description]
-        assert len(density) == 1
-        assert density[0].severity == Severity.MEDIUM
-        assert density[0].location == "system_prompt"
-        assert density[0].description == (
-            "System prompt has 4 negative instructions ('don't', 'never', 'avoid'). "
-            "Models follow positive instructions more reliably."
-        )
-        assert density[0].evidence == "Don't"
-        assert density[0].offset == 0
-
-    @pytest.mark.parametrize("relative_path", _LINTLANG_INSTRUCTION_SURFACES)
-    def test_lintlang_own_instruction_prose_has_no_per_negative_notice(self, relative_path):
-        """HARD NEGATIVE: legitimate negative directives no longer produce LOW notices."""
-        findings = detect_h5(AgentConfig(system_prompt=_repo_text(relative_path)))
-        assert not any("could be reframed positively" in f.description for f in findings), relative_path
-
-
-# ── H6: Template Format Contract Violation ─────────────────────────
-
-
-class TestH6:
-    def test_no_prompt_returns_empty(self, empty_config):
-        assert detect_h6(empty_config) == []
-
-    def test_multiple_formats(self):
-        """POSITIVE CONTROL: three competing output-format instructions, description unchanged."""
-        config = AgentConfig(system_prompt="Respond in JSON for data. Use markdown for text. XML for configs.")
-        findings = detect_h6(config)
-        assert any("multiple output formats" in f.description for f in findings)
-        mixed = [f for f in findings if "multiple output formats" in f.description]
-        assert mixed[0].description == (
-            "System prompt references multiple output formats (JSON, Markdown, XML) "
-            "— model may produce hybrid output."
-        )
-        assert mixed[0].severity == Severity.MEDIUM
-
-    def test_coordinated_output_format_instruction_still_flags(self):
-        """POSITIVE CONTROL: one instruction naming both formats keeps its identity."""
-        findings = detect_h6(AgentConfig(system_prompt="Respond in JSON and Markdown."))
-        mixed = [f for f in findings if "multiple output formats" in f.description]
-        assert len(mixed) == 1
-        assert mixed[0].severity == Severity.MEDIUM
-        assert mixed[0].location == "system_prompt"
-        assert mixed[0].description == (
-            "System prompt references multiple output formats (JSON, Markdown) "
-            "— model may produce hybrid output."
-        )
-        assert mixed[0].evidence == ""
-
-    def test_mere_format_mention_is_not_a_contract_violation(self):
-        """HARD NEGATIVE: naming formats as accepted inputs is not a competing contract."""
-        for prompt in (
-            "Audit a named config file (YAML, JSON, Markdown, text, or Python) with the CLI.",
-            "LintLang reads JSON and Markdown instruction files. Respond in JSON.",
-            "Configs can be syntactically valid YAML/JSON while the Markdown docs disagree.",
-            "The report is Markdown. It summarises the XML schema the tool validates.",
-        ):
-            findings = detect_h6(AgentConfig(system_prompt=prompt))
-            assert not any("multiple output formats" in f.description for f in findings), prompt
-
-    def test_two_real_output_instructions_still_flag(self):
-        """POSITIVE CONTROL: two genuine output instructions still report at MEDIUM."""
-        config = AgentConfig(
-            system_prompt="Return the answer as markdown. Output format: JSON for every structured field."
-        )
-        findings = detect_h6(config)
-        mixed = [f for f in findings if "multiple output formats" in f.description]
-        assert len(mixed) == 1
-        assert mixed[0].severity == Severity.MEDIUM
-
-    def test_schema_conformance_and_write_verb_instructions_still_flag(self):
-        """POSITIVE CONTROL (RESEARCH.md gap): ordinary phrasing the closed verb/shape
-
-        list previously missed — a schema-conformance clause ('responses conform
-        to this JSON schema') and an output verb outside the original list
-        ('write your reply as ... Markdown').
-        """
-        prompt = (
-            "All API responses conform to this JSON schema: {result: string, confidence: number}. "
-            "When talking to end users in chat, write your reply as friendly Markdown text with "
-            "headings, not the raw JSON object, since users find raw JSON confusing to read."
-        )
-        findings = detect_h6(AgentConfig(system_prompt=prompt))
-        mixed = [f for f in findings if "multiple output formats" in f.description]
-        assert len(mixed) == 1
-        assert mixed[0].severity == Severity.MEDIUM
-        assert "JSON" in mixed[0].description and "Markdown" in mixed[0].description
-
-    def test_widened_output_shapes_recognized_individually(self):
-        """POSITIVE CONTROL: each widened output-instruction shape keeps the rule live."""
-        for prompt in (
-            "Write the summary as clean Markdown. Responses conform to this JSON schema.",
-            "Write your answer in plain XML. Output adheres to the Markdown template.",
-        ):
-            findings = detect_h6(AgentConfig(system_prompt=prompt))
-            assert any("multiple output formats" in f.description for f in findings), prompt
-
-    def test_widened_shapes_do_not_become_bare_mention_counting(self):
-        """HARD NEGATIVE: naming formats without an output instruction is still not a violation."""
-        for prompt in (
-            "The scanner reads JSON and Markdown files.",
-            "Supported inputs are YAML, JSON, and Markdown.",
-            "This document conforms to the house style guide, which covers JSON and Markdown examples.",
-            "Write a summary of the JSON and Markdown files in the repository.",
-        ):
-            findings = detect_h6(AgentConfig(system_prompt=prompt))
-            assert not any("multiple output formats" in f.description for f in findings), prompt
-
-    @pytest.mark.parametrize("relative_path", _LINTLANG_INSTRUCTION_SURFACES)
-    def test_lintlang_own_instruction_prose_has_no_format_conflict(self, relative_path):
-        """HARD NEGATIVE: LintLang's own shipped AGENTS/SKILL prose (RESEARCH.md section 5)."""
-        findings = detect_h6(AgentConfig(system_prompt=_repo_text(relative_path)))
-        assert not any("multiple output formats" in f.description for f in findings), relative_path
-
-    def test_bare_imperative_output_instruction_still_flags(self):
-        """POSITIVE CONTROL: the most ordinary way to state an output contract is
-        an imperative taking the format as a direct object. The narrowing must
-        not cost this true positive."""
-        for prompt in (
-            "Always output JSON. Also respond in Markdown. Use XML tags when convenient.",
-            "Return JSON only. Write the explanation as Markdown.",
-            "Emit XML. Respond in Markdown for the human-readable summary.",
-        ):
-            findings = detect_h6(AgentConfig(system_prompt=prompt))
-            assert any("multiple output formats" in f.description for f in findings), prompt
-
-    def test_bare_imperative_hard_negatives(self):
-        """HARD NEGATIVE: a third-person clause about ANOTHER system's output.
-
-        None of these describes the agent's own reply, so there is no competing
-        contract to surface. The third person alone is not what makes them
-        silent — see the xfail below, where the third person does describe the
-        agent's own delivery and the miss is real.
-        """
-        for prompt in (
-            "The upstream service returns JSON. Our docs are written in Markdown.",
-            "This tool outputs JSON. Some legacy feeds use XML.",
-            "Write JSON to disk under build/. Parse the JSON payload before use.",
-            "Responses are serialized to JSON. The changelog entry is Markdown.",
-        ):
-            findings = detect_h6(AgentConfig(system_prompt=prompt))
-            assert not any("multiple output formats" in f.description for f in findings), prompt
-
-    def test_descriptive_two_format_delivery_should_be_reported(self):
-        """A third-person contract on the agent's own reply still counts."""
-        prompt = "The agent's reply is delivered as JSON to the API and as Markdown to the UI."
-        findings = detect_h6(AgentConfig(system_prompt=prompt))
-        assert any("multiple output formats" in f.description for f in findings)
-
-    def test_no_format_spec(self):
-        config = AgentConfig(system_prompt="You are an assistant. " * 20)
-        findings = detect_h6(config)
-        assert any("no explicit output format" in f.description for f in findings)
-
-    def test_stated_output_format_is_not_reported_as_missing(self):
-        """HARD NEGATIVE: the LOW must not contradict the document it reports on.
-        Both spellings below do specify a format."""
-        for prompt in (
-            "You are a release agent. " * 12 + "Return Markdown only. Use ## for the release heading.",
-            "You are a planning agent. " * 12 + "Return a plan as Markdown.",
-            "You are an API agent. " * 12 + "Always output JSON.",
-        ):
-            findings = detect_h6(AgentConfig(system_prompt=prompt))
-            assert not any("no explicit output format" in f.description for f in findings), prompt
-
-    def test_output_format_recognizer_is_not_widened_to_bare_mentions(self):
-        """HARD NEGATIVE: the LOW still fires when a long prompt only names a
-        format in passing, so the recognizer has not become mention-counting."""
-        prompt = "You are an assistant. " * 20 + "The repository stores its notes in Markdown files."
-        findings = detect_h6(AgentConfig(system_prompt=prompt))
-        assert any("no explicit output format" in f.description for f in findings)
-
-    @pytest.mark.xfail(
-        strict=True,
-        reason="documented limitation: a stated output format is missed when an unlisted word or verb carries it",
-    )
-    def test_words_between_verb_and_format_should_not_report_a_missing_format(self):
-        """DESIRED BEHAVIOUR, not today's behaviour.
-
-        The recognizer takes a listed verb followed by the format name,
-        optionally through `in`/`as`/`with`/`using` and a short list of
-        adjectives. Each prompt below does state an output format and is still
-        reported as stating none: an unlisted word sits between the connector
-        and the format name (`exactly one`, `the ... shape`), or the verb
-        itself is not listed (`produce`). The LOW should not contradict the
-        document it reports on. Any widening must keep the mere-mention hard
-        negative above silent, which is why this is a decision and not a
-        one-line change.
-        """
-        for prompt in (
-            "You are a release agent. " * 12 + "Output exactly one Markdown document.",
-            "You are a release agent. " * 12 + "Produce a single JSON object.",
-            "You are a release agent. " * 12 + "Reply using the YAML shape below.",
-        ):
-            findings = detect_h6(AgentConfig(system_prompt=prompt))
-            assert not any("no explicit output format" in f.description for f in findings), prompt
-
-    def test_long_prompt_no_version(self):
-        config = AgentConfig(system_prompt="Some instructions. " * 40)
-        findings = detect_h6(config)
-        assert any("no version marker" in f.description for f in findings)
-
-    def test_versioned_prompt_ok(self):
-        config = AgentConfig(system_prompt="# Assistant v2.1\n\nYou are an assistant. " * 40)
-        findings = detect_h6(config)
-        version_findings = [f for f in findings if "version" in f.description.lower()]
-        assert len(version_findings) == 0
-
-
 # ── H7: Role Confusion ────────────────────────────────────────────
 
 
@@ -1788,13 +1533,13 @@ class TestNarrowedDetectorBaselineIdentity:
     docs/baselines.md:86-100 makes those five fields a baseline entry's identity, so a
     surviving positive whose message changed would reopen every baseline that recorded
     it. Removing a false positive is compatible; rewording a true one is not. These are
-    the H4/H5/H6 findings that the RESEARCH.md section 5 narrowing must leave untouched.
+    the H4 findings that the RESEARCH.md section 5 narrowing must leave untouched.
     """
 
     @staticmethod
     def _identities(prompt: str) -> set[tuple[str, str, str, str, str]]:
         config = AgentConfig(system_prompt=prompt)
-        findings = detect_h4(config) + detect_h5(config) + detect_h6(config)
+        findings = detect_h4(config)
         return {(f.code, f.severity.name, f.location, f.description, f.evidence) for f in findings}
 
     def test_bad_system_prompt_sample_identities_are_unchanged(self):
@@ -1805,21 +1550,6 @@ class TestNarrowedDetectorBaselineIdentity:
                 "MEDIUM",
                 "system_prompt",
                 "Long system prompt with no context boundary markers.",
-                "",
-            ),
-            (
-                "H5",
-                "MEDIUM",
-                "system_prompt",
-                "System prompt has ~25 instructions with no explicit priority ordering.",
-                "",
-            ),
-            (
-                "H6",
-                "MEDIUM",
-                "system_prompt",
-                "System prompt references multiple output formats (JSON, Markdown, XML) "
-                "— model may produce hybrid output.",
                 "",
             ),
         }

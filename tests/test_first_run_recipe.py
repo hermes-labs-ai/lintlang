@@ -63,38 +63,38 @@ def _codes(result) -> set[str]:
     return {f.code for f in result.structural_findings if f.code}
 
 
-def test_bad_fixture_reports_h1_1_and_blocks(fixtures, tmp_path):
+def test_bad_fixture_reports_h1_2_and_blocks(fixtures, tmp_path):
     path = _write(tmp_path, "agent.yaml", fixtures[0])
-    result = scan_file(path)
+    result = scan_file(path, gate=False)
     assert result.input_error is None
-    assert "H1.1" in _codes(result)
+    assert "H1.2" in _codes(result)
     assert compute_verdict(result) == "FAIL"
-    assert main(["scan", str(path), "--fail-on", "fail"]) == 1
+    assert main(["scan", "--no-gate", str(path), "--fail-on", "fail"]) == 1
 
 
 def test_bad_fixture_severity_counts_match_the_published_line(fixtures, tmp_path):
-    result = scan_file(_write(tmp_path, "agent.yaml", fixtures[0]))
+    result = scan_file(_write(tmp_path, "agent.yaml", fixtures[0]), gate=False)
     counts = Counter(f.severity.value for f in result.structural_findings)
-    assert counts == Counter({"critical": 1, "high": 1, "medium": 1}), counts
-    assert "FAIL — 1 CRITICAL, 1 HIGH, 1 MEDIUM" in _section()
+    assert counts == Counter({"high": 2, "medium": 1}), counts
+    assert "FAIL — 2 HIGH, 1 MEDIUM" in _section()
 
 
-def test_fixed_fixture_drops_h1_1_and_passes(fixtures, tmp_path):
+def test_fixed_fixture_drops_h1_2_and_passes(fixtures, tmp_path):
     path = _write(tmp_path, "agent-fixed.yaml", fixtures[1])
-    result = scan_file(path)
+    result = scan_file(path, gate=False)
     assert result.input_error is None
-    assert "H1.1" not in _codes(result)
+    assert "H1.2" not in _codes(result)
     assert result.structural_findings == []
     assert compute_verdict(result) == "PASS"
-    assert main(["scan", str(path), "--fail-on", "fail"]) == 0
+    assert main(["scan", "--no-gate", str(path), "--fail-on", "fail"]) == 0
 
 
 def test_unscannable_input_stays_a_distinct_error(tmp_path):
     missing = tmp_path / "does-not-exist.yaml"
-    result = scan_file(missing)
+    result = scan_file(missing, gate=False)
     assert result.input_error is not None
     assert compute_verdict(result) == "ERROR"
-    assert main(["scan", str(missing), "--fail-on", "fail"]) != 0
+    assert main(["scan", "--no-gate", str(missing), "--fail-on", "fail"]) != 0
 
 
 def test_section_publishes_exactly_the_scans_it_promises():
@@ -156,8 +156,8 @@ def test_windows_powershell_recipe_matches_the_verified_fixtures(fixtures):
     assert _powershell_fixtures() == fixtures
     assert 'Join-Path $env:TEMP "agent.yaml"' in section
     assert 'Join-Path $env:TEMP "agent-fixed.yaml"' in section
-    assert "python -m lintlang scan $badPath --fail-on fail" in section
-    assert "python -m lintlang scan $fixedPath --fail-on fail" in section
+    assert "python -m lintlang scan --no-gate $badPath --fail-on fail" in section
+    assert "python -m lintlang scan --no-gate $fixedPath --fail-on fail" in section
     assert "python -m lintlang scan (Join-Path $env:TEMP" in section
 
 
@@ -188,15 +188,15 @@ from lintlang.report import compute_verdict
 from lintlang.scanner import scan_file
 
 bad, fixed, missing = sys.argv[1:4]
-result = scan_file(bad)
+result = scan_file(bad, gate=False)
 payload = {
     "scan_file_codes": sorted({f.code for f in result.structural_findings if f.code}),
     "scan_file_verdict": compute_verdict(result),
-    "fixed_verdict": compute_verdict(scan_file(fixed)),
-    "missing_verdict": compute_verdict(scan_file(missing)),
-    "cli_bad": main(["scan", bad, "--fail-on", "fail"]),
-    "cli_fixed": main(["scan", fixed, "--fail-on", "fail"]),
-    "cli_missing": main(["scan", missing, "--fail-on", "fail"]),
+    "fixed_verdict": compute_verdict(scan_file(fixed, gate=False)),
+    "missing_verdict": compute_verdict(scan_file(missing, gate=False)),
+    "cli_bad": main(["scan", "--no-gate", bad, "--fail-on", "fail"]),
+    "cli_fixed": main(["scan", "--no-gate", fixed, "--fail-on", "fail"]),
+    "cli_missing": main(["scan", "--no-gate", missing, "--fail-on", "fail"]),
 }
 print("RESULT " + json.dumps(payload))
 """
@@ -230,7 +230,7 @@ def test_documented_paths_run_with_outbound_network_denied(fixtures, tmp_path):
     assert run.returncode == 0, run.stderr
     line = next(ln for ln in run.stdout.splitlines() if ln.startswith("RESULT "))
     payload = json.loads(line[len("RESULT "):])
-    assert "H1.1" in payload["scan_file_codes"]
+    assert "H1.2" in payload["scan_file_codes"]
     assert payload["scan_file_verdict"] == "FAIL"
     assert payload["fixed_verdict"] == "PASS"
     assert payload["missing_verdict"] == "ERROR"

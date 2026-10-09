@@ -26,4 +26,4 @@ linters:
       - lintlang scan agent.yaml tools.json --fail-on fail
     install:
       dockerfile:
-        - RUN pip install --no-cache-dir lintlang==0.8.2
+        - RUN pip install --no-cache-dir lintlang==0.8.8

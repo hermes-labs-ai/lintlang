@@ -91,7 +91,7 @@ exit (2). One invocation takes one unambiguous source of files.
 case is an input/coverage error (see below).
 
 Scan arguments are files or directories, resolved from the invocation directory.
-`--patterns`/`-p` selects H1-H7 families, not individual sub-codes such as H1.6.
+`--patterns`/`-p` selects H1-H4 and H7 families, not individual sub-codes such as H1.6.
 `lintlang patterns` lists those structural families. P1/P2 are Python-specific
 checks; they still run in Python extraction mode when an H-series filter is set.
 
@@ -114,18 +114,17 @@ The initializer does not scan, commit, publish, or enable repository features.
 
 | Verdict | Meaning after selected filters and any baseline |
 | --- | --- |
-| ERROR | A requested input could not be inspected |
+| ERROR | A requested input or required classifier could not be evaluated |
 | SKIPPED | The file was read and holds nothing LintLang inspects. Never a PASS |
-| FAIL | At least one HIGH or CRITICAL structural finding remains |
-| REVIEW | At least one MEDIUM finding remains and none is HIGH/CRITICAL |
-| PASS | No MEDIUM, HIGH, or CRITICAL finding remains; LOW/INFO may remain |
+| FAIL | At least one selected KEEP finding remains; raw mode: HIGH or CRITICAL |
+| REVIEW | ESCALATE findings remain without KEEP; raw mode: MEDIUM without HIGH/CRITICAL |
+| PASS | No visible gated findings remain; raw mode: no MEDIUM or higher |
 
-The CLI has no verdict-failure threshold by default; a scannable input can report
-FAIL and still exit 0. `--fail-on fail` exits 1 for HIGH/CRITICAL findings;
-`--fail-on review` exits 1 for MEDIUM or higher. The first-party GitHub Action
-defaults its `fail-on` input to empty and only passes `--fail-on` when it is
-set, so it is advisory by default too; set `fail-on: fail` or `fail-on: review`
-to enforce.
+The default gate makes selected KEEP findings block with exit 1. ESCALATE stays
+advisory, and DISMISS is hidden. `--no-gate` restores raw severity behavior:
+raw mode has no verdict-failure threshold by default, so even raw FAIL exits 0; `--fail-on fail` blocks HIGH/CRITICAL,
+and `--fail-on review` also blocks MEDIUM. The local Action defaults `gate` to
+true; use `gate: false` for raw mode and its optional `fail-on` enforcement.
 
 Input errors remain exit 1 regardless of severity filtering, a baseline, or the
 presence of another valid input. Baseline validation/write errors and SARIF
@@ -217,8 +216,7 @@ data; nothing is constructed or executed.
 Prompts under nested keys are read too: a string of at least 40 characters under
 a key such as `system_template`, `instance_template`, `system_prompt`,
 `instructions`, `*_prompt`, `persona` or `backstory`, at any depth. They are
-joined and checked as templates: evidence-bearing checks (H2, H4 phrases, H5
-qualifiers, H6 conflicts) run; the chat-prompt shape heuristics do not, because
+joined and checked as templates: evidence-bearing checks (H2 and H4 phrases) run; the chat-prompt shape heuristics do not, because
 several templates are not one prompt.
 
 Tool findings carry the line on which the tool's `name` is declared when that
@@ -292,7 +290,7 @@ runtime interpolation and data flow are not evaluated. Prompt candidates are
 deduplicated by their first 200 characters, so distinct strings with the same
 prefix can collapse to one candidate. Python syntax errors produce ERROR.
 
-Only H2, H4, H5, and H6 run on extracted prompts. Literal Python tool
+Only H2 and H4 run on extracted prompts. Literal Python tool
 definitions provide a separate declared surface on which H1 and H3 run; H7
 does not run in Python extraction mode. Selecting a family for which a Python
 input provides no supported surface is not proof that the check passed. P1/P2
@@ -328,25 +326,26 @@ cannot establish that dynamically assembled prompts or every pipeline were
 inspected. Python decoding currently ignores invalid UTF-8 bytes; ordinary
 text/configuration loading uses strict UTF-8. Neither path executes source code.
 
-## Structural detectors (H1-H7)
+## Structural detectors (H1-H4 and H7)
 
 ### H1: Tool Description Ambiguity
 
-Checks empty and underspecified short descriptions, selected vague opening verbs, duplicate
+Checks underspecified nonempty short descriptions, selected vague opening verbs, duplicate
 tool names, high word overlap, and relational nondistinction. Findings keep
 `pattern_id: H1`; `code` provides the more specific stable identifier.
 
+H1.1 is retired in 0.8.8; empty tool and skill descriptions produce no finding.
+
 | Code | Reports | Severity |
 | --- | --- | --- |
-| H1.1 | Tool has no description | CRITICAL |
 | H1.2 | Description shorter than 20 characters without a recognized concrete action and domain object | HIGH |
 | H1.3 | Description opens with a selected vague verb | MEDIUM |
 | H1.4 | Two tools share a name | CRITICAL |
 | H1.5 | Near-duplicate descriptions under the word-overlap model | HIGH |
 | H1.6 | One or both tools lack a distinguishing analyzed term | MEDIUM |
-| H1.7 | Skill description longer than 1024 characters | HIGH |
+| H1.7 | Skill description longer than 1024 / 5000 characters | LOW / HIGH |
 | H1.8 | Skill description does not say when to use the skill | MEDIUM under 120 characters, else LOW |
-| H1.9 | Skill `name` invalid, or different from its `SKILL.md` directory | MEDIUM |
+| H1.9 | Skill `name` invalid or unrelated to its directory; case and explicit version suffixes accepted | MEDIUM |
 
 One-sided H1.6 containment and non-identical H1.5 overlap are suppressed when
 both tools declare different input names, types, or choices in nonempty property
@@ -366,8 +365,7 @@ files or remote localization resources are fetched. Skill source catalogs with
 `repo` and `skillPath` are explicitly skipped; their bodies are not present.
 
 For an explicit selection definition path with `name`/`description` front matter
-(`SKILL.md`, `.claude/agents/*.md`, `.claude/commands/**/*.md`, or `.cursor/rules/*.mdc`) the description is the selection-time text, so H1.1 (no description,
-HIGH) and H1.2 (under 20 characters, MEDIUM) apply to it, located at
+(`SKILL.md`, `.claude/agents/*.md`, `.claude/commands/**/*.md`, or `.cursor/rules/*.mdc`) the description is the selection-time text, so H1.2 (nonempty and under 20 characters, MEDIUM) applies to it, located at
 `frontmatter.description` with its line. H1.8 looks for trigger vocabulary ("use
 when", "if the user", "before", a description written as the situation); it is a
 finite vocabulary, which is why a long description is only LOW. H1.9's directory
@@ -443,35 +441,18 @@ talk about creating, renaming, removing or exemplifying it. It reads the
 filesystem, so it does not run on standard input, and it is deliberately quiet:
 directories, globs, placeholders and paths into other projects are never reported.
 
-### H5: Implicit Instruction Failure
+### H5: Retired
 
-Checks selected vague qualifiers ("be concise", "be helpful", "use common sense"),
-ambiguous conditionals ("as needed", "when appropriate"), figurative verbs
-("lean into", "err on the side of", "keep it simple"). The instruction-count finding is LOW for a literal extracted from Python. In a
-Markdown document, H2 does not report "loop / repeat / continue until <condition>"
-(a stated termination condition) or text inside a quoted example. For chat prompts only
-(`.txt`, `.prompt`, a config's system prompt, an extracted Python literal) it also
-checks negative-instruction density and high instruction count without priority
-ordering; those two judge the shape of a single prompt and do not run on Markdown
-instruction documents, where they fired on most real files and named no sentence.
-Negative-instruction exemptions have three layers:
+H5's implicit-instruction detector and its registry entry are removed in 0.8.8.
+`detect_h5` is no longer importable. Remove H5 from explicit `--patterns`
+selections. Historical serialized H5 findings remain readable. The scanner no
+longer reports vague qualifiers, negative-instruction density or missing priority
+ordering. Other detectors and classifier parameters are unchanged by this removal.
 
-1. Structural: HTML comments, fenced/inline code, and generated-file markers.
-2. Phrase-level: selected privacy disclaimers, UI labels, descriptive wording,
-   idiomatic phrases, and "to avoid" constructions.
-3. Safety context: nearby security/authentication/policy terms within a
-   100-character window.
+### H6: Retired
 
-These exemptions and matches are implemented patterns, not unrestricted intent
-understanding; a useful false-positive report includes a minimal reproduction.
-
-### H6: Template Format Contract Violation
-
-Strips fenced code, inline code, filenames, and CLI flags before counting format
-keywords. Checks selected conflicting output formats without disambiguation,
-template variables and, for chat prompts only, a missing format specification and
-(not for extracted Python literals) a missing version marker.
-It does not prove arbitrary output contracts satisfiable.
+H6 no longer runs. Explicit H6 selection is rejected; remove it from `--patterns`.
+Historical serialized findings remain readable. See [0.8.8 migration](docs/release-0.8.8.md).
 
 ### H7: Role Confusion
 
@@ -485,7 +466,7 @@ not every provider's protocol.
 ```python
 from lintlang import compute_verdict, scan_directory, scan_file
 
-result = scan_file("config.yaml")
+result = scan_file("config.yaml", gate=False)  # Demonstrate raw detector findings
 print(compute_verdict(result))  # ERROR, SKIPPED, PASS, REVIEW, or FAIL
 if result.input_error is not None:
     print(result.input_error)
@@ -494,7 +475,7 @@ else:
         print(f"[{finding.severity.value}] {finding.code}: {finding.description}")
         print(f"  -> {finding.suggestion}")
 
-results = scan_directory("prompts/", patterns=["H2", "H4"])
+results = scan_directory("prompts/", patterns=["H2", "H4"], gate=False)
 for path, scanned in results.items():
     print(path, compute_verdict(scanned))
 ```
@@ -658,14 +639,14 @@ scan exit semantics remain independent of these states.
 From a source checkout:
 
 ```bash
-lintlang scan samples/bad_tool_descriptions.yaml
+lintlang scan --no-gate samples/bad_tool_descriptions.yaml
 ```
 
-Excerpt from `lintlang 0.8.2`:
+Excerpt from `lintlang 0.8.8`:
 
 ```text
-FAIL — 1 CRITICAL, 1 HIGH, 5 MEDIUM, 3 LOW
-H1.1: Tool 'process_ticket' has no description
+FAIL — 1 HIGH, 5 MEDIUM, 3 LOW
+H1.3: Tool 'handle_request' starts with vague verb 'handle'.
 ```
 
 This is a deliberately failing fixture, not a broken installation. Compare it
@@ -675,19 +656,24 @@ A clean static scan is not evidence of runtime correctness or safety.
 
 ## First run without a checkout
 
+**Unpublished candidate:** the registry-pinned 0.8.8 recipe below is for the
+prepared release and will work only after publication. To test it now, install
+from this candidate checkout with `python -m pip install -e .` and skip the
+registry installation command. The `--no-gate` examples require this candidate.
+
 No clone or credentials are required. Write two small files and run three scans.
 Only the install reaches the network to obtain the package and dependencies.
 Every `lintlang scan` below is offline.
 
 ```bash
-python -m pip install lintlang==0.8.2
+python -m pip install lintlang==0.8.8
 
 cat > /tmp/agent.yaml <<'YAML'
 system_prompt: |
   You are a support agent. Use the tools to help the user.
 tools:
   - name: process_ticket
-    description: ""
+    description: "Get data"
     parameters:
       type: object
       properties:
@@ -695,11 +681,11 @@ tools:
           type: string
 YAML
 
-lintlang scan /tmp/agent.yaml --fail-on fail
+lintlang scan --no-gate /tmp/agent.yaml --fail-on fail
 ```
 
-`lintlang 0.8.2` reports `FAIL — 1 CRITICAL, 1 HIGH, 1 MEDIUM` and exits `1`.
-H1.1 identifies the empty tool description. This is a successful detection; do
+`lintlang 0.8.8` reports `FAIL — 2 HIGH, 1 MEDIUM` and exits `1`.
+H1.2 identifies the underspecified short tool description. This is a successful detection; do
 not hide the exit status with `|| true`. To use the newest package instead, run
 `python -m pip install --upgrade lintlang` and re-read the counts below as approximate.
 
@@ -723,7 +709,7 @@ constraints:
   timeout_seconds: 30
 YAML
 
-lintlang scan /tmp/agent-fixed.yaml --fail-on fail
+lintlang scan --no-gate /tmp/agent-fixed.yaml --fail-on fail
 ```
 
 With the pinned release, the fixed file scans `PASS — 0 findings` and exits `0`;
@@ -756,7 +742,7 @@ left alone; review it before replacing it with `--force`. See
 Use the same inputs and outcomes with PowerShell-native temporary paths:
 
 ```powershell
-python -m pip install lintlang==0.8.2
+python -m pip install lintlang==0.8.8
 $badPath = Join-Path $env:TEMP "agent.yaml"
 $fixedPath = Join-Path $env:TEMP "agent-fixed.yaml"
 
@@ -765,7 +751,7 @@ system_prompt: |
   You are a support agent. Use the tools to help the user.
 tools:
   - name: process_ticket
-    description: ""
+    description: "Get data"
     parameters:
       type: object
       properties:
@@ -773,7 +759,7 @@ tools:
           type: string
 '@ | Set-Content -LiteralPath $badPath -Encoding utf8
 
-python -m lintlang scan $badPath --fail-on fail
+python -m lintlang scan --no-gate $badPath --fail-on fail
 
 @'
 system_prompt: |
@@ -794,7 +780,7 @@ constraints:
   timeout_seconds: 30
 '@ | Set-Content -LiteralPath $fixedPath -Encoding utf8
 
-python -m lintlang scan $fixedPath --fail-on fail
+python -m lintlang scan --no-gate $fixedPath --fail-on fail
 python -m lintlang scan (Join-Path $env:TEMP "does-not-exist.yaml") --fail-on fail
 ```
 
@@ -806,3 +792,19 @@ python -m lintlang scan (Join-Path $env:TEMP "does-not-exist.yaml") --fail-on fa
 [contributing](CONTRIBUTING.md), [security policy](SECURITY.md), and
 [Apache License 2.0](LICENSE). LintLang is maintained by
 [Hermes Labs](https://hermes-labs.ai).
+
+## Unpublished 0.8.8 gate policy
+
+The local 0.8.8 candidate enables the classifier by default. KEEP produces FAIL
+and exit 1; ESCALATE produces REVIEW without blocking; DISMISS is hidden, with
+raw and suppressed counts in diagnostics. `--no-gate` or Python `gate=False`
+restores raw detector findings and the existing severity policy. The API example
+above intentionally demonstrates raw mode. `--gate` remains as a deprecated alias.
+`--gate-threshold KEEP[,DISMISS]` defaults to `0.85,0.15`; a single value changes
+KEEP only. Invalid/missing model artifacts produce ERROR with raw findings
+retained. `--fail-under` remains independent. These gate semantics supersede the
+raw severity examples above when `--no-gate` is absent.
+
+Release approval is blocked: expanded mixed-provenance labels show 27.84% KEEP
+precision, not the earlier 99.46% measured on a small labeled subset. See
+`docs/release-0.8.8.md` for denominators, remaining uncertainty and migration.

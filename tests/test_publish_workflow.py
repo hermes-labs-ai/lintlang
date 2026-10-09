@@ -116,5 +116,5 @@ def test_ci_workflow_uses_immutable_checkout_v7():
         if step.get("uses", "").startswith("actions/checkout@")
     ]
 
-    assert len(checkout_steps) == 2
+    assert len(checkout_steps) == 3
     assert all(step["uses"] == f"actions/checkout@{CHECKOUT_V7_SHA}" for step in checkout_steps)

@@ -41,7 +41,7 @@ class UnicodeDecodeErrorWithHint(UnicodeDecodeError, ValueError):
 def decode_file_bytes(raw: bytes) -> str:
     """Decode raw bytes as UTF-8 with actionable decode errors."""
     try:
-        return raw.decode("utf-8")
+        text = raw.decode("utf-8")
     except UnicodeDecodeError as error:
         if raw.startswith((b"\xff\xfe", b"\xfe\xff")):
             message = (
@@ -51,6 +51,17 @@ def decode_file_bytes(raw: bytes) -> str:
         else:
             message = "File is not valid UTF-8. LintLang requires UTF-8 encoding."
         raise UnicodeDecodeErrorWithHint(message, error) from error
+
+    nul_offset = raw.find(b"\x00")
+    if nul_offset >= 0:
+        error = UnicodeDecodeError("utf-8", raw, nul_offset, nul_offset + 1, "NUL byte in text input")
+        message = (
+            "Text input contains a NUL byte. LintLang requires UTF-8 text; this often indicates "
+            "BOM-less UTF-16 or UTF-32 encoding. Save or convert the file as UTF-8, or remove "
+            "unintended NUL characters."
+        )
+        raise UnicodeDecodeErrorWithHint(message, error) from error
+    return text
 
 
 def read_file_text(path: str | Path) -> str:

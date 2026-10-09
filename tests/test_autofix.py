@@ -115,7 +115,7 @@ def test_dry_run_displays_exact_diff_without_writing(tmp_path, capsys):
     path.write_bytes(original)
     original_stat = path.stat()
 
-    assert main(["scan", str(path), "--fix", "--dry-run"]) == 0
+    assert main(["scan", "--no-gate", str(path), "--fix", "--dry-run"]) == 0
 
     output = capsys.readouterr().out
     expected_diff = (
@@ -142,11 +142,11 @@ def test_write_creates_exact_backup_that_restores_and_is_idempotent(tmp_path, ca
     path.write_bytes(original)
     backup = tmp_path / "AGENTS.md.lintlang.bak"
 
-    assert main(["scan", str(path), "--fix", "--backup"]) == 0
+    assert main(["scan", "--no-gate", str(path), "--fix", "--backup"]) == 0
 
     assert path.read_bytes() == b"# Instructions\r\n\r\nBe concise.\r\n"
     assert backup.read_bytes() == original
-    assert main(["scan", str(path), "--fix", "--backup"]) == 0
+    assert main(["scan", "--no-gate", str(path), "--fix", "--backup"]) == 0
     assert path.read_bytes() == b"# Instructions\r\n\r\nBe concise.\r\n"
 
     path.write_bytes(backup.read_bytes())
@@ -197,7 +197,7 @@ def test_cli_rejects_ambiguous_fix_options(tmp_path, capsys, options, files):
         path.write_text("Don't be verbose.\n", encoding="utf-8")
     originals = [path.read_bytes() for path in paths]
 
-    assert main(["scan", *(str(path) for path in paths), *options]) == 2
+    assert main(["scan", "--no-gate", *(str(path) for path in paths), *options]) == 2
     assert [path.read_bytes() for path in paths] == originals
     assert "Error:" in capsys.readouterr().err
 
@@ -211,8 +211,8 @@ def test_cli_rejects_machine_output_and_stdin_fixes(tmp_path, capsys, monkeypatc
     path.write_text("Don't be verbose.\n", encoding="utf-8")
     monkeypatch.setattr("sys.stdin", StringIO("Don't be verbose.\n"))
 
-    assert main(["scan", str(path), "--fix", "--format", "json"]) == 2
-    assert main(["scan", "-", "--stdin-filename", "AGENTS.md", "--fix"]) == 2
+    assert main(["scan", "--no-gate", str(path), "--fix", "--format", "json"]) == 2
+    assert main(["scan", "--no-gate", "-", "--stdin-filename", "AGENTS.md", "--fix"]) == 2
     assert path.read_text(encoding="utf-8") == "Don't be verbose.\n"
     assert "Error:" in capsys.readouterr().err
 

@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.8.8] - Unreleased
+
+- Remove H5 implicit-instruction detection, its helper tables, function and registry entry. Explicit H5 selection and `detect_h5` imports are no longer supported.
+
+- Skip exact test, fixture and teaching directory components during directory scans and discovery; explicitly named files remain inspectable.
+- Retire H1.1 for empty tool and skill descriptions; empty descriptions do not fall through to H1.2.
+
+- Retire H6 from scanning; the historical `detect_h6` import remains a no-op for compatibility.
+- Tier H1.7 skill description notices while preserving the legacy 1024-character notice for TP retention.
+- Accept case and explicit version suffix variants in H1.9 while retaining invalid-name diagnostics.
+- Exclude illustrative H4 references without hiding actionable missing files.
+- **Pending approval / breaking:** enable the offline learned gate by default. Selected KEEP findings block, ESCALATE remains advisory, and DISMISS is hidden with counts. Preserve raw mode through `--no-gate` / `gate=False`; retain deprecated `--gate` and add `--gate-threshold KEEP[,DISMISS]`.
+- Fail closed with raw findings retained when model artifacts are unavailable. Preserve explicit severity filters, baselines and the independent legacy HERM threshold.
+- Expanded label review fails the >99% KEEP precision acceptance target. This blocks release approval; see the report for full denominators and uncertainty.
+- Include model artifacts, diagnostic serialization, release evaluation and clean-package checks.
+
+See [migration and acceptance](docs/release-0.8.8.md). This candidate is not published.
+
 ## [0.8.2] - 2026-09-30
 
 ### Added

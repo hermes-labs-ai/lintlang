@@ -10,7 +10,7 @@ Scanning an instruction file with the standalone CLI does not install this plugi
 Install the pinned scanner with Python 3.10+ so `lintlang` is on the host's `PATH`:
 
 ```bash
-pipx install lintlang==0.8.2
+pipx install lintlang==0.8.8
 lintlang --version
 ```
 

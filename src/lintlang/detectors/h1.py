@@ -428,6 +428,8 @@ def _domination_is_meaningful(dominated: ToolDef, dominant: ToolDef) -> bool:
 
 _SKILL_NAME = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 _SKILL_DESCRIPTION_LIMIT = 1024
+_SKILL_DESCRIPTION_LIMIT_ADVISORY = 2500
+_SKILL_DESCRIPTION_LIMIT_FLAG = 5000
 _SKILL_NAME_LIMIT = 64
 
 # Words with which a description tells a model WHEN to load the skill, as
@@ -448,9 +450,9 @@ def _detect_skill_metadata(config: AgentConfig) -> list[Finding]:
     """H1 for a skill / sub-agent: its front matter is its tool description.
 
     A model decides whether to load a skill from ``name`` and ``description``
-    alone, exactly as it picks a tool. The limits are the published Agent Skills
-    ones: ``name`` at most 64 characters of lowercase letters, digits and
-    hyphens; ``description`` non-empty and at most 1024 characters.
+    alone, exactly as it picks a tool. Long descriptions receive tiered
+    diagnostics. Name case and explicit version suffixes on the directory name are
+    accepted; malformed names remain visible.
     """
     skill = config.skill
     if skill is None:
@@ -475,20 +477,27 @@ def _detect_skill_metadata(config: AgentConfig) -> list[Finding]:
 
     label = skill.name or skill.dir_name or "this file"
     description = skill.description.strip()
-    if not description:
-        add(
-            "H1.1", Severity.HIGH, "description", skill.description_line,
-            f"Skill '{label}' has front matter but no description. The description is the only text a model "
-            "sees when deciding whether to load this skill.",
-            "Add a 'description:' that says what the skill does AND when to use it.",
-        )
-    else:
-        if len(description) > _SKILL_DESCRIPTION_LIMIT:
+    if description:
+        if len(description) > _SKILL_DESCRIPTION_LIMIT_FLAG:
             add(
                 "H1.7", Severity.HIGH, "description", skill.description_line,
-                f"Skill '{label}' description is {len(description)} characters; the Agent Skills limit is "
-                f"{_SKILL_DESCRIPTION_LIMIT}. Hosts reject or truncate longer descriptions.",
+                f"Skill '{label}' description is {len(description)} characters, over the "
+                f"{_SKILL_DESCRIPTION_LIMIT_FLAG}-character high threshold.",
                 "Move detail into the body. Keep the description to what the skill does and when to use it.",
+            )
+        elif len(description) > _SKILL_DESCRIPTION_LIMIT_ADVISORY:
+            add(
+                "H1.7", Severity.LOW, "description", skill.description_line,
+                f"Skill '{label}' description is {len(description)} characters, over the "
+                f"{_SKILL_DESCRIPTION_LIMIT_ADVISORY}-character advisory threshold.",
+                "Move secondary detail into the body; keep the description focused on trigger and purpose.",
+            )
+        elif len(description) > _SKILL_DESCRIPTION_LIMIT:
+            add(
+                "H1.7", Severity.LOW, "description", skill.description_line,
+                f"Skill '{label}' description is {len(description)} characters; this exceeds the legacy "
+                f"{_SKILL_DESCRIPTION_LIMIT}-character guideline. Check the target host limit.",
+                "Check the target host limit and move secondary detail into the body if needed.",
             )
         if len(description) < 20:
             add(
@@ -513,23 +522,33 @@ def _detect_skill_metadata(config: AgentConfig) -> list[Finding]:
 
     if skill.has_name and skill.dir_name:
         name = skill.name
-        if not name or len(name) > _SKILL_NAME_LIMIT or not _SKILL_NAME.match(name):
+        if not name or len(name) > _SKILL_NAME_LIMIT or not _SKILL_NAME.fullmatch(name.lower()):
             add(
                 "H1.9", Severity.MEDIUM, "name", skill.name_line,
-                f"Skill name '{name}' is not a valid Agent Skills name (1-{_SKILL_NAME_LIMIT} characters: "
-                "lowercase letters, digits and single hyphens).",
+                f"Skill name '{name}' is not a valid name (1-{_SKILL_NAME_LIMIT} characters: "
+                "letters, digits and single hyphens).",
                 "Rename it, for example 'pdf-form-filler'.",
                 evidence=name,
             )
-        elif name != skill.dir_name:
+        elif not _skill_name_matches_directory(name, skill.dir_name):
             add(
                 "H1.9", Severity.MEDIUM, "name", skill.name_line,
-                f"Skill name '{name}' does not match its directory '{skill.dir_name}'. The Agent Skills "
-                "format requires them to be identical, and hosts resolve the skill by directory.",
+                f"Skill name '{name}' does not match its directory '{skill.dir_name}'. "
+                "Some hosts resolve skills by directory.",
                 f"Set 'name: {skill.dir_name}' or rename the directory.",
                 evidence=name,
             )
     return findings
+
+
+def _skill_name_matches_directory(name: str, directory: str) -> bool:
+    """Permit case changes and explicit -vN version suffixes only."""
+    name = name.lower()
+    directory = directory.lower()
+    return name == directory or any(
+        re.fullmatch(rf"{re.escape(shorter)}-v[0-9]+", longer)
+        for shorter, longer in ((name, directory), (directory, name))
+    )
 
 
 def detect_h1(config: AgentConfig) -> list[Finding]:
@@ -540,20 +559,8 @@ def detect_h1(config: AgentConfig) -> list[Finding]:
         return findings
 
     for tool in tools:
-        # Missing description
+        # Empty descriptions are outside H1's signal; do not reclassify as H1.2.
         if not tool.description or not tool.description.strip():
-            findings.append(
-                Finding(
-                    pattern_id="H1",
-                    sub_id="H1.1",
-                    pattern_name="Tool Description Ambiguity",
-                    severity=Severity.CRITICAL,
-                    location=f"tool:{tool.name}",
-                    description=f"Tool '{tool.name}' has no description.",
-                    source_region=tool.source_region,
-                    suggestion="Add a specific, disambiguating description that explains WHEN to use this tool, not just WHAT it does.",
-                )
-            )
             continue
 
         desc = tool.description.strip()

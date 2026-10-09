@@ -51,7 +51,7 @@ other hooks:
 ```yaml
 repos:
   - repo: https://github.com/hermes-labs-ai/lintlang
-    rev: v0.8.2
+    rev: v0.8.8
     hooks:
       - id: lintlang
 ```
@@ -153,7 +153,7 @@ Install the skill as a Pi package directly from this repository, pinned to a
 release tag:
 
 ```bash
-pi install git:github.com/hermes-labs-ai/lintlang@v0.8.2
+pi install git:github.com/hermes-labs-ai/lintlang@v0.8.8
 pi list
 ```
 
@@ -164,7 +164,7 @@ package or a Pi gallery listing. Add `--local` to declare the package in project
 settings instead. In a new Pi session, `/skill:lintlang` runs it on request.
 
 The skill does not install the scanner. It uses `lintlang` from `PATH`, then
-`uvx --from lintlang==0.8.2`, and otherwise relays a pip command. It reports an
+`uvx --from lintlang==0.8.8`, and otherwise relays a pip command. It reports an
 advisory verdict for a file you name and does not rewrite files. Its
 [verification step](../skills/lintlang/SKILL.md#verify-the-runner-without-a-checkout)
 checks the runner without a checkout. Recorded installation: Pi 0.99.2

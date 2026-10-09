@@ -1,10 +1,10 @@
-"""H2/H4/H5 scope-classifier integration regressions."""
+"""H2/H4 scope-classifier integration regressions."""
 
 from __future__ import annotations
 
 import pytest
 
-from lintlang.patterns import AgentConfig, detect_h2, detect_h4, detect_h5
+from lintlang.patterns import AgentConfig, detect_h2, detect_h4
 
 
 @pytest.mark.parametrize(
@@ -12,7 +12,6 @@ from lintlang.patterns import AgentConfig, detect_h2, detect_h4, detect_h5
     [
         (detect_h2, "keep trying until the request succeeds"),
         (detect_h4, "remember everything the user says"),
-        (detect_h5, "be concise"),
     ],
 )
 @pytest.mark.parametrize(
@@ -33,7 +32,6 @@ def test_quoted_or_code_examples_do_not_fire(detector, trigger: str, template: s
     [
         (detect_h2, "Keep trying until the request succeeds."),
         (detect_h4, "Remember everything the user says."),
-        (detect_h5, "Be concise."),
     ],
 )
 def test_live_instruction_still_fires(detector, prompt: str) -> None:
@@ -64,30 +62,11 @@ def test_quoted_or_code_boundary_markers_do_not_satisfy_long_prompt_boundary(
     assert any("no context boundary" in finding.description.lower() for finding in findings)
 
 
-def test_live_h5_negative_instruction_still_fires() -> None:
-    """NEGATED scope is operative for H5's own negative-instruction rule.
-
-    The per-negative LOW notice was removed, so the surviving signal is the tested
-    density finding: more than three unexempted negative directives in one prompt.
-    """
-    prompt = "Don't use emojis. Never use bullet lists. Avoid headings. Do not use tables."
-    findings = detect_h5(AgentConfig(system_prompt=prompt))
-
-    assert any("negative instruction" in finding.description.lower() for finding in findings)
-
-
-def test_quoted_h5_negative_instruction_does_not_fire() -> None:
-    findings = detect_h5(AgentConfig(system_prompt='Documentation example: "Don\'t use emojis."'))
-
-    assert findings == []
-
-
 @pytest.mark.parametrize(
     ("detector", "prompt"),
     [
         (detect_h2, 'Example with an unclosed quote: "keep trying until the request succeeds.'),
         (detect_h4, 'Example with an unclosed quote: "remember everything the user says.'),
-        (detect_h5, 'Example with an unclosed quote: "be concise.'),
     ],
 )
 def test_unavailable_scope_preserves_existing_findings(detector, prompt: str) -> None:

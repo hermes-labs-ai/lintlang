@@ -54,7 +54,7 @@ python -m build
 ## Output shape
 
 - repository scan outcomes: `ERROR`, `PASS`, `REVIEW`, or `FAIL`
-- structural findings by pattern `H1` through `H7`, plus Python pipeline findings `P1` and `P2`
+- structural findings by pattern `H1` through `H4`, plus `H7`, plus Python pipeline findings `P1` and `P2`
 - JSON output for CI via `--format json`
 - conservative `scan --fix` for `Don't be verbose` as the first body line after a file-leading `# Instructions`; `--dry-run` previews and `--backup` saves the original bytes
 - preflight states: `ALLOW`, `NOTICE`, `HOLD`, `UNAVAILABLE`, or `ERROR`

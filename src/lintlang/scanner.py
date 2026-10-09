@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import os
 import re
 from collections.abc import Callable
@@ -87,6 +88,16 @@ NON_PROMPT_DIRS = {
     "htmlcov",
     "issue_template",
     "pull_request_template",
+    "tests",
+    "test",
+    "cassettes",
+    "fixtures",
+    "mocks",
+    "memory-tests",
+    "examples",
+    "cookbook",
+    "tutorials",
+    "lessons",
 }
 
 
@@ -104,7 +115,7 @@ def _is_non_prompt_file(filepath: Path) -> bool:
             return True
 
     # Check if in a non-prompt directory
-    return any(part.lower() in NON_PROMPT_DIRS or part.lower().endswith(".egg-info") for part in filepath.parts)
+    return any(part.lower() in NON_PROMPT_DIRS or part.lower().endswith(".egg-info") for part in filepath.parts[:-1])
 
 
 def _glob_to_regex(pattern: str) -> re.Pattern | None:
@@ -218,6 +229,11 @@ class ScanResult:
     """Coverage notices: tool-like content the parser saw and did not inspect."""
     skipped: str | None = None
     """Why nothing was inspected, when nothing was (never a PASS)."""
+    gate_status: str = "disabled"
+    gate_error: str | None = None
+    gate_thresholds: dict[str, float] | None = None
+    raw_findings_count: int = 0
+    suppressed_count: int = 0
 
 
 def _plural(count: int, noun: str) -> str:
@@ -327,15 +343,58 @@ def _build_scoring_text(config: AgentConfig) -> str:
     return "\n\n".join(parts)
 
 
+def _apply_gate(
+    findings: list[Finding], source_file: str, context: str,
+    thresholds: tuple[float, float] | None,
+) -> tuple[list[Finding], str, str | None, dict[str, float] | None, int]:
+    """Classify atomically; retain raw findings on model failure."""
+    try:
+        from .gate import FPGate
+
+        classifier = FPGate(thresholds=thresholds)
+        decisions = [
+            classifier.classify({
+                "rule": finding.code,
+                "severity": finding.severity.value,
+                "pattern_name": finding.pattern_name,
+                "evidence": finding.evidence,
+                "context": context,
+                "file_path": source_file,
+            })
+            for finding in findings
+        ]
+        validated: list[tuple[str, float]] = []
+        for decision, probability in decisions:
+            if (
+                not isinstance(decision, str)
+                or decision not in {"KEEP", "ESCALATE", "DISMISS"}
+                or not isinstance(probability, (int, float))
+                or not math.isfinite(probability)
+                or not 0 <= probability <= 1
+            ):
+                raise ValueError("Invalid gate decision")
+            validated.append((decision, round(probability, 6)))
+        for finding, (decision, probability) in zip(findings, validated, strict=True):
+            finding.gate_decision = decision
+            finding.gate_probability = probability
+        visible = [finding for finding in findings if finding.gate_decision != "DISMISS"]
+        return visible, "evaluated", None, dict(classifier.thresholds), len(findings) - len(visible)
+    except Exception as error:
+        return findings, "unavailable", f"Gate unavailable ({type(error).__name__}); detector findings retained", None, 0
+
+
 def scan_config(
     config: AgentConfig,
     patterns: list[str] | None = None,
+    gate: bool = True,
+    gate_context: str | None = None,
+    gate_thresholds: tuple[float, float] | None = None,
 ) -> ScanResult:
     """Score a config with HERM v1.1 + run structural detectors.
 
     Args:
         config: Normalized agent configuration.
-        patterns: Optional list of structural pattern IDs (H1-H7).
+        patterns: Optional list of registered structural pattern IDs.
 
     Returns:
         ScanResult with HERM score and structural findings.
@@ -344,7 +403,7 @@ def scan_config(
     text = _build_scoring_text(config)
     herm = score_text(text, source_path=config.source_file)
 
-    # Structural detectors (H1-H7) as supplementary findings
+    # Registered structural detectors as supplementary findings
     structural: list[Finding] = []
     pattern_ids = patterns or list(PATTERNS.keys())
     for pid in pattern_ids:
@@ -358,6 +417,11 @@ def scan_config(
 
     _locate_config_findings(config, structural)
 
+    raw_findings_count = len(structural)
+    structural, gate_status, gate_error, applied_thresholds, suppressed_count = (
+        _apply_gate(structural, config.source_file, gate_context if gate_context is not None else text, gate_thresholds)
+        if gate else (structural, "disabled", None, None, 0)
+    )
     inspected, notes, skipped = _coverage(config)
     return ScanResult(
         file=config.source_file,
@@ -367,6 +431,11 @@ def scan_config(
         inspected=inspected,
         notes=notes,
         skipped=skipped,
+        gate_status=gate_status,
+        gate_error=gate_error,
+        gate_thresholds=applied_thresholds,
+        raw_findings_count=raw_findings_count,
+        suppressed_count=suppressed_count,
     )
 
 
@@ -423,11 +492,14 @@ def _enforce_explicit(result: ScanResult, explicit: bool) -> ScanResult:
     return result
 
 
-def scan_file(path: str | Path, patterns: list[str] | None = None, explicit: bool = False) -> ScanResult:
+def scan_file(
+    path: str | Path, patterns: list[str] | None = None, explicit: bool = False,
+    gate: bool = True, gate_thresholds: tuple[float, float] | None = None,
+) -> ScanResult:
     """Parse a file and produce a full scan result.
 
     Uses HERM v1.1 as the primary scorer with structural detectors
-    (H1-H7) providing supplementary findings. Input failures are returned on
+    providing supplementary findings. Input failures are returned on
     the fatal ``input_error`` channel rather than raised or reported as clean.
     """
     path = Path(path)
@@ -438,10 +510,10 @@ def scan_file(path: str | Path, patterns: list[str] | None = None, explicit: boo
 
     try:
         if path.suffix == ".py":
-            return _enforce_explicit(scan_python_file(path, patterns=patterns), explicit)
+            return _enforce_explicit(scan_python_file(path, patterns=patterns, gate=gate, gate_thresholds=gate_thresholds), explicit)
         text = read_file_text(path)
         config = parse_source(text, path)
-        result = scan_config(config, patterns=patterns)
+        result = scan_config(config, patterns=patterns, gate=gate, gate_context=text, gate_thresholds=gate_thresholds)
         return _enforce_explicit(result, explicit)
     except UnicodeDecodeError as error:
         return input_error_result(path, str(error))
@@ -450,7 +522,8 @@ def scan_file(path: str | Path, patterns: list[str] | None = None, explicit: boo
 
 
 def scan_source(
-    text: str, path: str | Path, patterns: list[str] | None = None, explicit: bool = False
+    text: str, path: str | Path, patterns: list[str] | None = None, explicit: bool = False,
+    gate: bool = True, gate_thresholds: tuple[float, float] | None = None,
 ) -> ScanResult:
     """Scan in-memory source text as if it had been read from ``path``.
 
@@ -463,9 +536,9 @@ def scan_source(
     path = Path(path)
     try:
         if path.suffix == ".py":
-            return _enforce_explicit(scan_python_source(text, path, patterns=patterns), explicit)
+            return _enforce_explicit(scan_python_source(text, path, patterns=patterns, gate=gate, gate_thresholds=gate_thresholds), explicit)
         config = parse_source(text, path)
-        result = scan_config(config, patterns=patterns)
+        result = scan_config(config, patterns=patterns, gate=gate, gate_context=text, gate_thresholds=gate_thresholds)
         return _enforce_explicit(result, explicit)
     except Exception as error:
         return input_error_result(path, f"Failed to parse: {error}")
@@ -488,18 +561,21 @@ def scan_directory(
     patterns: list[str] | None = None,
     extensions: tuple[str, ...] = (".yaml", ".yml", ".json", ".txt", ".md", ".mdc", ".prompt", ".py"),
     exclude: list[str] | None = None,
+    gate: bool = True,
+    gate_thresholds: tuple[float, float] | None = None,
 ) -> dict[str, ScanResult]:
     """Scan all matching files in a directory.
 
     Args:
         directory: Path to scan recursively.
-        patterns: Optional list of structural pattern IDs (H1-H7).
+        patterns: Optional list of registered structural pattern IDs.
         extensions: File extensions to include.
         exclude: Glob patterns to exclude (e.g., ["CHANGELOG.md", "docs/**"]).
 
     Automatically skips:
         - Non-prompt files (README, CHANGELOG, LICENSE, etc.)
-        - Python test code, returned as an explicit SKIPPED result
+        - Test/fixture and teaching directories listed in NON_PROMPT_DIRS
+        - Remaining Python test filenames, returned as an explicit SKIPPED result
         - .lintlangignore patterns (gitignore-style, from directory root)
         - Files matching --exclude patterns
 
@@ -543,7 +619,7 @@ def scan_directory(
 
     for filepath in sorted(candidates, key=str):
         # Skip non-prompt files (CHANGELOG, README, etc.)
-        if _is_non_prompt_file(filepath):
+        if _is_non_prompt_file(filepath.relative_to(directory)):
             continue
         # Test code holds fixtures ("tool1", no description), not what an agent
         # is given. Keep the exclusion visible: a directory result that silently
@@ -564,9 +640,9 @@ def scan_directory(
 
         try:
             if filepath.suffix == ".py":
-                result = scan_python_file(filepath, patterns=patterns)
+                result = scan_python_file(filepath, patterns=patterns, gate=gate, gate_thresholds=gate_thresholds)
             else:
-                result = _scan_walked_file(filepath, patterns)
+                result = _scan_walked_file(filepath, patterns, gate, gate_thresholds)
         except Exception as e:
             result = input_error_result(filepath, f"Failed to parse: {e}")
         results[str(filepath)] = result
@@ -578,7 +654,10 @@ def scan_directory(
     return {path: results[path] for path in sorted(results)}
 
 
-def _scan_walked_file(filepath: Path, patterns: list[str] | None) -> ScanResult:
+def _scan_walked_file(
+    filepath: Path, patterns: list[str] | None, gate: bool = True,
+    gate_thresholds: tuple[float, float] | None = None,
+) -> ScanResult:
     """Scan a file the walk met. A loose .txt is a prompt only if it reads like one."""
     if filepath.suffix == ".txt":
         from .extractors import PROMPT_SIGNALS
@@ -586,14 +665,14 @@ def _scan_walked_file(filepath: Path, patterns: list[str] | None) -> ScanResult:
         try:
             text = read_file_text(filepath)
         except (OSError, UnicodeError):
-            return scan_file(filepath, patterns=patterns)
+            return scan_file(filepath, patterns=patterns, gate=gate, gate_thresholds=gate_thresholds)
         if not any(pattern.search(text) for pattern, _ in PROMPT_SIGNALS):
             herm = score_text("", source_path=str(filepath))
             return ScanResult(
                 file=str(filepath), score=herm.score, herm=herm,
                 skipped="no prompt language was recognised in this text file (name it explicitly to scan it anyway)",
             )
-    return scan_file(filepath, patterns=patterns)
+    return scan_file(filepath, patterns=patterns, gate=gate, gate_thresholds=gate_thresholds)
 
 
 def compute_health_score(findings: list[Finding]) -> float:
@@ -614,44 +693,60 @@ def compute_health_score(findings: list[Finding]) -> float:
 def scan_python_file(
     path: str | Path,
     patterns: list[str] | None = None,
+    gate: bool = True,
+    gate_thresholds: tuple[float, float] | None = None,
 ) -> ScanResult:
     """Scan a Python file for embedded prompts, thresholds, and pipeline issues.
 
     This is lintlang's metatool mode: instead of treating the whole file as a
     prompt (which gives meaningless results), it:
     1. Uses AST to extract embedded prompts from string literals
-    2. Runs H1-H7 on each extracted prompt
+    2. Runs registered prompt-relevant detectors on each extracted prompt
     3. Runs P1-P2 pipeline detectors on thresholds and embedded scaffolds
     4. Scores the concatenated prompts with HERM
 
     Args:
         path: Path to the Python file to scan.
-        patterns: Optional list of structural pattern IDs (H1-H7) to run.
+        patterns: Optional list of registered structural pattern IDs to run.
 
     Returns a single ScanResult aggregating all findings.
     """
-    from .extractors import extract_from_python_file
+    from .extractors import extract_from_python
 
     path = Path(path)
-    return _scan_python_extraction(extract_from_python_file(path), path, patterns=patterns)
+    source_text = path.read_text(encoding="utf-8", errors="ignore")
+    return _scan_python_extraction(
+        extract_from_python(source_text, source_file=str(path)), path,
+        patterns=patterns, gate=gate, gate_thresholds=gate_thresholds,
+        gate_context=source_text,
+    )
 
 
 def scan_python_source(
     text: str,
     path: str | Path,
     patterns: list[str] | None = None,
+    gate: bool = True,
+    gate_thresholds: tuple[float, float] | None = None,
 ) -> ScanResult:
     """Run Python extraction over in-memory source attributed to ``path``."""
     from .extractors import extract_from_python
 
     path = Path(path)
-    return _scan_python_extraction(extract_from_python(text, source_file=str(path)), path, patterns=patterns)
+    return _scan_python_extraction(
+        extract_from_python(text, source_file=str(path)), path,
+        patterns=patterns, gate=gate, gate_thresholds=gate_thresholds,
+        gate_context=text,
+    )
 
 
 def _scan_python_extraction(
     extraction,
     path: Path,
     patterns: list[str] | None = None,
+    gate: bool = True,
+    gate_thresholds: tuple[float, float] | None = None,
+    gate_context: str = "",
 ) -> ScanResult:
     """Shared Python-extraction scoring for file and in-memory sources."""
     from .extractors import (
@@ -665,7 +760,7 @@ def _scan_python_extraction(
     all_findings.extend(detect_uncalibrated_thresholds(extraction))
     all_findings.extend(detect_scaffold_in_code(extraction))
 
-    # Run H1-H7 on each extracted prompt
+    # Run registered structural detectors on each extracted prompt
     configs = extracted_prompts_to_configs(extraction)
     prompt_texts: list[str] = []
     pattern_ids = patterns or list(PATTERNS.keys())
@@ -675,7 +770,7 @@ def _scan_python_extraction(
         for pid in pattern_ids:
             if pid not in PATTERNS:
                 continue
-            # Only run prompt-relevant detectors (H2, H4, H5, H6 — not H1/H3/H7)
+            # Only run prompt-relevant detectors (H2, H4 — not H1/H3/H7)
             if pid in PYTHON_EXTRACTION_EXCLUDED_PATTERNS:
                 continue
             detector = PATTERNS[pid]["detect"]
@@ -733,6 +828,11 @@ def _scan_python_extraction(
         if not t.has_schema
     ]
 
+    raw_findings_count = len(all_findings)
+    all_findings, gate_status, gate_error, applied_thresholds, suppressed_count = (
+        _apply_gate(all_findings, str(path), gate_context or combined_text, gate_thresholds)
+        if gate else (all_findings, "disabled", None, None, 0)
+    )
     return ScanResult(
         file=str(path),
         score=herm.score,
@@ -740,6 +840,11 @@ def _scan_python_extraction(
         structural_findings=all_findings,
         inspected=inspected,
         notes=notes,
+        gate_status=gate_status,
+        gate_error=gate_error,
+        gate_thresholds=applied_thresholds,
+        raw_findings_count=raw_findings_count,
+        suppressed_count=suppressed_count,
         skipped=(
             None
             if inspected or extraction.parse_errors

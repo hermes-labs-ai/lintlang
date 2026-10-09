@@ -33,15 +33,16 @@ uvx lintlang scan .
 
 </div>
 
-Below, by contrast, is unedited terminal output on a bundled fixture: two of the ten findings from `lintlang scan samples/bad_tool_descriptions.yaml`, long lines wrapped.
+Below, by contrast, is unedited terminal output on a bundled fixture: two of the nine findings from `lintlang scan --no-gate samples/bad_tool_descriptions.yaml`, long lines wrapped.
 
 ```text
-  ❌ FAIL — 1 CRITICAL, 1 HIGH, 5 MEDIUM, 3 LOW
+  ❌ FAIL — 1 HIGH, 5 MEDIUM, 3 LOW
   Inspected: 5 tools (4 described, 5 with a schema), system prompt
 
-    !! [CRITICAL] H1.1 samples/bad_tool_descriptions.yaml:34  tool:process_ticket
-      Tool 'process_ticket' has no description.
-      → Add a specific, disambiguating description that explains WHEN to use this tool, not just WHAT it does.
+    ~ [MEDIUM] H1.3 samples/bad_tool_descriptions.yaml:27  tool:handle_request
+      Tool 'handle_request' starts with vague verb 'handle'.
+      Evidence: "Handle the user request"
+      → Replace 'handle' with a specific action verb. Instead of 'Handle user data', use 'Validate and persist user profile updates to the database'.
 
     ~ [MEDIUM] H1.6 samples/bad_tool_descriptions.yaml:10  tool:get_user_info vs tool:fetch_user_data
       Tools 'get_user_info' and 'fetch_user_data' carry no differentia — every meaning-bearing term in one is
@@ -67,7 +68,6 @@ LintLang catches problems like:
 - **Ambiguous tools** — sibling tools that overlap without a clear reason for the model to choose one over another.
 - **Missing bounds** — retries, loops, or tool use without explicit stopping or progress conditions.
 - **Schema mismatches** — missing required fields, unclear parameters, and schemas that do not communicate enough intent.
-- **Mixed output formats and missing priorities** — a prompt that names more than one output format (H6 flags any two recognized formats, even when each is scoped to a case), and long instruction lists with no stated priority order (H5). LintLang does not detect semantic contradictions between two instructions, for example "always do X" next to "never do X".
 - **SKILL.md defects** — missing or invalid metadata, unclear usage criteria, and skill names that do not match their directory.
 - **Context and message errors** — stale project references, unbounded persistence, malformed roles, and broken tool-message sequences.
 - **Embedded agent logic** — supported Python prompts, literal tool definitions, and selected pipeline thresholds.
@@ -108,19 +108,30 @@ brew install hermes-labs-ai/tap/lintlang
 lintlang scan .
 ```
 
-Findings are advisory by default.
+In this unpublished 0.8.8 candidate, the learned gate is enabled by default:
+KEEP findings remaining after explicit filters and baseline allowances block
+(exit 1), ESCALATE findings request review (exit 0), and
+DISMISS findings are hidden and counted. **Release approval is blocked:** the
+expanded corpus review does not meet the >99% KEEP precision target. See the
+[acceptance report](docs/release-0.8.8.md) before using this candidate in CI.
 
-Block on HIGH or CRITICAL findings:
+Use raw detector behavior with `--no-gate`. Raw findings are advisory unless a
+severity policy is selected:
 
 ```bash
-lintlang scan . --fail-on fail
+lintlang scan . --no-gate --fail-on fail
 ```
 
-Include MEDIUM findings in the gate:
+Include MEDIUM findings in raw mode:
 
 ```bash
-lintlang scan . --fail-on review
+lintlang scan . --no-gate --fail-on review
 ```
+
+Tune the gate with `--gate-threshold 0.85,0.15` (KEEP minimum, DISMISS maximum).
+A single value changes only the KEEP threshold. The old `--gate` flag still
+works but is deprecated because the gate is now the default. Scores are model
+estimates, not calibrated confidence.
 
 LintLang also emits JSON, SARIF, and GitLab Code Quality reports for automation.
 See the [GitLab CI guide](docs/gitlab.md) for a copyable Code Quality job.
@@ -133,7 +144,7 @@ Generate a pinned GitHub Actions workflow that scans the repository directory:
 lintlang init --github --path .
 ```
 
-The generated Action gates HIGH or CRITICAL findings by default. Use a narrower path when CI should check only one configuration source.
+The generated Action uses the pinned published version; its severity policy gates HIGH or CRITICAL findings. The local candidate instead uses the gate policy described above. Use a narrower path when CI should check only one configuration source.
 
 For an existing repository with known findings, record a reviewed baseline:
 
@@ -191,3 +202,13 @@ LintLang is developed by [Hermes Labs](https://hermes-labs.ai/).
 ## License
 
 [Apache License 2.0](LICENSE)
+
+### 0.8.8 candidate
+
+The local candidate enables the learned gate by default; `--no-gate` restores raw findings and severity policy. Its precision acceptance is currently blocked. See [migration and acceptance](docs/release-0.8.8.md) for detector changes and evidence limitations.
+
+Directory scans and discovery skip test, fixture and teaching directories by exact
+component name: `tests`, `test`, `cassettes`, `fixtures`, `mocks`, `memory-tests`,
+`examples`, `cookbook`, `tutorials`, and `lessons`. Name a file explicitly to inspect
+it there. Empty tool and skill descriptions no longer emit H1.1. H5 and H6 are retired;
+LintLang does not judge priority ordering or semantic contradictions.
