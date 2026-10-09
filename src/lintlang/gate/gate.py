@@ -159,6 +159,18 @@ class FPGate:
         else:
             decision = 'ESCALATE'
 
+        # Severity floor: CRITICAL/HIGH findings are never DISMISSed. The
+        # model is uncalibrated and learned a negative severity weight on an
+        # ECC-biased cohort, so without this floor a critical structural
+        # defect (e.g. duplicate tool names, H1.4) can be hidden as
+        # "PASS, 0 findings" by the default gate. Floored at ESCALATE:
+        # always visible and advisory, never silently dropped. KEEP counts
+        # are unaffected.
+        raw_sev = finding.get('severity', '')
+        sev_name = raw_sev.value if hasattr(raw_sev, 'value') else str(raw_sev)
+        if decision == 'DISMISS' and sev_name.lower() in ('critical', 'high'):
+            decision = 'ESCALATE'
+
         return decision, p_tp
 
     def classify_batch(self, findings: list[dict[str, Any]]) -> list[tuple[str, float]]:

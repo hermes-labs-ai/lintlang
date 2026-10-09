@@ -164,3 +164,42 @@ def test_gate_keeps_only_visible_findings_in_sarif_and_gitlab(monkeypatch, capsy
     assert all("DISMISS" not in item["description"] for item in gitlab)
     assert {item["severity"] for item in gitlab} == {"blocker", "major"}
     assert "dismissed from GitLab output" in output.err
+
+
+@pytest.mark.parametrize("severity", ("critical", "high"))
+def test_severity_floor_never_dismisses_critical_or_high(severity):
+    """0.9.0: the default gate must never silently DISMISS a CRITICAL/HIGH
+    finding, even when the (uncalibrated, ECC-biased) model scores it below
+    the dismiss threshold. Floored at ESCALATE: always visible and advisory,
+    never hidden as "PASS, 0 findings". Uses the real model, no monkeypatch.
+    """
+    gate = FPGate()
+    finding = {
+        "rule": "H1.4",
+        "severity": severity,
+        "pattern_name": "Tool Description Ambiguity",
+        "evidence": "Duplicate tool name 'db_query' (also at index 0).",
+        "context": "tools:\n  - name: db_query\n",
+        "file_path": "realdup.yaml",
+    }
+    decision, p_tp = gate.classify(finding)
+    # Pin the fixture: the raw model really would dismiss this (p < 0.15),
+    # so the test exercises the floor rather than passing vacuously.
+    assert p_tp < 0.15, f"fixture no longer scores below dismiss threshold: {p_tp}"
+    assert decision == "ESCALATE", f"{severity} finding was {decision}, must never be DISMISS"
+
+
+def test_severity_floor_leaves_medium_and_below_to_the_model():
+    """The floor is narrow: MEDIUM and below still follow the model, so the
+    gate's measured FP-reduction behavior is unchanged."""
+    gate = FPGate()
+    finding = {
+        "rule": "H1.4",
+        "severity": "medium",
+        "pattern_name": "Tool Description Ambiguity",
+        "evidence": "Duplicate tool name 'db_query' (also at index 0).",
+        "context": "tools:\n  - name: db_query\n",
+        "file_path": "realdup.yaml",
+    }
+    decision, _ = gate.classify(finding)
+    assert decision == "DISMISS"

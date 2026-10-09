@@ -51,6 +51,18 @@ release, or PyPI publication has occurred. The release branch is
   diagnostic counts. `--no-gate` / `gate=False` restore raw detector behavior.
   The gate fails closed with raw findings retained when model artifacts are
   unavailable.
+- **Severity floor in the gate policy.** CRITICAL and HIGH findings are never
+  DISMISSed: the model is uncalibrated and learned a negative severity weight
+  on the frozen cohort, so without the floor a critical structural defect could
+  be hidden as "PASS, 0 findings" by the default gate. Floored findings surface
+  at minimum as ESCALATE (visible, advisory). Measured impact on the frozen
+  cohort: KEEP is exactly unchanged (179 TP / 10 FP = 94.71% — the floor only
+  moves DISMISS→ESCALATE, and the lone frozen HIGH finding already in KEEP
+  stays there). At least one frozen FP (H2) moves DISMISS→ESCALATE; H4's
+  DISMISS set may contain further HIGH-severity erosion findings — the exact
+  count needs the frozen labels, so visible FP share rises from 8.82% to
+  ≥9.09%. The frozen-corpus replay must be re-run by the review-packet holder
+  to regenerate the aggregate receipt.
 - **MegaLinter severity blocking preserved** in the 0.9.0 integration.
 - Exact test, fixture, and teaching directory components are skipped during
   directory scans and discovery; explicitly named files remain inspectable.
