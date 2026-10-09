@@ -1,11 +1,12 @@
-"""H1.8 language routing, activation cues, and unchanged diagnostic boundaries."""
+"""CJK-only H1.8 scope, research mappings, and diagnostic boundaries."""
 
 from pathlib import Path
 
 import pytest
 
+from lintlang.detectors import lang as trigger_lang
 from lintlang.detectors.h1 import _SKILL_TRIGGER, _detect_skill_metadata
-from lintlang.detectors.lang import detect, normalize
+from lintlang.detectors.lang import detect, en, es, normalize, tr
 from lintlang.models import AgentConfig, Severity, SkillMeta
 from lintlang.scanner import scan_file
 
@@ -58,19 +59,29 @@ def test_language_routing_uses_description_content(description, language):
     "プロジェクト作成についてトリガーされます。",
     "ユーザーがフレームワークに名前を付けるときにアクティベーション。",
     "セッション開始時にプロジェクトコンテキストを読み込みます。",
-    "Yeni özellikler yazarken bu skill'i kullanın.",
-    "BU SKILL'I KULLANIN.",
-    "Sağlam uygulamaları oluşturmak için idiomatic Go kalıpları.",
-    "Patterns for building a new application.",
-    "Toolkit for interacting with and testing local web applications.",
-    "Database patterns for query optimization.",
-    "Compaction at logical intervals preserves the project context.",
-    "Patrones para construir aplicaciones.",
+    "새로운 기능 작성, 버그 수정, 코드 리팩토링 시 이 스킬을 사용하세요.",
 ])
-def test_mined_activation_cues_reach_existing_english_gate(description):
+def test_mined_cjk_activation_cues_reach_existing_english_gate(description):
     assert not _SKILL_TRIGGER.search(description)
     assert _SKILL_TRIGGER.search(normalize(description))
     assert "H1.8" not in {finding.code for finding in findings(description)}
+
+
+@pytest.mark.parametrize(("module", "description"), [
+    (tr, "Yeni özellikler yazarken bu skill'i kullanın."),
+    (tr, "BU SKILL'I KULLANIN."),
+    (tr, "Sağlam uygulamaları oluşturmak için idiomatic Go kalıpları."),
+    (en, "Patterns for building a new application."),
+    (en, "Toolkit for interacting with and testing local web applications."),
+    (en, "Database patterns for query optimization."),
+    (en, "Compaction at logical intervals preserves the project context."),
+    (es, "Patrones para construir aplicaciones."),
+])
+def test_research_activation_maps_are_available_only_through_direct_calls(module, description):
+    assert not _SKILL_TRIGGER.search(description)
+    assert _SKILL_TRIGGER.search(module.normalize(description))
+    assert normalize(description) == description
+    assert not any(finding.code == "H1.8" for finding in findings(description))
 
 
 @pytest.mark.parametrize("description", [
@@ -79,20 +90,28 @@ def test_mined_activation_cues_reach_existing_english_gate(description):
     "pytest、TDD手法、フィクスチャ、モック、パラメータ化、カバレッジ要件を使用したPythonテスト戦略。",
     "並行レビューパスを使用して、スキルを分類します。",
     "日本語翻訳：このファイルは laravel-verification 用の日本語翻訳が必要です",
-    "Claude Code oturumları için kapsamlı doğrulama sistemi.",
-    "E2E testing for Windows native desktop apps using pywinauto.",
-    "Test-driven development for Laravel with PHPUnit and Pest.",
-    "Synthetic terminal-style screen recording guidance for Remotion TerminalScene.",
-    "Browser and desktop automation discipline.",
     "项目配置的最佳实践、专业知识、模式、工具和示例。",
-    "API implementation methods and best practices.",
-    "Semantics for buildingblocks and databasequery optimization.",
 ])
-def test_topic_and_method_descriptions_remain_flagged(description):
+def test_cjk_topic_and_method_descriptions_remain_flagged(description):
     result = [finding for finding in findings(description) if finding.code == "H1.8"]
     assert len(result) == 1
     assert result[0].evidence == description[:120]
     assert result[0].source_region.start_line == 3
+
+
+@pytest.mark.parametrize(("module", "description"), [
+    (tr, "Claude Code oturumları için kapsamlı doğrulama sistemi."),
+    (en, "E2E testing for Windows native desktop apps using pywinauto."),
+    (en, "Test-driven development for Laravel with PHPUnit and Pest."),
+    (en, "Synthetic terminal-style screen recording guidance for Remotion TerminalScene."),
+    (en, "Browser and desktop automation discipline."),
+    (en, "API implementation methods and best practices."),
+    (en, "Semantics for buildingblocks and databasequery optimization."),
+])
+def test_research_topic_and_method_descriptions_do_not_acquire_triggers(module, description):
+    assert module.normalize(description) == description
+    assert not _SKILL_TRIGGER.search(module.normalize(description))
+    assert not any(finding.code == "H1.8" for finding in findings(description))
 
 
 @pytest.mark.parametrize("description", [
@@ -100,11 +119,6 @@ def test_topic_and_method_descriptions_remain_flagged(description):
     "不触发条件：在单个任务中处理现有项目数据。",
     "不触发时机：对现有项目执行简单的数据操作。",
     "トリガーしない場合：単一のタスクと既存のプロジェクト。",
-    "This guide is not for query optimization.",
-    "This guide is NOT   for query optimization.",
-    "This guide is never for building applications.",
-    "This guide is not for interacting with and testing local web applications.",
-    "Compaction is not at logical intervals.",
     "此指南不适用于处理用户的项目配置和数据。",
     "此指南不  适用于处理用户的项目配置和数据。",
     "危険な既存プロジェクトの操作を追加する場合に使用しない。",
@@ -115,13 +129,26 @@ def test_topic_and_method_descriptions_remain_flagged(description):
     "危険な既存プロジェクトの操作を追加するために使用しない。",
     "危険な既存プロジェクトの操作のリクエストに使用しない。",
     "危険な既存プロジェクトの操作を追加する場合にこのスキルを使用しない。",
-    "Bu skill ile uygulamaları oluşturmak için kullanmayın.",
-    "Bu skill ile uygulamaları oluşturmak için kullanmayınız.",
-    "Bu skill ile uygulamaları oluşturmak için kullanma.",
 ])
-def test_exclusion_heading_alone_does_not_become_positive_trigger(description):
+def test_cjk_exclusion_heading_alone_does_not_become_positive_trigger(description):
     assert normalize(description) == description
     assert any(finding.code == "H1.8" for finding in findings(description))
+
+
+@pytest.mark.parametrize(("module", "description"), [
+    (en, "This guide is not for query optimization."),
+    (en, "This guide is NOT   for query optimization."),
+    (en, "This guide is never for building applications."),
+    (en, "This guide is not for interacting with and testing local web applications."),
+    (en, "Compaction is not at logical intervals."),
+    (tr, "Bu skill ile uygulamaları oluşturmak için kullanmayın."),
+    (tr, "Bu skill ile uygulamaları oluşturmak için kullanmayınız."),
+    (tr, "Bu skill ile uygulamaları oluşturmak için kullanma."),
+])
+def test_research_exclusions_do_not_become_positive_triggers(module, description):
+    assert module.normalize(description) == description
+    assert normalize(description) == description
+    assert not any(finding.code == "H1.8" for finding in findings(description))
 
 
 @pytest.mark.parametrize("description", [
@@ -138,12 +165,70 @@ def test_existing_english_triggers_are_preserved(description):
     assert not any(finding.code == "H1.8" for finding in findings(description))
 
 
-@pytest.mark.parametrize("parenthetical", ["查询优化", "クエリ最適化", "veritabanı sorgusu", "optimización de consultas"])
-def test_supported_language_parenthetical_does_not_hide_mined_english_cue(parenthetical):
+@pytest.mark.parametrize("parenthetical", ["查询优化", "クエリ最適化", "쿼리 최적화"])
+def test_cjk_description_does_not_use_english_research_fallback(parenthetical):
     description = f"Database patterns for query optimization ({parenthetical})."
     assert detect(description) != "en"
-    assert _SKILL_TRIGGER.search(normalize(description))
+    assert _SKILL_TRIGGER.search(en.normalize(description))
+    assert normalize(description) == description
+    assert any(finding.code == "H1.8" for finding in findings(description))
+
+
+@pytest.mark.parametrize(("description", "language"), [
+    ("API implementation methods and best practices.", "en"),
+    ("Patrones de diseño para aplicaciones.", "es"),
+    ("Claude Code oturumları için kapsamlı doğrulama sistemi.", "tr"),
+    ("Описание методов проектирования API.", "en"),
+])
+def test_descriptions_outside_cjk_scope_skip_h18_even_without_trigger(description, language):
+    assert detect(description) == language
+    assert not _SKILL_TRIGGER.search(description)
+    assert normalize(description) == description
     assert not any(finding.code == "H1.8" for finding in findings(description))
+
+
+@pytest.mark.parametrize(("description", "expected_h18"), [
+    ("API implementation methods and best practices.", False),
+    ("Patrones para construir aplicaciones.", False),
+    ("Yeni özellikler yazarken bu skill'i kullanın.", False),
+    ("Описание методов проектирования API.", False),
+    ("当用户需要查询新的数据时使用。", False),
+    ("新しいプロジェクトを作成するときに使用します。", False),
+    ("새로운 기능 작성, 버그 수정, 코드 리팩토링 시 이 스킬을 사용하세요.", False),
+    ("Database patterns for query optimization (查询优化).", True),
+    ("Database patterns for query optimization (クエリ最適化).", True),
+    ("Database patterns for query optimization (쿼리 최적화).", True),
+])
+def test_h18_never_invokes_research_normalizers(monkeypatch, description, expected_h18):
+    def forbidden(_text):
+        raise AssertionError("H1.8 invoked a research-only language normalizer")
+
+    for language, module in (("en", en), ("es", es), ("tr", tr)):
+        monkeypatch.setattr(module, "normalize", forbidden)
+        # Also instrument any cached function references from an old routing map.
+        if language in trigger_lang._NORMALIZERS:
+            monkeypatch.setitem(trigger_lang._NORMALIZERS, language, forbidden)
+    normalize(description)
+    assert any(finding.code == "H1.8" for finding in findings(description)) is expected_h18
+
+
+@pytest.mark.parametrize(("description", "short_description"), [
+    ("API implementation methods and best practices.", "API guide"),
+    ("Patrones y métodos de diseño de API.", "Guía API"),
+    ("API yöntemleri ve geliştirme kalıpları.", "Araç"),
+    ("Описание методов проектирования API.", "Описание"),
+])
+def test_skipped_languages_retain_other_skill_metadata_rules(description, short_description):
+    short_result = findings(short_description)
+    assert {finding.code for finding in short_result} == {"H1.2"}
+    assert short_result[0].evidence == short_description
+
+    long_description = description + " " + "x" * 5001
+    long_result = {finding.code: finding for finding in findings(long_description, name="WRONG_NAME")}
+    assert set(long_result) == {"H1.7", "H1.9"}
+    assert long_result["H1.7"].severity is Severity.HIGH
+    assert f"{len(long_description)} characters" in long_result["H1.7"].description
+    assert long_result["H1.9"].evidence == "WRONG_NAME"
 
 
 @pytest.mark.parametrize(("description", "language"), [

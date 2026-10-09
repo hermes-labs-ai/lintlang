@@ -155,7 +155,9 @@ def test_explicit_fail_on_blocks_failing_fixture(tmp_path):
 
 @pytest.mark.parametrize("output_format", ["terminal", "sarif"])
 def test_default_gate_blocks_retained_finding_through_action_shell(tmp_path, output_format):
-    source = REPO_ROOT / "samples/release_088/skills/audit/SKILL.md"
+    # Mixed Chinese/English content routes to zh and retains the real gate's
+    # known KEEP wiring fixture; pure English now skips H1.8.
+    source = REPO_ROOT / "samples/h18_languages/audit/SKILL.md"
     report = tmp_path / "gate.sarif"
     env = _action_env(
         tmp_path,

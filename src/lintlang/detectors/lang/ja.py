@@ -12,6 +12,12 @@ _MAP = (
     (r"場合（[^）\n。]+）に使用する(?=[。.!?！？]|$)", " use when "),
     # u-87a3e9e53107, agent-architecture-audit: explicit intended audience.
     (r"構築する開発者に必須です(?=[。.!?！？]|$)", " use for developers building "),
+    # u-b106d46f6c3b, database-migrations: concrete deployment purpose.
+    # Generic のための also occurs in TPs. Keep exclusions and implementation
+    # methods local to the purpose clause rather than translating that suffix.
+    (r"デプロイメントのための(?![^。.!?！？\n]{0,160}"
+     r"(?:ではない|ではありません|ではなく|しない|しません|対象外|使用した|使用して|ですか|でしょうか))",
+     " use for deployments "),
     (r"場合にこのスキルを使用(?!しない|しません|するな|すべきではない)", " use this when "),
     (r"場合に使用(?!しない|しません|するな|すべきではない)", " use when "),
     (r"ときに使用(?!しない|しません|するな|すべきではない)", " use when "),

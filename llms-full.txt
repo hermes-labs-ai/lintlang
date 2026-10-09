@@ -344,7 +344,7 @@ H1.1 is retired in 0.8.8; empty tool and skill descriptions produce no finding.
 | H1.5 | Near-duplicate descriptions under the word-overlap model | HIGH |
 | H1.6 | One or both tools lack a distinguishing analyzed term | MEDIUM |
 | H1.7 | Skill description longer than 1024 / 5000 characters | LOW / HIGH |
-| H1.8 | Skill description does not say when to use the skill | MEDIUM under 120 characters, else LOW |
+| H1.8 | Chinese, Japanese, or Korean skill description does not say when to use the skill | MEDIUM under 120 characters, else LOW |
 | H1.9 | Skill `name` invalid or unrelated to its directory; case and explicit version suffixes accepted | MEDIUM |
 
 One-sided H1.6 containment and non-identical H1.5 overlap are suppressed when
@@ -366,7 +366,9 @@ files or remote localization resources are fetched. Skill source catalogs with
 
 For an explicit selection definition path with `name`/`description` front matter
 (`SKILL.md`, `.claude/agents/*.md`, `.claude/commands/**/*.md`, or `.cursor/rules/*.mdc`) the description is the selection-time text, so H1.2 (nonempty and under 20 characters, MEDIUM) applies to it, located at
-`frontmatter.description` with its line. H1.8 looks for trigger vocabulary ("use
+`frontmatter.description` with its line. H1.8 runs only for descriptions routed
+by content to Chinese, Japanese, or Korean. Other languages skip H1.8; the
+English/Spanish/Turkish research maps are not invoked. H1.8 looks for trigger vocabulary ("use
 when", "if the user", "before", a description written as the situation); it is a
 finite vocabulary, which is why a long description is only LOW. H1.9's directory
 comparison runs only for a file named `SKILL.md`.

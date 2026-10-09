@@ -1,11 +1,11 @@
-"""Corpus-mined Turkish purposes, action directives, and exclusions."""
+"""Turkish research adapter; delivered H1.8 skips Turkish descriptions."""
 
 from pathlib import Path
 
 import pytest
 
 from lintlang.detectors.h1 import _SKILL_TRIGGER, _detect_skill_metadata
-from lintlang.detectors.lang import detect, normalize
+from lintlang.detectors.lang import detect, tr
 from lintlang.models import AgentConfig, SkillMeta
 from lintlang.scanner import scan_file
 
@@ -27,10 +27,10 @@ def h18(description: str):
     "multi-servis orkestrasyon için Docker ve Docker Compose kalıpları.",
     "Claude Code oturumlarından yeniden kullanılabilir kalıpları otomatik olarak çıkarın ve gelecekte kullanmak üzere öğrenilmiş skill'ler olarak kaydedin.",
 ])
-def test_additional_mined_turkish_clauses_reach_english_gate(description):
+def test_research_turkish_clauses_reach_canonical_regex(description):
     assert detect(description) == "tr"
     assert not _SKILL_TRIGGER.search(description)
-    assert _SKILL_TRIGGER.search(normalize(description))
+    assert _SKILL_TRIGGER.search(tr.normalize(description))
     assert not h18(description)
 
 
@@ -43,6 +43,7 @@ def test_additional_mined_turkish_clauses_reach_english_gate(description):
     "Oturumdan yeniden kullanılabilir dersleri çıkarın.",
 ])
 def test_mined_cues_generalize_beyond_the_source_description(description):
+    assert _SKILL_TRIGGER.search(tr.normalize(description))
     assert not h18(description)
 
 
@@ -59,9 +60,10 @@ def test_mined_cues_generalize_beyond_the_source_description(description):
     "Claude Code oturumlarından kalıpları çıkarır ve kaydeder.",
     "pytest, TDD metodolojisi ve fixture'lar kullanarak Python test stratejileri.",
 ])
-def test_turkish_generic_topic_and_method_clauses_remain_flagged(description):
-    assert normalize(description) == description
-    assert len(h18(description)) == 1
+def test_research_turkish_topic_clauses_keep_text_and_integrated_rule_skips(description):
+    assert tr.normalize(description) == description
+    assert not _SKILL_TRIGGER.search(tr.normalize(description))
+    assert not h18(description)
 
 
 @pytest.mark.parametrize("description", [
@@ -74,8 +76,9 @@ def test_turkish_generic_topic_and_method_clauses_remain_flagged(description):
     "Oturumdan kalıpları çıkarmayın.",
 ])
 def test_turkish_negative_clauses_do_not_become_activation(description):
-    assert normalize(description) == description
-    assert len(h18(description)) == 1
+    assert tr.normalize(description) == description
+    assert not _SKILL_TRIGGER.search(tr.normalize(description))
+    assert not h18(description)
 
 
 def test_additional_turkish_fixture_has_no_structural_findings():

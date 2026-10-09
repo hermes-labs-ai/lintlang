@@ -1,72 +1,310 @@
 {
+  "active_h18_languages": [
+    "ja",
+    "ko",
+    "zh"
+  ],
+  "all_h18_fp_audit": {
+    "cohort_sha256": {
+      "all-h18-fp-validation.jsonl": "3b66106fce098a302aec4768b62c1c58fa861a41b12315b6fb80b2566d5d47a8",
+      "all-h18-fp.jsonl": "3b9c43ec3dea8cf0dec9058451aaca1bd25891f07c3804c9a1750338273d10be"
+    },
+    "counts": {
+      "all": {
+        "fp_after": 34,
+        "fp_before": 152,
+        "fp_excluded": 114,
+        "fp_input": 266,
+        "fp_reduction": 0.7763157894736842,
+        "fp_removed": 118,
+        "tp_after": 0,
+        "tp_before": 0,
+        "tp_excluded": 0,
+        "tp_input": 0,
+        "tp_retention": null
+      },
+      "en": {
+        "fp_after": 0,
+        "fp_before": 0,
+        "fp_excluded": 59,
+        "fp_input": 59,
+        "fp_reduction": null,
+        "fp_removed": 0,
+        "tp_after": 0,
+        "tp_before": 0,
+        "tp_excluded": 0,
+        "tp_input": 0,
+        "tp_retention": null
+      },
+      "es": {
+        "fp_after": 0,
+        "fp_before": 0,
+        "fp_excluded": 37,
+        "fp_input": 37,
+        "fp_reduction": null,
+        "fp_removed": 0,
+        "tp_after": 0,
+        "tp_before": 0,
+        "tp_excluded": 0,
+        "tp_input": 0,
+        "tp_retention": null
+      },
+      "ja": {
+        "fp_after": 14,
+        "fp_before": 67,
+        "fp_excluded": 0,
+        "fp_input": 67,
+        "fp_reduction": 0.7910447761194029,
+        "fp_removed": 53,
+        "tp_after": 0,
+        "tp_before": 0,
+        "tp_excluded": 0,
+        "tp_input": 0,
+        "tp_retention": null
+      },
+      "ko": {
+        "fp_after": 1,
+        "fp_before": 3,
+        "fp_excluded": 0,
+        "fp_input": 3,
+        "fp_reduction": 0.6666666666666666,
+        "fp_removed": 2,
+        "tp_after": 0,
+        "tp_before": 0,
+        "tp_excluded": 0,
+        "tp_input": 0,
+        "tp_retention": null
+      },
+      "tr": {
+        "fp_after": 0,
+        "fp_before": 0,
+        "fp_excluded": 18,
+        "fp_input": 18,
+        "fp_reduction": null,
+        "fp_removed": 0,
+        "tp_after": 0,
+        "tp_before": 0,
+        "tp_excluded": 0,
+        "tp_input": 0,
+        "tp_retention": null
+      },
+      "zh": {
+        "fp_after": 19,
+        "fp_before": 82,
+        "fp_excluded": 0,
+        "fp_input": 82,
+        "fp_reduction": 0.7682926829268293,
+        "fp_removed": 63,
+        "tp_after": 0,
+        "tp_before": 0,
+        "tp_excluded": 0,
+        "tp_input": 0,
+        "tp_retention": null
+      }
+    },
+    "scope": "Every frozen labeled H1.8 FP, including non-KEEP records; out-of-scope records excluded"
+  },
+  "all_h18_tp_audit": {
+    "cohort_sha256": {
+      "all-h18-tp-validation.jsonl": "fee5252a2ec24fd390473a4e938b9a0663436e8eac9216818af797978461a42e",
+      "all-h18-tp.jsonl": "70933ee2f4f161d5f888952b12c02217c0ac1da47413022b6b3139fdee32fb13"
+    },
+    "counts": {
+      "all": {
+        "fp_after": 0,
+        "fp_before": 0,
+        "fp_excluded": 0,
+        "fp_input": 0,
+        "fp_reduction": null,
+        "fp_removed": 0,
+        "tp_after": 249,
+        "tp_before": 249,
+        "tp_excluded": 23,
+        "tp_input": 272,
+        "tp_retention": 1.0
+      },
+      "en": {
+        "fp_after": 0,
+        "fp_before": 0,
+        "fp_excluded": 0,
+        "fp_input": 0,
+        "fp_reduction": null,
+        "fp_removed": 0,
+        "tp_after": 0,
+        "tp_before": 0,
+        "tp_excluded": 18,
+        "tp_input": 18,
+        "tp_retention": null
+      },
+      "es": {
+        "fp_after": 0,
+        "fp_before": 0,
+        "fp_excluded": 0,
+        "fp_input": 0,
+        "fp_reduction": null,
+        "fp_removed": 0,
+        "tp_after": 0,
+        "tp_before": 0,
+        "tp_excluded": 1,
+        "tp_input": 1,
+        "tp_retention": null
+      },
+      "ja": {
+        "fp_after": 0,
+        "fp_before": 0,
+        "fp_excluded": 0,
+        "fp_input": 0,
+        "fp_reduction": null,
+        "fp_removed": 0,
+        "tp_after": 141,
+        "tp_before": 141,
+        "tp_excluded": 0,
+        "tp_input": 141,
+        "tp_retention": 1.0
+      },
+      "ko": {
+        "fp_after": 0,
+        "fp_before": 0,
+        "fp_excluded": 0,
+        "fp_input": 0,
+        "fp_reduction": null,
+        "fp_removed": 0,
+        "tp_after": 12,
+        "tp_before": 12,
+        "tp_excluded": 0,
+        "tp_input": 12,
+        "tp_retention": 1.0
+      },
+      "tr": {
+        "fp_after": 0,
+        "fp_before": 0,
+        "fp_excluded": 0,
+        "fp_input": 0,
+        "fp_reduction": null,
+        "fp_removed": 0,
+        "tp_after": 0,
+        "tp_before": 0,
+        "tp_excluded": 4,
+        "tp_input": 4,
+        "tp_retention": null
+      },
+      "zh": {
+        "fp_after": 0,
+        "fp_before": 0,
+        "fp_excluded": 0,
+        "fp_input": 0,
+        "fp_reduction": null,
+        "fp_removed": 0,
+        "tp_after": 96,
+        "tp_before": 96,
+        "tp_excluded": 0,
+        "tp_input": 96,
+        "tp_retention": 1.0
+      }
+    },
+    "scope": "Every frozen labeled H1.8 TP, including non-KEEP records; exact scanner identities"
+  },
+  "cjk_mapping_sha256_before_scope": {
+    "ja.py": "e0914ca1102a0078384d5d49055371ebb0c17953a77f49dc11bf77b070440602",
+    "ko.py": "d81fb3a09f9b5c1c48071140ea06f4e6de423e2fb9bd6a471128e29d84201a13",
+    "zh.py": "78e5118c45b70d512a734a9d514bfcbd6f1e70c804b4284f7f7e2d0f24d95aa0"
+  },
   "cohort_sha256": {
     "fp.jsonl": "2fcdb240faa8937cab2bbdfa116e7b25cf165912fca99a1a79fc7c5f60e08e15",
     "lexical-phrases.json": "df9b63722def5ad443df476328c9ffcca7ad89e017568d6760419ade5e30fdfc",
     "tp.jsonl": "4003e41eed8293dcbcdc93e9c7eb0c446a15c760625177777c594d9625995d31",
-    "validation.jsonl": "54159efacf7ad4eb84904effc7c433db39f366aa5f4a6a559b1770f19fcadd64"
+    "validation.jsonl": "4335b050fe5d380b90f24c40076c4da94615e9221ba4e630eb926377e994a46f"
   },
   "counts": {
     "all": {
-      "fp_after": 71,
-      "fp_before": 172,
-      "fp_reduction": 0.5872093023255814,
-      "fp_removed": 101,
-      "tp_after": 126,
-      "tp_before": 126,
+      "fp_after": 10,
+      "fp_before": 63,
+      "fp_excluded": 109,
+      "fp_input": 172,
+      "fp_reduction": 0.8412698412698413,
+      "fp_removed": 53,
+      "tp_after": 120,
+      "tp_before": 120,
+      "tp_excluded": 6,
+      "tp_input": 126,
       "tp_retention": 1.0
     },
     "en": {
-      "fp_after": 43,
-      "fp_before": 54,
-      "fp_reduction": 0.2037037037037037,
-      "fp_removed": 11,
-      "tp_after": 3,
-      "tp_before": 3,
-      "tp_retention": 1.0
-    },
-    "es": {
-      "fp_after": 10,
-      "fp_before": 37,
-      "fp_reduction": 0.7297297297297297,
-      "fp_removed": 27,
+      "fp_after": 0,
+      "fp_before": 0,
+      "fp_excluded": 54,
+      "fp_input": 54,
+      "fp_reduction": null,
+      "fp_removed": 0,
       "tp_after": 0,
       "tp_before": 0,
+      "tp_excluded": 3,
+      "tp_input": 3,
+      "tp_retention": null
+    },
+    "es": {
+      "fp_after": 0,
+      "fp_before": 0,
+      "fp_excluded": 37,
+      "fp_input": 37,
+      "fp_reduction": null,
+      "fp_removed": 0,
+      "tp_after": 0,
+      "tp_before": 0,
+      "tp_excluded": 0,
+      "tp_input": 0,
       "tp_retention": null
     },
     "ja": {
-      "fp_after": 8,
+      "fp_after": 7,
       "fp_before": 43,
-      "fp_reduction": 0.813953488372093,
-      "fp_removed": 35,
+      "fp_excluded": 0,
+      "fp_input": 43,
+      "fp_reduction": 0.8372093023255814,
+      "fp_removed": 36,
       "tp_after": 80,
       "tp_before": 80,
+      "tp_excluded": 0,
+      "tp_input": 80,
       "tp_retention": 1.0
     },
     "ko": {
       "fp_after": 1,
       "fp_before": 1,
+      "fp_excluded": 0,
+      "fp_input": 1,
       "fp_reduction": 0.0,
       "fp_removed": 0,
       "tp_after": 7,
       "tp_before": 7,
+      "tp_excluded": 0,
+      "tp_input": 7,
       "tp_retention": 1.0
     },
     "tr": {
-      "fp_after": 7,
-      "fp_before": 18,
-      "fp_reduction": 0.6111111111111112,
-      "fp_removed": 11,
-      "tp_after": 3,
-      "tp_before": 3,
-      "tp_retention": 1.0
+      "fp_after": 0,
+      "fp_before": 0,
+      "fp_excluded": 18,
+      "fp_input": 18,
+      "fp_reduction": null,
+      "fp_removed": 0,
+      "tp_after": 0,
+      "tp_before": 0,
+      "tp_excluded": 3,
+      "tp_input": 3,
+      "tp_retention": null
     },
     "zh": {
       "fp_after": 2,
       "fp_before": 19,
+      "fp_excluded": 0,
+      "fp_input": 19,
       "fp_reduction": 0.8947368421052632,
       "fp_removed": 17,
       "tp_after": 33,
       "tp_before": 33,
+      "tp_excluded": 0,
+      "tp_input": 33,
       "tp_retention": 1.0
     }
   },
@@ -144,7 +382,7 @@
     "baseline_h1_sha256": "ffbcf3cbf1dbcd04acbc7fb801848ccf2f350367e64620984ac04ef8b690aca5",
     "english_trigger_assignment_ast_unchanged": true,
     "english_trigger_pattern_sha256": "e1b89f309ce2af0b9c1621b84fa2b4e273232493b48afeb0eafd733228faa73c",
-    "existing_h1_ast_identical_after_unwrapping_normalizer": true,
+    "existing_h1_ast_identical_after_unwrapping_scope_and_normalizer": true,
     "other_detector_gate_scanner_files_byte_identical": [
       "src/lintlang/detectors/__init__.py",
       "src/lintlang/gate/__init__.py",
@@ -161,15 +399,19 @@
   "korean_supplement": {
     "cohort_sha256": {
       "korean-all-labeled.jsonl": "2e52a974248b6936c4a1f5b5e7a5f11ee9893ba6f4fef83c342e9ff44fcc31d6",
-      "korean-validation.jsonl": "776536be15c30c406e95a17f4a26d74b7c613016e440e5fb91386fc7912e59b5"
+      "korean-validation.jsonl": "94372f87e13f6d8fb1890ec647e9ae3bb5ca49236e5ce6b88f56166f088f38d7"
     },
     "counts": {
       "fp_after": 1,
       "fp_before": 3,
+      "fp_excluded": 0,
+      "fp_input": 3,
       "fp_reduction": 0.6666666666666666,
       "fp_removed": 2,
       "tp_after": 12,
       "tp_before": 12,
+      "tp_excluded": 0,
+      "tp_input": 12,
       "tp_retention": 1.0
     },
     "scope": "All labeled ko-KR H1.8 records in the same frozen corpus, including non-KEEP"
@@ -177,16 +419,17 @@
   "label_file_sha256": "10ebab44730f469d14ed22dbe191ca493b4944421db5d3b6d051bbc42ad9c444",
   "manifest_sha256": "e693f3f61a4e78390d67174e32d9a04aa0e96708d5cd116de518ec073624731c",
   "normalizer_sha256": {
-    "__init__.py": "e0946c3e0160ecc041457df3d4b0055cd816f59a67755e673c577855d518405e",
+    "__init__.py": "ff155f6fbf7b8940d6d0180e1e698a47a01230b555b07dd3120dc8b2ef123f63",
     "en.py": "550a4ce17a1e6a5068eff746245dc83dd515839119b3d0efb3c600fd65da2209",
     "es.py": "e44db15cf988d9a8e5023e1a93a0a9f09d4e7ac838febc10707fab529408ca71",
-    "ja.py": "5702db2f4338db0bb793a5a44e25b1a83ec79868382402387e7a9f24bc16b99f",
+    "ja.py": "e0914ca1102a0078384d5d49055371ebb0c17953a77f49dc11bf77b070440602",
     "ko.py": "d81fb3a09f9b5c1c48071140ea06f4e6de423e2fb9bd6a471128e29d84201a13",
     "tr.py": "a9eb1a46761ca42e973aa23e2a2d1cd0aab56f0614ef95ee8f38ef5910cecb5c",
-    "zh.py": "c13b5a573872f8f24ce87c4f85b276846d2882f518a0cc02fdd940aefc03ad57"
+    "zh.py": "78e5118c45b70d512a734a9d514bfcbd6f1e70c804b4284f7f7e2d0f24d95aa0"
   },
   "phrases": {
     "en": {
+      "active_for_h18": false,
       "fp_only_topics_not_normalized": [
         {
           "phrase": "best practices",
@@ -320,6 +563,7 @@
       ]
     },
     "es": {
+      "active_for_h18": false,
       "fp_only_topics_not_normalized": [
         {
           "phrase": "patrones",
@@ -728,6 +972,7 @@
       "tp_only_examples": []
     },
     "ja": {
+      "active_for_h18": true,
       "fp_only_topics_not_normalized": [
         {
           "phrase": "\u3092\u69cb\u7bc9\u3057\u307e\u3059",
@@ -773,6 +1018,23 @@
             "\u69cb\u7bc9\u3059\u308b\u958b\u767a\u8005\u306b\u5fc5\u9808\u3067\u3059"
           ],
           "pattern": "\u69cb\u7bc9\u3059\u308b\u958b\u767a\u8005\u306b\u5fc5\u9808\u3067\u3059(?=[\u3002.!?\uff01\uff1f]|$)",
+          "tp_rows": 0
+        },
+        {
+          "canonical": "use for deployments",
+          "fp_rows": 1,
+          "fp_sources": [
+            {
+              "finding_id": "u-b106d46f6c3b",
+              "relative_path": "docs/ja-JP/skills/database-migrations/SKILL.md",
+              "repository": "affaan-m__ECC"
+            }
+          ],
+          "new_in_extension": true,
+          "observed_phrases": [
+            "\u30c7\u30d7\u30ed\u30a4\u30e1\u30f3\u30c8\u306e\u305f\u3081\u306e"
+          ],
+          "pattern": "\u30c7\u30d7\u30ed\u30a4\u30e1\u30f3\u30c8\u306e\u305f\u3081\u306e(?![^\u3002.!?\uff01\uff1f\\n]{0,160}(?:\u3067\u306f\u306a\u3044|\u3067\u306f\u3042\u308a\u307e\u305b\u3093|\u3067\u306f\u306a\u304f|\u3057\u306a\u3044|\u3057\u307e\u305b\u3093|\u5bfe\u8c61\u5916|\u4f7f\u7528\u3057\u305f|\u4f7f\u7528\u3057\u3066|\u3067\u3059\u304b|\u3067\u3057\u3087\u3046\u304b))",
           "tp_rows": 0
         },
         {
@@ -1102,6 +1364,7 @@
       ]
     },
     "ko": {
+      "active_for_h18": true,
       "fp_only_topics_not_normalized": [
         {
           "phrase": "\ubcf8\ub2a5 \uae30\ubc18 \ud559\uc2b5 \uc2dc\uc2a4\ud15c",
@@ -1142,6 +1405,7 @@
       ]
     },
     "tr": {
+      "active_for_h18": false,
       "fp_only_topics_not_normalized": [
         {
           "phrase": "test kal\u0131plar\u0131",
@@ -1323,6 +1587,7 @@
       ]
     },
     "zh": {
+      "active_for_h18": true,
       "fp_only_topics_not_normalized": [
         {
           "phrase": "\u4e13\u4e1a\u77e5\u8bc6",
@@ -1336,6 +1601,96 @@
       "lexical_fp_only_phrases": 7162,
       "lexical_tp_only_phrases": 2571,
       "mappings": [
+        {
+          "canonical": "use when user wants",
+          "fp_rows": 1,
+          "fp_sources": [
+            {
+              "finding_id": "u-e90388e34391",
+              "relative_path": "docs/zh-CN/skills/data-scraper-agent/SKILL.md",
+              "repository": "affaan-m__ECC"
+            }
+          ],
+          "new_in_extension": true,
+          "observed_phrases": [
+            "\u9002\u7528\u4e8e\u7528\u6237\u5e0c\u671b"
+          ],
+          "pattern": "\u9002\u7528\u4e8e\u7528\u6237\u5e0c\u671b",
+          "tp_rows": 0
+        },
+        {
+          "canonical": "use when user wants",
+          "fp_rows": 1,
+          "fp_sources": [
+            {
+              "finding_id": "u-d7c5c0fc2b53",
+              "relative_path": "docs/zh-CN/skills/video-editing/SKILL.md",
+              "repository": "affaan-m__ECC"
+            }
+          ],
+          "new_in_extension": true,
+          "observed_phrases": [
+            "\u9002\u7528\u4e8e\u7528\u6237\u60f3\u8981"
+          ],
+          "pattern": "\u9002\u7528\u4e8e\u7528\u6237\u60f3\u8981",
+          "tp_rows": 0
+        },
+        {
+          "canonical": "use for scheduling",
+          "fp_rows": 1,
+          "fp_sources": [
+            {
+              "finding_id": "u-ddd648ea190c",
+              "relative_path": "docs/zh-CN/skills/production-scheduling/SKILL.md",
+              "repository": "affaan-m__ECC"
+            }
+          ],
+          "new_in_extension": true,
+          "observed_phrases": [
+            "\u9002\u7528\u4e8e\u8c03\u5ea6"
+          ],
+          "pattern": "\u9002\u7528\u4e8e\u8c03\u5ea6",
+          "tp_rows": 0
+        },
+        {
+          "canonical": "use for investigating",
+          "fp_rows": 1,
+          "fp_sources": [
+            {
+              "finding_id": "u-019875a222a0",
+              "relative_path": "docs/zh-CN/skills/quality-nonconformance/SKILL.md",
+              "repository": "affaan-m__ECC"
+            }
+          ],
+          "new_in_extension": true,
+          "observed_phrases": [
+            "\u9002\u7528\u4e8e\u8c03\u67e5"
+          ],
+          "pattern": "\u9002\u7528\u4e8e\u8c03\u67e5",
+          "tp_rows": 0
+        },
+        {
+          "canonical": "use for handling",
+          "fp_rows": 2,
+          "fp_sources": [
+            {
+              "finding_id": "u-ff75007087c4",
+              "relative_path": "docs/zh-CN/skills/customs-trade-compliance/SKILL.md",
+              "repository": "affaan-m__ECC"
+            },
+            {
+              "finding_id": "u-e32a829e3ed8",
+              "relative_path": "docs/zh-CN/skills/returns-reverse-logistics/SKILL.md",
+              "repository": "affaan-m__ECC"
+            }
+          ],
+          "new_in_extension": true,
+          "observed_phrases": [
+            "\u9002\u7528\u4e8e\u5904\u7406"
+          ],
+          "pattern": "\u9002\u7528\u4e8e\u5904\u7406",
+          "tp_rows": 0
+        },
         {
           "canonical": "when user",
           "fp_rows": 7,
@@ -1381,68 +1736,6 @@
             "\u5f53\u7528\u6237"
           ],
           "pattern": "\u5f53\u7528\u6237",
-          "tp_rows": 0
-        },
-        {
-          "canonical": "use for",
-          "fp_rows": 10,
-          "fp_sources": [
-            {
-              "finding_id": "u-720946518d0b",
-              "relative_path": "docs/ja-JP/skills/openclaw-persona-forge/SKILL.md",
-              "repository": "affaan-m__ECC"
-            },
-            {
-              "finding_id": "u-472b9bfaf5c3",
-              "relative_path": "docs/zh-CN/skills/carrier-relationship-management/SKILL.md",
-              "repository": "affaan-m__ECC"
-            },
-            {
-              "finding_id": "u-ff75007087c4",
-              "relative_path": "docs/zh-CN/skills/customs-trade-compliance/SKILL.md",
-              "repository": "affaan-m__ECC"
-            },
-            {
-              "finding_id": "u-e90388e34391",
-              "relative_path": "docs/zh-CN/skills/data-scraper-agent/SKILL.md",
-              "repository": "affaan-m__ECC"
-            },
-            {
-              "finding_id": "u-ed60e7f1204d",
-              "relative_path": "docs/zh-CN/skills/energy-procurement/SKILL.md",
-              "repository": "affaan-m__ECC"
-            },
-            {
-              "finding_id": "u-ceb3857e91f9",
-              "relative_path": "docs/zh-CN/skills/inventory-demand-planning/SKILL.md",
-              "repository": "affaan-m__ECC"
-            },
-            {
-              "finding_id": "u-ddd648ea190c",
-              "relative_path": "docs/zh-CN/skills/production-scheduling/SKILL.md",
-              "repository": "affaan-m__ECC"
-            },
-            {
-              "finding_id": "u-019875a222a0",
-              "relative_path": "docs/zh-CN/skills/quality-nonconformance/SKILL.md",
-              "repository": "affaan-m__ECC"
-            },
-            {
-              "finding_id": "u-e32a829e3ed8",
-              "relative_path": "docs/zh-CN/skills/returns-reverse-logistics/SKILL.md",
-              "repository": "affaan-m__ECC"
-            },
-            {
-              "finding_id": "u-d7c5c0fc2b53",
-              "relative_path": "docs/zh-CN/skills/video-editing/SKILL.md",
-              "repository": "affaan-m__ECC"
-            }
-          ],
-          "new_in_extension": false,
-          "observed_phrases": [
-            "\u9002\u7528\u4e8e"
-          ],
-          "pattern": "\u9002\u7528\u4e8e",
           "tp_rows": 0
         },
         {
@@ -1500,11 +1793,11 @@
               "repository": "affaan-m__ECC"
             }
           ],
-          "new_in_extension": false,
+          "new_in_extension": true,
           "observed_phrases": [
             "\u65f6\u4f7f\u7528"
           ],
-          "pattern": "\u65f6\u4f7f\u7528",
+          "pattern": "(?<!\u4f55)\u65f6\u4f7f\u7528",
           "tp_rows": 0
         },
         {
@@ -1584,67 +1877,79 @@
       ]
     }
   },
+  "pre_scope_tp_validation": {
+    "cohort_sha256": {
+      "all-h18-tp-validation.jsonl": "d137f09b75447b6aad1b2c3efbc447834d5dd740e12005ea62e77045a9771c20",
+      "all-h18-tp.jsonl": "70933ee2f4f161d5f888952b12c02217c0ac1da47413022b6b3139fdee32fb13"
+    },
+    "counts": {
+      "all": {
+        "fp_after": 0,
+        "fp_before": 0,
+        "fp_reduction": null,
+        "fp_removed": 0,
+        "tp_after": 272,
+        "tp_before": 272,
+        "tp_retention": 1.0
+      },
+      "en": {
+        "fp_after": 0,
+        "fp_before": 0,
+        "fp_reduction": null,
+        "fp_removed": 0,
+        "tp_after": 18,
+        "tp_before": 18,
+        "tp_retention": 1.0
+      },
+      "es": {
+        "fp_after": 0,
+        "fp_before": 0,
+        "fp_reduction": null,
+        "fp_removed": 0,
+        "tp_after": 1,
+        "tp_before": 1,
+        "tp_retention": 1.0
+      },
+      "ja": {
+        "fp_after": 0,
+        "fp_before": 0,
+        "fp_reduction": null,
+        "fp_removed": 0,
+        "tp_after": 141,
+        "tp_before": 141,
+        "tp_retention": 1.0
+      },
+      "ko": {
+        "fp_after": 0,
+        "fp_before": 0,
+        "fp_reduction": null,
+        "fp_removed": 0,
+        "tp_after": 12,
+        "tp_before": 12,
+        "tp_retention": 1.0
+      },
+      "tr": {
+        "fp_after": 0,
+        "fp_before": 0,
+        "fp_reduction": null,
+        "fp_removed": 0,
+        "tp_after": 4,
+        "tp_before": 4,
+        "tp_retention": 1.0
+      },
+      "zh": {
+        "fp_after": 0,
+        "fp_before": 0,
+        "fp_reduction": null,
+        "fp_removed": 0,
+        "tp_after": 96,
+        "tp_before": 96,
+        "tp_retention": 1.0
+      }
+    },
+    "scope": "Every frozen labeled H1.8 TP, including non-KEEP records; exact scanner identities"
+  },
   "residual_non_english_fp": [
-    {
-      "finding_id": "u-e4e279b1621e",
-      "language": "es",
-      "relative_path": "docs/es/skills/backend-patterns/SKILL.md",
-      "repository": "affaan-m__ECC"
-    },
-    {
-      "finding_id": "u-ce76f0897b5c",
-      "language": "es",
-      "relative_path": "docs/es/skills/continuous-learning-v2/SKILL.md",
-      "repository": "affaan-m__ECC"
-    },
-    {
-      "finding_id": "u-da1b9c7895f3",
-      "language": "es",
-      "relative_path": "docs/es/skills/django-patterns/SKILL.md",
-      "repository": "affaan-m__ECC"
-    },
-    {
-      "finding_id": "u-248bf0b8024a",
-      "language": "es",
-      "relative_path": "docs/es/skills/eval-harness/SKILL.md",
-      "repository": "affaan-m__ECC"
-    },
-    {
-      "finding_id": "u-59c7725f84c3",
-      "language": "es",
-      "relative_path": "docs/es/skills/frontend-patterns/SKILL.md",
-      "repository": "affaan-m__ECC"
-    },
-    {
-      "finding_id": "u-b634ce5a316d",
-      "language": "es",
-      "relative_path": "docs/es/skills/golang-testing/SKILL.md",
-      "repository": "affaan-m__ECC"
-    },
-    {
-      "finding_id": "u-da1fcbf7ebf1",
-      "language": "es",
-      "relative_path": "docs/es/skills/kotlin-testing/SKILL.md",
-      "repository": "affaan-m__ECC"
-    },
-    {
-      "finding_id": "u-ef674f09959c",
-      "language": "es",
-      "relative_path": "docs/es/skills/laravel-tdd/SKILL.md",
-      "repository": "affaan-m__ECC"
-    },
-    {
-      "finding_id": "u-a68aa3c1ea95",
-      "language": "es",
-      "relative_path": "docs/es/skills/python-testing/SKILL.md",
-      "repository": "affaan-m__ECC"
-    },
-    {
-      "finding_id": "u-87e8c5ae6340",
-      "language": "es",
-      "relative_path": "docs/es/skills/rust-testing/SKILL.md",
-      "repository": "affaan-m__ECC"
-    },
     {
       "finding_id": "u-5250c8076350",
       "language": "ja",
@@ -1661,12 +1966,6 @@
       "finding_id": "u-529136c0f3ef",
       "language": "ja",
       "relative_path": "docs/ja-JP/skills/dart-flutter-patterns/SKILL.md",
-      "repository": "affaan-m__ECC"
-    },
-    {
-      "finding_id": "u-b106d46f6c3b",
-      "language": "ja",
-      "relative_path": "docs/ja-JP/skills/database-migrations/SKILL.md",
       "repository": "affaan-m__ECC"
     },
     {
@@ -1697,48 +1996,6 @@
       "finding_id": "u-34b071729eea",
       "language": "ko",
       "relative_path": "docs/ko-KR/skills/continuous-learning-v2/SKILL.md",
-      "repository": "affaan-m__ECC"
-    },
-    {
-      "finding_id": "u-86bf327de7e0",
-      "language": "tr",
-      "relative_path": "docs/tr/skills/backend-patterns/SKILL.md",
-      "repository": "affaan-m__ECC"
-    },
-    {
-      "finding_id": "u-4fb2ccf455dd",
-      "language": "tr",
-      "relative_path": "docs/tr/skills/continuous-learning-v2/SKILL.md",
-      "repository": "affaan-m__ECC"
-    },
-    {
-      "finding_id": "u-0b67ec93274e",
-      "language": "tr",
-      "relative_path": "docs/tr/skills/django-patterns/SKILL.md",
-      "repository": "affaan-m__ECC"
-    },
-    {
-      "finding_id": "u-fea731695a09",
-      "language": "tr",
-      "relative_path": "docs/tr/skills/e2e-testing/SKILL.md",
-      "repository": "affaan-m__ECC"
-    },
-    {
-      "finding_id": "u-18dbd8f40ce7",
-      "language": "tr",
-      "relative_path": "docs/tr/skills/golang-testing/SKILL.md",
-      "repository": "affaan-m__ECC"
-    },
-    {
-      "finding_id": "u-4eb0a6a1aa61",
-      "language": "tr",
-      "relative_path": "docs/tr/skills/kotlin-testing/SKILL.md",
-      "repository": "affaan-m__ECC"
-    },
-    {
-      "finding_id": "u-fbee1f8a3df9",
-      "language": "tr",
-      "relative_path": "docs/tr/skills/python-testing/SKILL.md",
       "repository": "affaan-m__ECC"
     },
     {

@@ -99,8 +99,8 @@ class TestSkillFrontMatter:
         found = self.codes(tmp_path, "name: pdf-tools")
         assert found == {}
 
-    def test_description_without_a_trigger(self, tmp_path):
-        found = self.codes(tmp_path, "name: pdf-tools\ndescription: Browser and desktop automation discipline.")
+    def test_cjk_description_without_a_trigger(self, tmp_path):
+        found = self.codes(tmp_path, "name: pdf-tools\ndescription: 浏览器和桌面自动化的操作规范与工具使用方法。")
         assert found["H1.8"].source_region.start_line == 3
 
     def test_description_written_as_the_situation_is_a_trigger(self, tmp_path):
@@ -170,7 +170,7 @@ def test_ordinary_markdown_metadata_is_not_skill_selection(tmp_path, path, front
 ])
 @pytest.mark.parametrize("front,code", [
     ("name: reviewer", None),
-    ("description: Writes a status summary from a template.", "H1.8"),
+    ("description: 模板化状态报告的生成方法与格式约定和文档规范。", "H1.8"),
 ])
 def test_selection_definition_metadata_keeps_findings(tmp_path, path, front, code):
     result = scan(tmp_path, path, f"---\n{front}\n---\n\nBody.\n")
@@ -180,7 +180,7 @@ def test_selection_definition_metadata_keeps_findings(tmp_path, path, front, cod
 
 @pytest.mark.parametrize("front,code,exit_code", [
     ("name: reviewer", None, 0),
-    ("description: Writes a status summary from a template.", "H1.8", 0),
+    ("description: 模板化状态报告的生成方法与格式约定和文档规范。", "H1.8", 0),
 ])
 def test_directory_cli_scans_cursor_rules_without_classifying_assets(tmp_path, capsys, front, code, exit_code):
     rule = ".cursor/rules/reviewer.mdc"

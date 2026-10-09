@@ -1,4 +1,4 @@
-"""Spanish H1.8 corpus clauses, semantic exclusions, and sample integration."""
+"""Research-only Spanish clauses, semantic exclusions, and H1.8 scope."""
 
 from pathlib import Path
 
@@ -34,7 +34,7 @@ _MINED = (
 
 
 @pytest.mark.parametrize(("finding_id", "description"), _MINED, ids=[row[0] for row in _MINED])
-def test_each_mined_spanish_clause_reaches_english_gate(finding_id, description):
+def test_each_mined_spanish_clause_reaches_research_english_gate(finding_id, description):
     assert not _SKILL_TRIGGER.search(description)
     assert _SKILL_TRIGGER.search(es.normalize(description)), finding_id
 
@@ -84,7 +84,11 @@ def test_spanish_positive_clause_after_negated_sentence_still_works():
     assert _SKILL_TRIGGER.search(es.normalize(description))
 
 
-def test_spanish_sample_uses_integrated_gate():
+def test_spanish_sample_is_outside_h18_scope(monkeypatch):
+    def forbidden(_text):
+        raise AssertionError("H1.8 invoked the research-only Spanish normalizer")
+
+    monkeypatch.setattr(es, "normalize", forbidden)
     path = Path(__file__).resolve().parents[1] / "samples/h18_languages/es-trigger/SKILL.md"
     result = scan_file(path, gate=False)
     assert not result.input_error

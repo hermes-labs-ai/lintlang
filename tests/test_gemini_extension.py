@@ -54,7 +54,7 @@ def test_after_tool_returns_bounded_actionable_context(tmp_path: Path) -> None:
     target = tmp_path / "agent.yaml"
     target = tmp_path / "audit" / "SKILL.md"
     target.parent.mkdir()
-    target.write_text("---\nname: audit\ndescription: Build MCP servers with the TypeScript SDK, typed tools, resource handlers, prompts, schema validation, HTTP transports and deployment configuration.\n---\nBody.\n", encoding="utf-8")
+    target.write_text("---\nname: audit\ndescription: Build MCP servers with the TypeScript SDK, typed tools, resource handlers, prompts, schema validation, HTTP transports and deployment configuration (工具配置指南).\n---\nBody.\n", encoding="utf-8")
 
     output = _run_hook(target)
 
