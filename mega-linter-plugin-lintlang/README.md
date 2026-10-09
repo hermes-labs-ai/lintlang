@@ -38,10 +38,11 @@ MegaLinter's loader runs the descriptor's installation step at run time
 (`pip install --no-cache-dir lintlang==0.9.0`) inside the existing image, then invokes:
 
 ```console
-lintlang scan --fail-on fail <selected files>
+lintlang scan --no-gate --fail-on fail <selected files>
 ```
 
-FAIL makes the linter exit nonzero; REVIEW remains advisory. Input errors also
+The plugin preserves raw severity blocking with `--no-gate`. HIGH/CRITICAL
+findings produce FAIL and make the linter exit nonzero; REVIEW remains advisory. Input errors also
 remain nonzero. Default selection covers conventional agent-language names
 (`AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, Copilot `*.instructions.md`, and names
 containing `agent`, `prompt`, `tool`, `skill`, `system`, or `instruction`) rather

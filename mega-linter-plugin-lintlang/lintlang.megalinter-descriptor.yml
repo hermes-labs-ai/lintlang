@@ -17,13 +17,14 @@ linters:
       - list_of_files
     cli_lint_extra_args:
       - scan
+      - --no-gate
       - --fail-on
       - fail
     cli_help_arg_name: --help
     cli_version_arg_name: --version
     examples:
-      - lintlang scan AGENTS.md --fail-on fail
-      - lintlang scan agent.yaml tools.json --fail-on fail
+      - lintlang scan AGENTS.md --no-gate --fail-on fail
+      - lintlang scan agent.yaml tools.json --no-gate --fail-on fail
     install:
       dockerfile:
         - RUN pip install --no-cache-dir lintlang==0.9.0

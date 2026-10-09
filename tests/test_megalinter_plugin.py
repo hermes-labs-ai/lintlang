@@ -37,7 +37,7 @@ def test_megalinter_descriptor_contract() -> None:
     assert linter["name"] == "AI_LINTLANG"
     assert linter["cli_lint_mode"] == "list_of_files"
     assert linter["supported_cli_lint_modes"] == ["list_of_files"]
-    assert linter["cli_lint_extra_args"] == ["scan", "--fail-on", "fail"]
+    assert linter["cli_lint_extra_args"] == ["scan", "--no-gate", "--fail-on", "fail"]
     assert linter["install"]["dockerfile"] == [
         f"RUN pip install --no-cache-dir lintlang=={__version__}"
     ]
@@ -45,7 +45,7 @@ def test_megalinter_descriptor_contract() -> None:
 
 def test_megalinter_raw_invocation_passes_clean_and_fails_bad_fixture() -> None:
     linter = _descriptor()["linters"][0]
-    prefix = [*linter["cli_lint_extra_args"], "--no-gate"]
+    prefix = linter["cli_lint_extra_args"]
 
     assert main([*prefix, str(ROOT / "samples" / "clean_config.yaml")]) == 0
     assert main([*prefix, str(ROOT / "samples" / "bad_tool_descriptions.yaml")]) == 1
@@ -56,14 +56,14 @@ def test_megalinter_raw_list_of_files_batch_fails_only_on_known_finding(
 ) -> None:
     """Mirror the real ``oxsecurity/megalinter-python:v9.4.0`` list_of_files call.
 
-    MegaLinter passes every kept file in one command. This fixture opts into
+    MegaLinter passes every kept file in one command. The descriptor preserves
     raw severity mode with ``--no-gate``. The batch must exit 1
     when exactly one file carries a known FAIL verdict, and exit 0 once that
     file is removed, without unrelated ``.md``/``.py``/``.txt``/``.json``
     files producing findings.
     """
     linter = _descriptor()["linters"][0]
-    prefix = [*linter["cli_lint_extra_args"], "--no-gate"]
+    prefix = linter["cli_lint_extra_args"]
 
     bad = tmp_path / "bad_tool_descriptions.yaml"
     bad.write_text(
