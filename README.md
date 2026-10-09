@@ -114,12 +114,13 @@ brew install hermes-labs-ai/tap/lintlang
 lintlang scan .
 ```
 
-In this unpublished 0.8.8 candidate, the learned gate is enabled by default:
+In this unpublished 0.9.0 candidate, the learned gate is enabled by default:
 KEEP findings remaining after explicit filters and baseline allowances block
 (exit 1), ESCALATE findings request review (exit 0), and
-DISMISS findings are hidden and counted. **Release approval is blocked:** the
-expanded corpus review does not meet the >99% KEEP precision target. See the
-[acceptance report](docs/release-0.8.8.md) before using this candidate in CI.
+DISMISS findings are hidden and counted. The frozen development replay has
+**179 TP / 10 FP in KEEP (94.71% observed precision)**. This is a development
+cohort result; held-out accuracy remains unverified. See the
+[draft review report](docs/release-0.9.0.md) before using this candidate in CI.
 
 Use raw detector behavior with `--no-gate`. Raw findings are advisory unless a
 severity policy is selected:
@@ -172,7 +173,8 @@ See [GitHub CI and Code Scanning](docs/github.md) and [baseline adoption](docs/b
 
 What we can claim today, and what we can't:
 
-- **1100 passing tests** across 46 test modules (plus 3 skipped and 5 expected failures), run in CI on Python 3.10–3.13 on every pull request and push to `main`. Every tagged release from v0.3.1 through v0.8.2 points at a commit with a passing CI run; the publish workflow checks tag/version parity and builds, it does not re-run the suite. Reproduce with `pip install -e ".[dev]" && pytest -q`.
+- **Offline engineering checks:** the full pytest suite, Ruff, package installs, and integration contracts are exercised before private handoff. The CI matrix covers Python 3.10–3.13; a local run does not establish every matrix result. Reproduce with `pip install -e ".[dev]" && pytest -q`.
+- **CJK skill-trigger replay:** all **249/249** eligible H1.8 TP identities retained; the supplied KEEP-only FP set falls from **63 to 10 (84.1% fewer)**. Across all labeled gate decisions, CJK FPs fall from **152 to 34**. These are mixed historical/AI-label development replays, not held-out accuracy. [Machine-readable counts](evals/gate_wiring/h18-language-results.json) and [full 972-finding replay](evals/gate_wiring/current-results.json).
 - **Regression corpus** (`evals/corpus/cases.jsonl`, 2 cases and 23 variants today): immutable case IDs with positive/negative controls per phrase class, each linked to a focused test. It guards detector boundaries against drift — it does not estimate accuracy or false-positive rates.
 - **Sample detection check** (`evals/sample-detection-rate.sh`): 4 deliberately-broken fixtures must fail, 1 clean fixture must pass. A release gate, not a benchmark.
 - **Daily proof loop** (`.github/workflows/proof-benchmark.yml`): a clean clone scans a broken fixture to SARIF, swaps in the clean one, and must go fail → pass in under 300 seconds. It proves the wiring and timing, not accuracy.
@@ -209,9 +211,9 @@ LintLang is developed by [Hermes Labs](https://hermes-labs.ai/).
 
 [Apache License 2.0](LICENSE)
 
-### 0.8.8 candidate
+### 0.9.0 candidate
 
-The local candidate enables the learned gate by default; `--no-gate` restores raw findings and severity policy. Its precision acceptance is currently blocked. See [migration and acceptance](docs/release-0.8.8.md) for detector changes and evidence limitations.
+This private candidate enables the learned gate by default; `--no-gate` restores raw findings and severity policy. H1.8 runs only for Chinese, Japanese, and Korean; English, Spanish, and Turkish are excluded from that rule. See the [draft migration and review report](docs/release-0.9.0.md) and [private testing instructions](docs/testing-0.9.0.md). Public release remains subject to owner review.
 
 Directory scans and discovery skip test, fixture and teaching directories by exact
 component name: `tests`, `test`, `cassettes`, `fixtures`, `mocks`, `memory-tests`,

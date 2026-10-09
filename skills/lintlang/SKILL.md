@@ -29,9 +29,9 @@ Python — before they reach a runtime agent.
 
 ## Unpublished candidate
 
-Version 0.8.8 is not published yet. For this local candidate, run
+Version 0.9.0 is not published yet. For this private local candidate, run
 `python -m pip install .` from its source checkout and use that environment's
-`lintlang` command. Registry-pinned 0.8.8 commands below are release examples;
+`lintlang` command. Registry-pinned 0.9.0 commands below are release examples;
 do not attempt them until publication. The `--no-gate` examples require this
 candidate; do not pass that flag to an older installed release.
 
@@ -43,24 +43,27 @@ findings and DISMISS suppression.
 
 Stop at the first that works.
 
-1. `lintlang --version` prints a version (this skill is verified against
-   `lintlang 0.8.8`) → use `lintlang`.
+1. `lintlang --version` reports the installed version and `lintlang scan --help`
+   lists `--no-gate` → use `lintlang`. This skill is verified against 0.9.0;
+   report the actual version. A CLI without `--no-gate` is ineligible for the
+   raw-mode commands below.
 2. Otherwise, if `uvx` is available, run the pinned release with no install
    and no PATH change:
 
    ```bash
-   uvx --from lintlang==0.8.8 lintlang --version
+   uvx --from lintlang==0.9.0 lintlang --version
    ```
 
-   Keep the `==0.8.8` pin so an unreviewed newer release is never fetched.
+   Keep the `==0.9.0` pin so an unreviewed newer release is never fetched.
    The download happens once into uv's cache; the scan itself still makes no
    network call.
 3. Otherwise stop and relay the install line:
-   `python -m pip install lintlang==0.8.8` (Python 3.10+). Do not install
+   `python -m pip install lintlang==0.9.0` (Python 3.10+). Do not install
    anything persistently on the user's machine yourself.
 
-For an older installed version, consult its `scan --help` and omit unsupported
-flags; report that version and do not claim the 0.8.8 candidate was exercised.
+Every selected runner must list `--no-gate` in its `scan --help`. If the installed
+CLI lacks that capability, resolve the next eligible runner or use the private
+source checkout. Report its version; older releases do not validate 0.9.0.
 
 ## Scan
 
@@ -80,7 +83,7 @@ lintlang scan --no-gate --format json -- <file> [<file> ...]
 or, with the pinned uvx runner:
 
 ```bash
-uvx --from lintlang==0.8.8 lintlang scan --no-gate --format json -- <file> [<file> ...]
+uvx --from lintlang==0.9.0 lintlang scan --no-gate --format json -- <file> [<file> ...]
 ```
 
 The `--` keeps a path that begins with `-` from being read as a flag. For
@@ -160,7 +163,7 @@ YAML
 lintlang scan --no-gate --fail-on fail -- "${TMPDIR:-/tmp}/lintlang-check.yaml"
 ```
 
-On `lintlang 0.8.8` that reports `FAIL` and exits `1`, with H1.2 at
+On `lintlang 0.9.0` that reports `FAIL` and exits `1`, with H1.2 at
 `tool:process_ticket` identifying the underspecified "Get data" description. The
 seeded finding is the expected outcome: it shows the detector fired, not
 that the install is broken. Delete the file afterwards.

@@ -212,7 +212,7 @@ def test_reference_docs_show_exercised_install_and_hook_paths():
     assert "repo: https://github.com/hermes-labs-ai/lintlang" in integration
     assert f"rev: v{__version__}" in integration
     assert "id: lintlang" in integration
-    assert "args: [AGENTS.md, --fail-on, fail]" in integration
+    assert "args: [AGENTS.md, --no-gate, --fail-on, fail]" in integration
     assert "pre-commit install" in integration
     assert "pre-commit run lintlang" in integration
     assert f"hermes-labs-ai/lintlang@{LINTLANG_V070_SHA} # {LINTLANG_ACTION_VERSION}" in baseline

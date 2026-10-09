@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.9.0] - Unreleased
+
+Private testing draft; not published.
+
+- Scope H1.8 to Chinese, Japanese, and Korean descriptions; retain other language maps for research.
+- Recognize corpus-mined Korean usage clauses and narrow Chinese applicability cues to retain all eligible TP identities.
+- Update package and current integration version pins to 0.9.0, preserving historical release records.
+- Include current default-gate replay receipts; park additional Korean extraction and save source URLs for later review.
+- Inherit the reconciled detector retirements and default gate behavior from the superseded 0.8.8 candidate below.
+
+See the [draft review report](docs/release-0.9.0.md) and [private testing instructions](docs/testing-0.9.0.md).
+
 ## [0.8.8] - Unreleased
 
 - Remove H5 implicit-instruction detection, its helper tables, function and registry entry. Explicit H5 selection and `detect_h5` imports are no longer supported.

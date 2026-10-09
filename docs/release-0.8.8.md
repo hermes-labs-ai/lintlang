@@ -1,4 +1,8 @@
-# 0.8.8 release candidate
+# 0.8.8 release candidate (historical)
+
+This report preserves earlier candidate measurements and holds. The current
+private candidate is [0.9.0](release-0.9.0.md); its current metrics and scope
+supersede the historical figures below.
 
 This is an unpublished local candidate for the original session to review.
 No PR, push, tag, GitHub release, or PyPI publication has been made.

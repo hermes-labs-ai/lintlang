@@ -17,7 +17,7 @@ import lintlang
 from lintlang.gate import FPGate
 from lintlang.scanner import scan_file
 from lintlang.report import compute_verdict
-assert lintlang.__version__ == metadata.version("lintlang") == "0.8.8"
+assert lintlang.__version__ == metadata.version("lintlang") == "0.9.0"
 requires = metadata.requires("lintlang")
 assert [r.split(";")[0].strip().lower() for r in requires if ";" not in r] == ["pyyaml>=6.0.3"]
 assert len(FPGate().feature_names) == 34
@@ -33,12 +33,19 @@ assert compute_verdict(gated) == "PASS"
 assert gated.gate_status == "evaluated"
 kept_path = Path("audit/SKILL.md")
 kept_path.parent.mkdir()
-kept_path.write_text("---\nname: audit\ndescription: Build MCP servers with the TypeScript SDK, typed tools, resource handlers, prompts, schema validation, HTTP transports and deployment configuration.\n---\nBody.\n")
+kept_path.write_text("---\nname: audit\ndescription: Build MCP servers with the TypeScript SDK, typed tools, resource handlers, prompts, schema validation, HTTP transports and deployment configuration (工具配置指南).\n---\nBody.\n")
 kept = scan_file(kept_path)
 assert [f.code for f in kept.structural_findings] == ["H1.8"]
 assert kept.structural_findings[0].gate_decision == "KEEP"
 assert compute_verdict(kept) == "FAIL"
-print(json.dumps({"version": lintlang.__version__, "raw_findings": len(raw.structural_findings), "kept_findings": len(kept.structural_findings)}))
+english_path = Path("english-audit/SKILL.md")
+english_path.parent.mkdir()
+english_path.write_text("---\nname: english-audit\ndescription: Build MCP servers with the TypeScript SDK, typed tools, resource handlers, prompts, schema validation, HTTP transports and deployment configuration.\n---\nBody.\n")
+english = scan_file(english_path, gate=False)
+assert english.inspected["skill_description"] == 1
+assert english.structural_findings == []
+assert compute_verdict(english) == "PASS"
+print(json.dumps({"version": lintlang.__version__, "raw_findings": len(raw.structural_findings), "kept_findings": len(kept.structural_findings), "english_h18_skipped": True}))
 '''
 
 
@@ -72,6 +79,12 @@ def main() -> None:
             suppressed = json.loads(suppressed_result.stdout)[0]
             assert suppressed["structural_findings"] == []
             assert suppressed["gate"]["raw_findings"] == suppressed["gate"]["suppressed"] > 0
+            english_result = subprocess.run(
+                [str(python), "-I", "-m", "lintlang", "scan", "english-audit/SKILL.md", "--no-gate", "--format", "json"],
+                cwd=root, capture_output=True, text=True,
+            )
+            assert english_result.returncode == 0, english_result.stderr
+            assert json.loads(english_result.stdout)[0]["structural_findings"] == []
             for format_name in ("json", "sarif", "gitlab"):
                 result = subprocess.run([str(python), "-I", "-m", "lintlang", "scan", "audit/SKILL.md", "--format", format_name], cwd=root, capture_output=True, text=True)
                 assert result.returncode == 1, result.stderr

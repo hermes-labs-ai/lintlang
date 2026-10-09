@@ -334,7 +334,7 @@ Checks underspecified nonempty short descriptions, selected vague opening verbs,
 tool names, high word overlap, and relational nondistinction. Findings keep
 `pattern_id: H1`; `code` provides the more specific stable identifier.
 
-H1.1 is retired in 0.8.8; empty tool and skill descriptions produce no finding.
+H1.1 is retired in 0.9.0; empty tool and skill descriptions produce no finding.
 
 | Code | Reports | Severity |
 | --- | --- | --- |
@@ -445,7 +445,7 @@ directories, globs, placeholders and paths into other projects are never reporte
 
 ### H5: Retired
 
-H5's implicit-instruction detector and its registry entry are removed in 0.8.8.
+H5's implicit-instruction detector and its registry entry are removed in 0.9.0.
 `detect_h5` is no longer importable. Remove H5 from explicit `--patterns`
 selections. Historical serialized H5 findings remain readable. The scanner no
 longer reports vague qualifiers, negative-instruction density or missing priority
@@ -454,7 +454,7 @@ ordering. Other detectors and classifier parameters are unchanged by this remova
 ### H6: Retired
 
 H6 no longer runs. Explicit H6 selection is rejected; remove it from `--patterns`.
-Historical serialized findings remain readable. See [0.8.8 migration](docs/release-0.8.8.md).
+Historical serialized findings remain readable. See [0.9.0 migration](docs/release-0.9.0.md).
 
 ### H7: Role Confusion
 
@@ -644,7 +644,7 @@ From a source checkout:
 lintlang scan --no-gate samples/bad_tool_descriptions.yaml
 ```
 
-Excerpt from `lintlang 0.8.8`:
+Excerpt from `lintlang 0.9.0`:
 
 ```text
 FAIL — 1 HIGH, 5 MEDIUM, 3 LOW
@@ -658,7 +658,7 @@ A clean static scan is not evidence of runtime correctness or safety.
 
 ## First run without a checkout
 
-**Unpublished candidate:** the registry-pinned 0.8.8 recipe below is for the
+**Unpublished candidate:** the registry-pinned 0.9.0 recipe below is for the
 prepared release and will work only after publication. To test it now, install
 from this candidate checkout with `python -m pip install -e .` and skip the
 registry installation command. The `--no-gate` examples require this candidate.
@@ -668,7 +668,7 @@ Only the install reaches the network to obtain the package and dependencies.
 Every `lintlang scan` below is offline.
 
 ```bash
-python -m pip install lintlang==0.8.8
+python -m pip install lintlang==0.9.0
 
 cat > /tmp/agent.yaml <<'YAML'
 system_prompt: |
@@ -686,7 +686,7 @@ YAML
 lintlang scan --no-gate /tmp/agent.yaml --fail-on fail
 ```
 
-`lintlang 0.8.8` reports `FAIL — 2 HIGH, 1 MEDIUM` and exits `1`.
+`lintlang 0.9.0` reports `FAIL — 2 HIGH, 1 MEDIUM` and exits `1`.
 H1.2 identifies the underspecified short tool description. This is a successful detection; do
 not hide the exit status with `|| true`. To use the newest package instead, run
 `python -m pip install --upgrade lintlang` and re-read the counts below as approximate.
@@ -744,7 +744,7 @@ left alone; review it before replacing it with `--force`. See
 Use the same inputs and outcomes with PowerShell-native temporary paths:
 
 ```powershell
-python -m pip install lintlang==0.8.8
+python -m pip install lintlang==0.9.0
 $badPath = Join-Path $env:TEMP "agent.yaml"
 $fixedPath = Join-Path $env:TEMP "agent-fixed.yaml"
 
@@ -795,9 +795,9 @@ python -m lintlang scan (Join-Path $env:TEMP "does-not-exist.yaml") --fail-on fa
 [Apache License 2.0](LICENSE). LintLang is maintained by
 [Hermes Labs](https://hermes-labs.ai).
 
-## Unpublished 0.8.8 gate policy
+## Unpublished 0.9.0 gate policy
 
-The local 0.8.8 candidate enables the classifier by default. KEEP produces FAIL
+The local 0.9.0 candidate enables the classifier by default. KEEP produces FAIL
 and exit 1; ESCALATE produces REVIEW without blocking; DISMISS is hidden, with
 raw and suppressed counts in diagnostics. `--no-gate` or Python `gate=False`
 restores raw detector findings and the existing severity policy. The API example
@@ -807,6 +807,9 @@ KEEP only. Invalid/missing model artifacts produce ERROR with raw findings
 retained. `--fail-under` remains independent. These gate semantics supersede the
 raw severity examples above when `--no-gate` is absent.
 
-Release approval is blocked: expanded mixed-provenance labels show 27.84% KEEP
-precision, not the earlier 99.46% measured on a small labeled subset. See
-`docs/release-0.8.8.md` for denominators, remaining uncertainty and migration.
+The current 972-finding development replay has 179 TP and 10 FP in KEEP:
+94.71% observed precision. CJK H1.8 retains 249/249 eligible TP identities;
+its KEEP-only FP set falls from 63 to 10. Full labeled CJK FPs fall from 152
+to 34. The cohort has mixed historical/AI-review labels; held-out accuracy
+is unverified. Public release requires owner review. See the draft
+`docs/release-0.9.0.md` and machine-readable `evals/gate_wiring/current-results.json`.

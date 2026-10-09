@@ -7,10 +7,15 @@ Scanning an instruction file with the standalone CLI does not install this plugi
 
 ## Prerequisites and setup
 
-Install the pinned scanner with Python 3.10+ so `lintlang` is on the host's `PATH`:
+**Unpublished 0.9.0 candidate:** install from this private checkout with
+`python -m pip install .` and use its `lintlang` executable for local validation.
+The registry command below is a draft release example; use it after publication.
+
+After publication, install the pinned scanner with Python 3.10+ so `lintlang`
+is on the host's `PATH`:
 
 ```bash
-pipx install lintlang==0.8.8
+pipx install lintlang==0.9.0
 lintlang --version
 ```
 

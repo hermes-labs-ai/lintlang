@@ -5,14 +5,19 @@ bounded feedback inside an agent host. Scanning `AGENTS.md`, `CLAUDE.md`,
 `GEMINI.md`, or Copilot instructions with the CLI does not install a native
 plugin, validate every host-specific setting, or establish provider compatibility.
 
+**Unpublished 0.9.0 candidate:** the 0.9.0 package and tag commands below are
+draft release examples. This candidate remains private; do not run those
+registry or tag installs before publication. For local validation, install from
+this checkout with `python -m pip install .` and use its `lintlang` command.
+
 ## Choose a workflow
 
 | Integration/workflow | Trigger | Prerequisite | Advisory or blocking | Setup and limits |
 | --- | --- | --- | --- | --- |
-| GitHub Actions | Pull request or configured CI event | Actions enabled; committed input path | Action defaults to blocking HIGH/CRITICAL | [GitHub guide](github.md) |
+| GitHub Actions | Pull request or configured CI event | Actions enabled; committed input path | Bundled 0.9.0 Action blocks KEEP; published refs retain their release policy | [GitHub guide](github.md) |
 | GitHub Code Scanning | SARIF upload after a scan | Eligible repository, feature enabled, upload permissions | Scan gate and upload outcome are separate | [Code scanning](github.md#code-scanning) |
-| GitLab Code Quality | Merge request and default-branch CI job | GitLab CI/CD; committed input path | Optional `--fail-on` gate | [GitLab guide](gitlab.md) |
-| pre-commit | Commit hook or explicit run | pre-commit and a configured input path | Advisory by default; opt-in severity gate | [pre-commit setup](#pre-commit) |
+| GitLab Code Quality | Merge request and default-branch CI job | GitLab CI/CD; committed input path | KEEP blocks; raw mode supports `--fail-on` | [GitLab guide](gitlab.md) |
+| pre-commit | Commit hook or explicit run | pre-commit and a configured input path | KEEP blocks by default; raw mode supports an opt-in severity gate | [pre-commit setup](#pre-commit) |
 | Claude Code | Supported `Write`/`Edit`; named-file audit on request | Claude Code plugin support; scanner runner | Non-blocking guidance; no file rewriting | [Claude Code guide](../integrations/claude-code/README.md) |
 | Cursor | Named-file audit on request | Cursor marketplace plugin support; scanner runner | Advisory verdict; no file rewriting | [Cursor setup](../integrations/claude-code/README.md#use-in-cursor) |
 | GitHub Copilot CLI | Named-file audit on request | Copilot CLI plugin support; scanner runner | Advisory verdict; no file rewriting | [Copilot CLI guide](../integrations/copilot-cli/README.md) |
@@ -22,8 +27,10 @@ plugin, validate every host-specific setting, or establish provider compatibilit
 | Hermes Agent | First coding-turn `pre_verify` attempt | Plugin-capable host; LintLang in its Python environment | One continuation for eligible FAIL/ERROR inputs | [Hermes Agent setup](#hermes-agent) |
 | MegaLinter | Existing MegaLinter run | External descriptor and `AI_LINTLANG` enabled | FAIL blocks; REVIEW is advisory | [MegaLinter guide](../mega-linter-plugin-lintlang/README.md) |
 
-The CLI itself reports findings without blocking unless a threshold is requested;
-input errors remain nonzero. Host hooks are not a substitute for a CI gate.
+In the private 0.9.0 candidate, default CLI scans block KEEP findings with exit 1;
+ESCALATE remains advisory. `--no-gate` restores raw findings, which are advisory
+unless a severity threshold is requested. Input errors remain nonzero. Published
+Action refs retain their own release policy. Host hooks are not a substitute for a CI gate.
 The scanner makes no model or network calls during a scan, but installation can
 download dependencies and host applications retain their own provider/network
 behavior. Diagnostics returned to a host are not a promise that source-derived
@@ -51,7 +58,7 @@ other hooks:
 ```yaml
 repos:
   - repo: https://github.com/hermes-labs-ai/lintlang
-    rev: v0.8.8
+    rev: v0.9.0
     hooks:
       - id: lintlang
 ```
@@ -90,26 +97,24 @@ hooks:
     always_run: true
 ```
 
-Findings are advisory by default: **a FAIL verdict does not block the
-commit.** Without `--fail-on`, the scan prints the verdict and its findings
-and exits 0 whatever it found, so pre-commit records the hook as passed and
-the commit proceeds. Only an input error — a missing, unreadable, or
-unparseable file — is nonzero without that flag. A hook that prints `FAIL`
-and lets the commit through is configured, not broken.
+With the pinned 0.9.0 hook, KEEP findings block the commit with exit 1 even
+without `--fail-on`. ESCALATE findings remain advisory. Input or unavailable-model
+errors also block. To request advisory raw findings, add `args: [--no-gate]`;
+a raw FAIL verdict then exits 0 unless a severity policy is selected.
 
-To block HIGH or CRITICAL findings, add a
+To block raw HIGH or CRITICAL findings, combine `--no-gate` with a
 `--fail-on` argument. On the default changed-file hook, pass only the flag,
 since the filenames arrive on their own:
 
 ```yaml
-args: [--fail-on, fail]
+args: [--no-gate, --fail-on, fail]
 ```
 
 On a pinned single-path hook like the one above, keep the explicit path
 first:
 
 ```yaml
-args: [AGENTS.md, --fail-on, fail]
+args: [AGENTS.md, --no-gate, --fail-on, fail]
 ```
 
 Use `review` instead of `fail` to include MEDIUM findings. Configured input
@@ -149,11 +154,11 @@ for every release.
 
 ## Pi
 
-Install the skill as a Pi package directly from this repository, pinned to a
-release tag:
+After publication, install the skill as a Pi package directly from this
+repository, pinned to its release tag:
 
 ```bash
-pi install git:github.com/hermes-labs-ai/lintlang@v0.8.8
+pi install git:github.com/hermes-labs-ai/lintlang@v0.9.0
 pi list
 ```
 
@@ -164,7 +169,7 @@ package or a Pi gallery listing. Add `--local` to declare the package in project
 settings instead. In a new Pi session, `/skill:lintlang` runs it on request.
 
 The skill does not install the scanner. It uses `lintlang` from `PATH`, then
-`uvx --from lintlang==0.8.8`, and otherwise relays a pip command. It reports an
+`uvx --from lintlang==0.9.0`, and otherwise relays a pip command. It reports an
 advisory verdict for a file you name and does not rewrite files. Its
 [verification step](../skills/lintlang/SKILL.md#verify-the-runner-without-a-checkout)
 checks the runner without a checkout. Recorded installation: Pi 0.99.2
@@ -178,7 +183,7 @@ Install LintLang with the Python interpreter for the environment that runs
 Hermes Agent, then check plugin discovery:
 
 ```bash
-python -m pip install lintlang==0.8.2
+python -m pip install lintlang==0.9.0
 hermes plugins list
 ```
 

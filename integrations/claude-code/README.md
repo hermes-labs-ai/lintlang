@@ -25,20 +25,24 @@ require installing this plugin.
 
 ## Prerequisites
 
-Use Claude Code with plugin support. Install the tested scanner release with
-Python 3.10+ so `lintlang` is on the host's `PATH`:
+**Unpublished 0.9.0 candidate:** install from this private checkout with
+`python -m pip install .` and use its `lintlang` executable for local validation.
+The registry commands below are draft release examples; use them after publication.
+
+Use Claude Code with plugin support. After publication, install the pinned
+scanner with Python 3.10+ so `lintlang` is on the host's `PATH`:
 
 ```bash
-pipx install lintlang==0.8.8
+pipx install lintlang==0.9.0
 lintlang --version
 ```
 
-The hook prefers the installed executable and accepts version 0.8.8 or newer.
+The hook prefers the installed executable and accepts version 0.9.0 or newer.
 It falls back to the installed Python module and runs from its own handler
 directory, keeping the edited project's directory off the resolver's import
 path. On Python 3.11+, it also uses `-P` and `PYTHONSAFEPATH`. The skill prefers
 the same executable
-and otherwise runs the pinned release through `uvx --from lintlang==0.8.8`.
+and otherwise runs the pinned release through `uvx --from lintlang==0.9.0`.
 That fallback uses an isolated cached environment, not a persistent LintLang
 installation; it can download packages on a cache miss. Neither installed route
 needs a checkout of this repository.

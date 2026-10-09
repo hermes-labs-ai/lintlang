@@ -1,7 +1,11 @@
-# Default gate wiring acceptance (local, unpublished)
+# Default gate wiring development evidence
 
-Status: local candidate; release approval blocked by KEEP precision. Push, PR,
-merge, tag and publication remain held for owner review.
+Current candidate: private 0.9.0, pending owner review.
+[Current replay](current-results.json) checks all 1,599 frozen files against the
+972 original finding labels: KEEP 179 TP / 10 FP, 94.71% observed precision.
+Run `PYTHONPATH=src python evals/gate_wiring/replay_current.py`.
+Historical receipts below remain historical; public publication is held.
+See the [draft review report](../../docs/release-0.9.0.md).
 
 ## Current H1.8 language normalization
 

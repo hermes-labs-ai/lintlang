@@ -9,6 +9,8 @@ from pathlib import Path
 
 import yaml
 
+from lintlang import __version__
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "publish.yml"
 CI_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "ci.yml"
@@ -20,16 +22,16 @@ DOWNLOAD_ARTIFACT_V8_SHA = "3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c"
 
 def test_release_tag_verifier_accepts_only_matching_v_prefixed_version(tmp_path):
     pyproject = tmp_path / "pyproject.toml"
-    pyproject.write_text('[project]\nname = "example"\nversion = "0.4.0"\n', encoding="utf-8")
+    pyproject.write_text(f'[project]\nname = "example"\nversion = "{__version__}"\n', encoding="utf-8")
 
     matching = subprocess.run(
-        [sys.executable, str(VERIFY_SCRIPT), "--tag", "v0.4.0", "--pyproject", str(pyproject)],
+        [sys.executable, str(VERIFY_SCRIPT), "--tag", f"v{__version__}", "--pyproject", str(pyproject)],
         text=True,
         capture_output=True,
         check=False,
     )
     unprefixed = subprocess.run(
-        [sys.executable, str(VERIFY_SCRIPT), "--tag", "0.4.0", "--pyproject", str(pyproject)],
+        [sys.executable, str(VERIFY_SCRIPT), "--tag", __version__, "--pyproject", str(pyproject)],
         text=True,
         capture_output=True,
         check=False,
@@ -42,7 +44,7 @@ def test_release_tag_verifier_accepts_only_matching_v_prefixed_version(tmp_path)
     )
 
     assert matching.returncode == 0
-    assert matching.stdout.strip() == "release tag v0.4.0 matches package version 0.4.0"
+    assert matching.stdout.strip() == f"release tag v{__version__} matches package version {__version__}"
     assert unprefixed.returncode == 1
     assert mismatched.returncode == 1
 
