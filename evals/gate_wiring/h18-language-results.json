@@ -1,0 +1,446 @@
+{
+  "cohort_sha256": {
+    "fp.jsonl": "2fcdb240faa8937cab2bbdfa116e7b25cf165912fca99a1a79fc7c5f60e08e15",
+    "lexical-phrases.json": "108b3c63adb06bc256fa5704bb43b8de959c04759a00470b57ce8ae5aad79c33",
+    "tp.jsonl": "4003e41eed8293dcbcdc93e9c7eb0c446a15c760625177777c594d9625995d31",
+    "validation.jsonl": "7f435c63cb0fcc649dde0bd54dfa44620079de6af36bae5ba17a24b06697f246"
+  },
+  "counts": {
+    "all": {
+      "fp_after": 106,
+      "fp_before": 172,
+      "fp_reduction": 0.38372093023255816,
+      "fp_removed": 66,
+      "tp_after": 126,
+      "tp_before": 126,
+      "tp_retention": 1.0
+    },
+    "en": {
+      "fp_after": 43,
+      "fp_before": 54,
+      "fp_reduction": 0.2037037037037037,
+      "fp_removed": 11,
+      "tp_after": 3,
+      "tp_before": 3,
+      "tp_retention": 1.0
+    },
+    "es": {
+      "fp_after": 37,
+      "fp_before": 37,
+      "fp_reduction": 0.0,
+      "fp_removed": 0,
+      "tp_after": 0,
+      "tp_before": 0,
+      "tp_retention": null
+    },
+    "ja": {
+      "fp_after": 10,
+      "fp_before": 43,
+      "fp_reduction": 0.7674418604651163,
+      "fp_removed": 33,
+      "tp_after": 80,
+      "tp_before": 80,
+      "tp_retention": 1.0
+    },
+    "ko": {
+      "fp_after": 1,
+      "fp_before": 1,
+      "fp_reduction": 0.0,
+      "fp_removed": 0,
+      "tp_after": 7,
+      "tp_before": 7,
+      "tp_retention": 1.0
+    },
+    "tr": {
+      "fp_after": 13,
+      "fp_before": 18,
+      "fp_reduction": 0.2777777777777778,
+      "fp_removed": 5,
+      "tp_after": 3,
+      "tp_before": 3,
+      "tp_retention": 1.0
+    },
+    "zh": {
+      "fp_after": 2,
+      "fp_before": 19,
+      "fp_reduction": 0.8947368421052632,
+      "fp_removed": 17,
+      "tp_after": 33,
+      "tp_before": 33,
+      "tp_retention": 1.0
+    }
+  },
+  "historical_seed_sha256": "a08029d7cbefe5d3cb7502d7ee6743a37205605e638555261614afb50a725d1f",
+  "invariants": {
+    "baseline_commit": "83e8fdb",
+    "baseline_h1_sha256": "ffbcf3cbf1dbcd04acbc7fb801848ccf2f350367e64620984ac04ef8b690aca5",
+    "english_trigger_assignment_ast_unchanged": true,
+    "english_trigger_pattern_sha256": "e1b89f309ce2af0b9c1621b84fa2b4e273232493b48afeb0eafd733228faa73c",
+    "existing_h1_ast_identical_after_unwrapping_normalizer": true,
+    "other_detector_gate_scanner_files_byte_identical": [
+      "src/lintlang/detectors/__init__.py",
+      "src/lintlang/gate/__init__.py",
+      "src/lintlang/gate/artifacts/metadata.json",
+      "src/lintlang/gate/artifacts/model.json",
+      "src/lintlang/gate/artifacts/scaler.json",
+      "src/lintlang/gate/artifacts/thresholds.json",
+      "src/lintlang/gate/features.py",
+      "src/lintlang/gate/gate.py",
+      "src/lintlang/patterns.py",
+      "src/lintlang/scanner.py"
+    ]
+  },
+  "label_file_sha256": "10ebab44730f469d14ed22dbe191ca493b4944421db5d3b6d051bbc42ad9c444",
+  "manifest_sha256": "e693f3f61a4e78390d67174e32d9a04aa0e96708d5cd116de518ec073624731c",
+  "normalizer_sha256": {
+    "__init__.py": "0842da770423355f3b0f459d687dde9638c3c75f0dac238f3c2a6115730a87d7",
+    "en.py": "550a4ce17a1e6a5068eff746245dc83dd515839119b3d0efb3c600fd65da2209",
+    "ja.py": "82a15ec74910831459324456ca8171e5955744a772cde6422bc5c39ae79c3362",
+    "tr.py": "5d12f279bc41d8bdbdbb78885f989cf6b42d3c4c75b6b978433d5f895cef5c26",
+    "zh.py": "c13b5a573872f8f24ce87c4f85b276846d2882f518a0cc02fdd940aefc03ad57"
+  },
+  "phrases": {
+    "en": {
+      "fp_only_topics_not_normalized": [
+        {
+          "phrase": "best practices",
+          "rows": 21
+        },
+        {
+          "phrase": "architecture patterns",
+          "rows": 7
+        }
+      ],
+      "lexical_fp_only_phrases": 1865,
+      "lexical_tp_only_phrases": 102,
+      "mappings": [
+        {
+          "canonical": "use for building",
+          "fp_rows": 5,
+          "observed_phrases": [
+            "for building"
+          ],
+          "pattern": "\\bfor building\\b",
+          "tp_rows": 0
+        },
+        {
+          "canonical": "use for interacting with and testing",
+          "fp_rows": 1,
+          "observed_phrases": [
+            "for interacting with and testing"
+          ],
+          "pattern": "\\bfor interacting with and testing\\b",
+          "tp_rows": 0
+        },
+        {
+          "canonical": "use for query optimization",
+          "fp_rows": 3,
+          "observed_phrases": [
+            "for query optimization"
+          ],
+          "pattern": "\\bfor query optimization\\b",
+          "tp_rows": 0
+        },
+        {
+          "canonical": "when at logical intervals",
+          "fp_rows": 2,
+          "observed_phrases": [
+            "at logical intervals"
+          ],
+          "pattern": "\\bat logical intervals\\b",
+          "tp_rows": 0
+        }
+      ],
+      "tp_only_examples": [
+        {
+          "phrase": "Windows native desktop apps",
+          "rows": 1
+        },
+        {
+          "phrase": "development for Laravel",
+          "rows": 1
+        },
+        {
+          "phrase": "terminal-style screen recording",
+          "rows": 1
+        }
+      ]
+    },
+    "ja": {
+      "fp_only_topics_not_normalized": [
+        {
+          "phrase": "\u3092\u69cb\u7bc9\u3057\u307e\u3059",
+          "rows": 3
+        },
+        {
+          "phrase": "\u3092\u751f\u6210\u3057\u307e\u3059",
+          "rows": 3
+        }
+      ],
+      "lexical_fp_only_phrases": 34361,
+      "lexical_tp_only_phrases": 9247,
+      "mappings": [
+        {
+          "canonical": "use this when",
+          "fp_rows": 1,
+          "observed_phrases": [
+            "\u5834\u5408\u306b\u3053\u306e\u30b9\u30ad\u30eb\u3092\u4f7f\u7528"
+          ],
+          "pattern": "\u5834\u5408\u306b\u3053\u306e\u30b9\u30ad\u30eb\u3092\u4f7f\u7528(?!\u3057\u306a\u3044|\u3057\u307e\u305b\u3093|\u3059\u308b\u306a|\u3059\u3079\u304d\u3067\u306f\u306a\u3044)",
+          "tp_rows": 0
+        },
+        {
+          "canonical": "use when",
+          "fp_rows": 20,
+          "observed_phrases": [
+            "\u5834\u5408\u306b\u4f7f\u7528"
+          ],
+          "pattern": "\u5834\u5408\u306b\u4f7f\u7528(?!\u3057\u306a\u3044|\u3057\u307e\u305b\u3093|\u3059\u308b\u306a|\u3059\u3079\u304d\u3067\u306f\u306a\u3044)",
+          "tp_rows": 0
+        },
+        {
+          "canonical": "use when",
+          "fp_rows": 2,
+          "observed_phrases": [
+            "\u3068\u304d\u306b\u4f7f\u7528"
+          ],
+          "pattern": "\u3068\u304d\u306b\u4f7f\u7528(?!\u3057\u306a\u3044|\u3057\u307e\u305b\u3093|\u3059\u308b\u306a|\u3059\u3079\u304d\u3067\u306f\u306a\u3044)",
+          "tp_rows": 0
+        },
+        {
+          "canonical": "use when",
+          "fp_rows": 1,
+          "observed_phrases": [
+            "\u969b\u306b\u4f7f\u7528"
+          ],
+          "pattern": "\u969b\u306b\u4f7f\u7528(?!\u3057\u306a\u3044|\u3057\u307e\u305b\u3093|\u3059\u308b\u306a|\u3059\u3079\u304d\u3067\u306f\u306a\u3044)",
+          "tp_rows": 0
+        },
+        {
+          "canonical": "use when",
+          "fp_rows": 1,
+          "observed_phrases": [
+            "\u6642\u306b\u4f7f\u7528"
+          ],
+          "pattern": "\u6642\u306b\u4f7f\u7528(?!\u3057\u306a\u3044|\u3057\u307e\u305b\u3093|\u3059\u308b\u306a|\u3059\u3079\u304d\u3067\u306f\u306a\u3044)",
+          "tp_rows": 0
+        },
+        {
+          "canonical": "used for",
+          "fp_rows": 1,
+          "observed_phrases": [
+            "\u305f\u3081\u306b\u4f7f\u7528"
+          ],
+          "pattern": "\u305f\u3081\u306b\u4f7f\u7528(?!\u3057\u306a\u3044|\u3057\u307e\u305b\u3093|\u3059\u308b\u306a|\u3059\u3079\u304d\u3067\u306f\u306a\u3044)",
+          "tp_rows": 0
+        },
+        {
+          "canonical": "use for requests",
+          "fp_rows": 1,
+          "observed_phrases": [
+            "\u30ea\u30af\u30a8\u30b9\u30c8\u306b\u4f7f\u7528"
+          ],
+          "pattern": "\u30ea\u30af\u30a8\u30b9\u30c8\u306b\u4f7f\u7528(?!\u3057\u306a\u3044|\u3057\u307e\u305b\u3093|\u3059\u308b\u306a|\u3059\u3079\u304d\u3067\u306f\u306a\u3044)",
+          "tp_rows": 0
+        },
+        {
+          "canonical": "use this",
+          "fp_rows": 1,
+          "observed_phrases": [
+            "\u3053\u306e\u30b9\u30ad\u30eb\u3092\u4f7f\u7528\u3057\u3066\u304f\u3060\u3055\u3044"
+          ],
+          "pattern": "\u3053\u306e\u30b9\u30ad\u30eb\u3092\u4f7f\u7528\u3057\u3066\u304f\u3060\u3055\u3044",
+          "tp_rows": 0
+        },
+        {
+          "canonical": "trigger:",
+          "fp_rows": 2,
+          "observed_phrases": [
+            "\u30c8\u30ea\u30ac\u30fc:",
+            "\u30c8\u30ea\u30ac\u30fc\uff1a"
+          ],
+          "pattern": "\u30c8\u30ea\u30ac\u30fc[\uff1a:]",
+          "tp_rows": 0
+        },
+        {
+          "canonical": "triggered",
+          "fp_rows": 1,
+          "observed_phrases": [
+            "\u30c8\u30ea\u30ac\u30fc\u3055\u308c\u307e\u3059"
+          ],
+          "pattern": "\u30c8\u30ea\u30ac\u30fc\u3055\u308c\u307e\u3059",
+          "tp_rows": 0
+        },
+        {
+          "canonical": "trigger when",
+          "fp_rows": 1,
+          "observed_phrases": [
+            "\u3068\u304d\u306b\u30a2\u30af\u30c6\u30a3\u30d9\u30fc\u30b7\u30e7\u30f3"
+          ],
+          "pattern": "\u3068\u304d\u306b\u30a2\u30af\u30c6\u30a3\u30d9\u30fc\u30b7\u30e7\u30f3",
+          "tp_rows": 0
+        },
+        {
+          "canonical": "when starting",
+          "fp_rows": 1,
+          "observed_phrases": [
+            "\u958b\u59cb\u6642\u306b"
+          ],
+          "pattern": "\u958b\u59cb\u6642\u306b",
+          "tp_rows": 0
+        }
+      ],
+      "tp_only_examples": [
+        {
+          "phrase": "\u65e5\u672c\u8a9e\u7ffb\u8a33\u304c\u5fc5\u8981\u3067\u3059",
+          "rows": 32
+        },
+        {
+          "phrase": "\u30c6\u30b9\u30c8\u6226\u7565",
+          "rows": 4
+        },
+        {
+          "phrase": "\u30bb\u30ad\u30e5\u30ea\u30c6\u30a3\u30d9\u30b9\u30c8\u30d7\u30e9\u30af\u30c6\u30a3\u30b9",
+          "rows": 1
+        }
+      ]
+    },
+    "tr": {
+      "fp_only_topics_not_normalized": [
+        {
+          "phrase": "test kal\u0131plar\u0131",
+          "rows": 2
+        },
+        {
+          "phrase": "API tasar\u0131m\u0131",
+          "rows": 2
+        }
+      ],
+      "lexical_fp_only_phrases": 941,
+      "lexical_tp_only_phrases": 84,
+      "mappings": [
+        {
+          "canonical": "use this",
+          "fp_rows": 2,
+          "observed_phrases": [
+            "bu skill'i kullan\u0131n"
+          ],
+          "pattern": "\\bbu skill'i kullan\u0131n\\b",
+          "tp_rows": 0
+        },
+        {
+          "canonical": "use for building",
+          "fp_rows": 3,
+          "observed_phrases": [
+            "olu\u015fturmak i\u00e7in"
+          ],
+          "pattern": "\\bolu\u015fturmak i\u00e7in\\b(?!\\s+kullanma(?:y\u0131n|y\u0131n\u0131z)?\\b)",
+          "tp_rows": 0
+        }
+      ],
+      "tp_only_examples": [
+        {
+          "phrase": "kapsaml\u0131 do\u011frulama sistemi",
+          "rows": 1
+        },
+        {
+          "phrase": "evrensel kodlama standartlar\u0131",
+          "rows": 1
+        },
+        {
+          "phrase": "frontend geli\u015ftirme kal\u0131plar\u0131",
+          "rows": 1
+        }
+      ]
+    },
+    "zh": {
+      "fp_only_topics_not_normalized": [
+        {
+          "phrase": "\u4e13\u4e1a\u77e5\u8bc6",
+          "rows": 7
+        },
+        {
+          "phrase": "\u5e74\u4ee5\u4e0a\u7ecf\u9a8c",
+          "rows": 5
+        }
+      ],
+      "lexical_fp_only_phrases": 7162,
+      "lexical_tp_only_phrases": 2571,
+      "mappings": [
+        {
+          "canonical": "when user",
+          "fp_rows": 7,
+          "observed_phrases": [
+            "\u5f53\u7528\u6237"
+          ],
+          "pattern": "\u5f53\u7528\u6237",
+          "tp_rows": 0
+        },
+        {
+          "canonical": "use for",
+          "fp_rows": 10,
+          "observed_phrases": [
+            "\u9002\u7528\u4e8e"
+          ],
+          "pattern": "\u9002\u7528\u4e8e",
+          "tp_rows": 0
+        },
+        {
+          "canonical": "when using",
+          "fp_rows": 10,
+          "observed_phrases": [
+            "\u65f6\u4f7f\u7528"
+          ],
+          "pattern": "\u65f6\u4f7f\u7528",
+          "tp_rows": 0
+        },
+        {
+          "canonical": "trigger:",
+          "fp_rows": 2,
+          "observed_phrases": [
+            "\u89e6\u53d1\u8bcd\uff1a"
+          ],
+          "pattern": "(?<!\u4e0d)\u89e6\u53d1\u8bcd\uff1a",
+          "tp_rows": 0
+        },
+        {
+          "canonical": "trigger:",
+          "fp_rows": 1,
+          "observed_phrases": [
+            "\u89e6\u53d1\u6761\u4ef6\uff1a"
+          ],
+          "pattern": "(?<!\u4e0d)\u89e6\u53d1\u6761\u4ef6\uff1a",
+          "tp_rows": 0
+        },
+        {
+          "canonical": "trigger:",
+          "fp_rows": 1,
+          "observed_phrases": [
+            "\u89e6\u53d1\u65f6\u673a\uff1a"
+          ],
+          "pattern": "(?<!\u4e0d)\u89e6\u53d1\u65f6\u673a\uff1a",
+          "tp_rows": 0
+        }
+      ],
+      "tp_only_examples": [
+        {
+          "phrase": "\u6700\u4f73\u5b9e\u8df5",
+          "rows": 12
+        },
+        {
+          "phrase": "\u6d4b\u8bd5\u6a21\u5f0f",
+          "rows": 5
+        },
+        {
+          "phrase": "\u6d4b\u8bd5\u7b56\u7565",
+          "rows": 4
+        },
+        {
+          "phrase": "\u5e94\u7528\u7a0b\u5e8f",
+          "rows": 7
+        }
+      ]
+    }
+  },
+  "scope": "Frozen labeled development KEEP cohort; no held-out accuracy claim"
+}

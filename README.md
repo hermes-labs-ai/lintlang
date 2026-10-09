@@ -72,6 +72,11 @@ LintLang catches problems like:
 - **Context and message errors** — stale project references, unbounded persistence, malformed roles, and broken tool-message sequences.
 - **Embedded agent logic** — supported Python prompts, literal tool definitions, and selected pipeline thresholds.
 
+H1.8 recognizes a finite set of corpus-mined Chinese, Japanese, Turkish, and
+English usage phrases through offline normalization. Other languages and
+unrecognized phrases retain the existing check. See the
+[mined phrase tables and development replay](evals/gate_wiring/h18-language-mining.md).
+
 Each result says what LintLang inspected. Content with no recognized agent-facing structures is reported as `SKIPPED`, never `PASS`. Tool comparisons are within one parsed input; a directory scan does not combine tools from separate files into one selection namespace.
 
 For exact extraction rules and detector behavior, see the [technical reference](llms-full.txt).

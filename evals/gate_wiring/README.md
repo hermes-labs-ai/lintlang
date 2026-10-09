@@ -3,12 +3,23 @@
 Status: local candidate; release approval blocked by KEEP precision. Push, PR,
 merge, tag and publication remain held for owner review.
 
-## Current H5 retirement and H1.8 analysis
+## Current H1.8 language normalization
+
+[Mined phrase tables](h18-language-mining.md) and the
+[replay receipt](h18-language-results.json) cover the frozen 172 FP / 126 TP KEEP
+cohort. Full tagged descriptions and exhaustive bounded phrase inventories stay
+in `.hermes/local/h18-language/`. Reproduce with
+`PYTHONPATH=src python3 evals/gate_wiring/mine_h18_languages.py`.
+The English trigger regex, other rules, labels, and gate parameters are unchanged.
+This development replay does not establish release precision or held-out accuracy.
+
+## Earlier H5 retirement and H1.8 analysis
 
 [H1.8 analysis](h18-analysis.md) records the corrected cohort counts and matched
 examples. [H5 removal replay](h5-removal-results.json) measures 185 TP / 172 FP
-in KEEP (**51.82% precision**) and **39.60% visible FP share**. H1.8 and gate
-parameters are unchanged. Reproduce with
+in KEEP (**51.82% precision**) and **39.60% visible FP share**. These receipts
+precede language normalization, when H1.8 and gate parameters were unchanged.
+Reproduce that earlier state from commit `83e8fdb` with
 `PYTHONPATH=src python evals/gate_wiring/scoping_replay.py --retired-h5` and
 `PYTHONPATH=src python evals/gate_wiring/analyze_h18.py`.
 

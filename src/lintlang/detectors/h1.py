@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 
 from ..models import AgentConfig, Finding, Severity, SourceRegion, ToolDef, is_localization_reference
+from .lang import normalize as normalize_skill_triggers
 
 # ── H1: Tool Description Ambiguity ─────────────────────────────────
 
@@ -506,7 +507,7 @@ def _detect_skill_metadata(config: AgentConfig) -> list[Finding]:
                 "Say what the skill does and the situations that should trigger it.",
                 evidence=description,
             )
-        elif not _SKILL_TRIGGER.search(description):
+        elif not _SKILL_TRIGGER.search(normalize_skill_triggers(description)):
             add(
                 # MEDIUM only for a short description, where a missing trigger
                 # is unmistakable; a long one may state its trigger in words

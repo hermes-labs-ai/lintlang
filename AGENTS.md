@@ -77,6 +77,7 @@ python -m build
 ## Maintainer notes
 
 - keep detector language aligned with the exact patterns exercised by the samples
+- H1.8 alone normalizes corpus-mined usage phrases in `detectors/lang/`; keep its English trigger regex and original diagnostic evidence unchanged
 - keep CLI examples and severity semantics aligned with README
 - keep the tool fully offline and deterministic
 - keep repository `scan` and in-flight `preflight` result types and exit semantics separate
