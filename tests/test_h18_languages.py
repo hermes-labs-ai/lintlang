@@ -176,7 +176,7 @@ def test_normalization_does_not_change_other_skill_rules():
 
 
 @pytest.mark.parametrize("directory", ["zh-trigger", "ja-trigger", "tr-trigger", "en-trigger", "es-trigger",
-                                       "ja-additional-trigger", "tr-additional-trigger"])
+                                       "ja-additional-trigger", "tr-additional-trigger", "ko-trigger"])
 def test_bundled_language_fixtures_have_no_h18_finding(directory):
     path = Path(__file__).resolve().parents[1] / "samples/h18_languages" / directory / "SKILL.md"
     result = scan_file(path, gate=False)

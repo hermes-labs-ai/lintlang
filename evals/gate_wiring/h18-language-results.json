@@ -1,7 +1,7 @@
 {
   "cohort_sha256": {
     "fp.jsonl": "2fcdb240faa8937cab2bbdfa116e7b25cf165912fca99a1a79fc7c5f60e08e15",
-    "lexical-phrases.json": "895c47ca2f41c0dd2dcae065d6b0b6ca629981b12a56f2dc6ec43619cf93b005",
+    "lexical-phrases.json": "df9b63722def5ad443df476328c9ffcca7ad89e017568d6760419ade5e30fdfc",
     "tp.jsonl": "4003e41eed8293dcbcdc93e9c7eb0c446a15c760625177777c594d9625995d31",
     "validation.jsonl": "54159efacf7ad4eb84904effc7c433db39f366aa5f4a6a559b1770f19fcadd64"
   },
@@ -158,13 +158,30 @@
       "src/lintlang/scanner.py"
     ]
   },
+  "korean_supplement": {
+    "cohort_sha256": {
+      "korean-all-labeled.jsonl": "2e52a974248b6936c4a1f5b5e7a5f11ee9893ba6f4fef83c342e9ff44fcc31d6",
+      "korean-validation.jsonl": "776536be15c30c406e95a17f4a26d74b7c613016e440e5fb91386fc7912e59b5"
+    },
+    "counts": {
+      "fp_after": 1,
+      "fp_before": 3,
+      "fp_reduction": 0.6666666666666666,
+      "fp_removed": 2,
+      "tp_after": 12,
+      "tp_before": 12,
+      "tp_retention": 1.0
+    },
+    "scope": "All labeled ko-KR H1.8 records in the same frozen corpus, including non-KEEP"
+  },
   "label_file_sha256": "10ebab44730f469d14ed22dbe191ca493b4944421db5d3b6d051bbc42ad9c444",
   "manifest_sha256": "e693f3f61a4e78390d67174e32d9a04aa0e96708d5cd116de518ec073624731c",
   "normalizer_sha256": {
-    "__init__.py": "76c4bd0d16106ca9e06697b1fd868b1f46a80db43555126ab5ed357686cb13ef",
+    "__init__.py": "e0946c3e0160ecc041457df3d4b0055cd816f59a67755e673c577855d518405e",
     "en.py": "550a4ce17a1e6a5068eff746245dc83dd515839119b3d0efb3c600fd65da2209",
     "es.py": "e44db15cf988d9a8e5023e1a93a0a9f09d4e7ac838febc10707fab529408ca71",
     "ja.py": "5702db2f4338db0bb793a5a44e25b1a83ec79868382402387e7a9f24bc16b99f",
+    "ko.py": "d81fb3a09f9b5c1c48071140ea06f4e6de423e2fb9bd6a471128e29d84201a13",
     "tr.py": "a9eb1a46761ca42e973aa23e2a2d1cd0aab56f0614ef95ee8f38ef5910cecb5c",
     "zh.py": "c13b5a573872f8f24ce87c4f85b276846d2882f518a0cc02fdd940aefc03ad57"
   },
@@ -1091,9 +1108,32 @@
           "rows": 1
         }
       ],
-      "lexical_fp_only_phrases": 84,
-      "lexical_tp_only_phrases": 270,
-      "mappings": [],
+      "lexical_fp_only_phrases": 207,
+      "lexical_tp_only_phrases": 424,
+      "mappings": [
+        {
+          "canonical": "use this when",
+          "fp_rows": 2,
+          "fp_sources": [
+            {
+              "finding_id": "u-4523f71beaef",
+              "relative_path": "docs/ko-KR/skills/security-review/SKILL.md",
+              "repository": "affaan-m__ECC"
+            },
+            {
+              "finding_id": "u-eed217343bb1",
+              "relative_path": "docs/ko-KR/skills/tdd-workflow/SKILL.md",
+              "repository": "affaan-m__ECC"
+            }
+          ],
+          "new_in_extension": true,
+          "observed_phrases": [
+            "\uc2dc \uc774 \uc2a4\ud0ac\uc744 \uc0ac\uc6a9\ud558\uc138\uc694"
+          ],
+          "pattern": "(?<!\\w)\uc2dc \uc774 \uc2a4\ud0ac\uc744 \uc0ac\uc6a9\ud558\uc138\uc694(?=[.!\u3002\uff01]|$)",
+          "tp_rows": 0
+        }
+      ],
       "tp_only_examples": [
         {
           "phrase": "\ubc94\uc6a9 \ucf54\ub529 \ud45c\uc900",

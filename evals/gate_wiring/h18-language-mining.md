@@ -1,6 +1,6 @@
 # H1.8 language trigger mining
 
-Frozen 972-finding development corpus; only the 172 FP / 126 TP KEEP cohort is mined and replayed. Historical/transferred and AI-review labels are preserved, not independently certified. Mining and evaluation use the same descriptions; this is a development replay, not held-out accuracy.
+Frozen 972-finding development corpus; the main replay uses the 172 FP / 126 TP KEEP cohort. Korean additionally uses the 15 labeled ko-KR H1.8 records in a separate supplemental replay. Historical/transferred and AI-review labels are preserved, not independently certified. Mining and evaluation use the same descriptions; this is a development replay, not held-out accuracy.
 
 Actual scanner replay: FP **172 → 71** (101 removed, 58.72% reduction); TP **126 → 126** (100.00% retention).
 
@@ -15,7 +15,9 @@ Actual scanner replay: FP **172 → 71** (101 removed, 58.72% reduction); TP **1
 
 The extension removes 35 additional FPs from commit `d980608`. 28 labeled non-English FPs remain flagged; the requested all-but-a-couple release criterion is not met. Some residual descriptions lack usage clauses, and similar translated descriptions have conflicting FP/TP labels. Suppressing topics merely because they occur only in the FP group would change H1.8 semantics.
 
-Language tags come from content: kana → ja, Hangul → ko, Han → zh; Turkish spelling/ASCII cues handle Latin text. Spanish now has a mined normalizer. The supplied corpus contains one Korean FP and seven Korean TPs, rather than 38 Korean FPs. Its single FP describes a hook-based learning system without an activation clause; no reliable Korean cue was mined, so Korean passes through. Supported languages also run the English adapter to retain cues in mixed text. Script detection cannot reliably distinguish Han-only Japanese from Chinese, or classify arbitrary Latin/mixed text. No language-detection dependency was added.
+A separate Korean replay includes all 15 labeled H1.8 records under `docs/ko-KR/skills/` in the same frozen corpus, including non-KEEP records. FP **3 → 1**; TP **12 → 12**. The two newly handled Korean FPs are `security-review` and `tdd-workflow`, both originally FP / ESCALATE. Their phrase was not present in the requested KEEP-only FP file. The original seven Korean TPs remain flagged. This supplemental result is not a 38-FP Korean replay.
+
+Language tags come from content: kana → ja, Hangul → ko, Han → zh; Turkish spelling/ASCII cues handle Latin text. Spanish and Korean have mined normalizers. The supplied KEEP-only corpus contains one Korean FP and seven Korean TPs, rather than 38 Korean FPs. Its single FP describes a hook-based learning system without an activation clause and remains flagged. Korean's explicit use directive was mined separately from the additional labeled FP / ESCALATE descriptions. Supported languages also run the English adapter to retain cues in mixed text. Script detection cannot reliably distinguish Han-only Japanese from Chinese, or classify arbitrary Latin/mixed text. No language-detection dependency was added.
 
 Counts below are row/document frequencies within each language, including duplicate descriptions. FP-only does not itself establish an activation cue; topic-only discriminators remain unnormalized. TP-only phrases are descriptive patterns/translation placeholders, not negative detector rules. Generic Chinese 使用/用于, Japanese 使用した/使用して, and Turkish için are insufficient alone. English cues immediately preceded by not/never and Chinese cues immediately preceded by 不 (including intervening whitespace) are left unchanged. Japanese negative usage endings and Turkish building clauses followed immediately by kullanma/kullanmayın/kullanmayınız are also left unchanged. These are local grammar guards, not a general semantic negation analysis.
 
@@ -135,8 +137,14 @@ Counts below are row/document frequencies within each language, including duplic
 
 | Mined FP-only cue | FP rows | TP rows | Canonical English |
 | --- | ---: | ---: | --- |
+| 시 이 스킬을 사용하세요 | 2 | 0 | use this when |
 
-No new Korean trigger phrase: the only supplied FP, `u-34b071729eea` (`docs/ko-KR/skills/continuous-learning-v2/SKILL.md`), describes internal observation/learning and a feature announcement. The generic `위한` purpose marker also occurs in six of the seven Korean TPs.
+| New cue source | Finding | FP skill description |
+| --- | --- | --- |
+| 시 이 스킬을 사용하세요 | u-4523f71beaef | affaan-m__ECC/docs/ko-KR/skills/security-review/SKILL.md |
+| 시 이 스킬을 사용하세요 | u-eed217343bb1 | affaan-m__ECC/docs/ko-KR/skills/tdd-workflow/SKILL.md |
+
+This phrase table uses the separate 3-FP / 12-TP Korean cohort described above. The single KEEP-only FP, `u-34b071729eea` (`docs/ko-KR/skills/continuous-learning-v2/SKILL.md`), describes internal observation/learning and a feature announcement. The generic `위한` purpose marker also occurs in six of the original seven Korean TPs and is deliberately left unchanged.
 
 | Other distinguishing phrase | Group | Rows | Handling |
 | --- | --- | ---: | --- |
@@ -234,7 +242,7 @@ These are the frozen labels, not an assertion that every description contains an
 PYTHONPATH=src python3 evals/gate_wiring/mine_h18_languages.py
 ```
 
-Requires the existing private frozen corpus. Full tagged descriptions are saved separately in `.hermes/local/h18-language/fp.jsonl` and `tp.jsonl`. Source/finding provenance is retained. `lexical-phrases.json` contains every FP-only/TP-only 2–4 word gram (including Korean eojeol) and 3–20 character Chinese/Japanese gram from the six tagged languages; `validation.jsonl` records before/after flags by finding identity. [Aggregate receipt](h18-language-results.json) pins inputs and output files by SHA-256.
+Requires the existing private frozen corpus. Full tagged descriptions are saved separately in `.hermes/local/h18-language/fp.jsonl` and `tp.jsonl`. Source/finding provenance is retained. `lexical-phrases.json` contains every FP-only/TP-only 2–4 word gram (including Korean eojeol) and 3–20 character Chinese/Japanese gram from the six tagged languages; `validation.jsonl` records before/after flags by finding identity. The Korean supplemental descriptions and replay live in `korean-all-labeled.jsonl` and `korean-validation.jsonl`; the original KEEP-only files are preserved. [Aggregate receipt](h18-language-results.json) pins inputs and output files by SHA-256.
 
 The replay verifies every selected source against the manifest, every retained H1.8 identity, the unchanged English regex AST, and byte-identical other detector/gate/scanner files. H1's AST is unchanged after removing the new import and unwrapping the single H1.8 normalization call. Normalization is used only for the trigger check; source evidence, length thresholds, and other rules continue to use the original description.
 

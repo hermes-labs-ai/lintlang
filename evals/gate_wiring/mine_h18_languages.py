@@ -19,14 +19,14 @@ from pathlib import Path
 from replay import LABELS, MANIFEST, ROOT, identity, read, sha, write
 
 from lintlang.detectors.h1 import _SKILL_TRIGGER
-from lintlang.detectors.lang import detect, en, es, ja, normalize, tr, zh
+from lintlang.detectors.lang import detect, en, es, ja, ko, normalize, tr, zh
 from lintlang.parsers import parse_source, read_file_text
 from lintlang.scanner import scan_file
 
 LOCAL = ROOT / ".hermes/local/h18-language"
 BASELINE = "83e8fdb"
 EXTENSION_BASELINE = "d980608"
-LANGUAGES = {"zh": zh, "ja": ja, "tr": tr, "en": en, "es": es}
+LANGUAGES = {"zh": zh, "ja": ja, "ko": ko, "tr": tr, "en": en, "es": es}
 # Human-selected readable examples from the lexical inventory, not negative
 # rules. Their exclusivity is verified against every row in the two cohorts.
 TP_PHRASES = {
@@ -84,6 +84,37 @@ def extract() -> list[dict]:
     return rows
 
 
+def extract_korean() -> list[dict]:
+    """Replay ko-KR records separately, including non-KEEP labels.
+
+    The requested KEEP files have only one Korean FP. The two explicit use
+    clauses live in FP / ESCALATE records from the same frozen label file;
+    they must not be silently inserted into the original KEEP cohort.
+    """
+    labels, manifest = read(LABELS), read(MANIFEST)
+    expected = {row["path"]: row["sha256"] for row in manifest["files"]}
+    rows = []
+    for row in labels:
+        if row["identity"][0] != "H1.8" or "/docs/ko-KR/skills/" not in row["path"]:
+            continue
+        path = Path(row["path"])
+        if sha(path.read_bytes()) != expected[str(path)]:
+            raise ValueError("Korean supplemental source differs from the frozen manifest")
+        skill = parse_source(read_file_text(path), path).skill
+        if skill is None or detect(skill.description) != "ko":
+            raise ValueError("Korean supplemental skill no longer parses as Korean")
+        start = path.parts.index("repos") + 1
+        rows.append({**row, "description": skill.description.strip(), "language": "ko",
+                     "source_sha256": expected[str(path)], "repository": path.parts[start],
+                     "relative_path": "/".join(path.parts[start + 1:])})
+    if len({row["finding_id"] for row in rows}) != 15:
+        raise ValueError("Expected the frozen 15-record ko-KR supplemental cohort")
+    if sum(row["label"] == "FP" for row in rows) != 3 or sum(row["label"] == "TP" for row in rows) != 12:
+        raise ValueError("Korean supplemental labels changed")
+    jsonl(LOCAL / "korean-all-labeled.jsonl", rows)
+    return rows
+
+
 def lexical_phrases(text: str, language: str) -> set[str]:
     """Bounded mining: word 2-4 grams or uninterrupted CJK 3-20 grams.
 
@@ -103,11 +134,12 @@ def occurrence(phrase: str, rows: list[dict], language: str, label: str) -> int:
                if row["language"] == language and row["label"] == label)
 
 
-def mine(rows: list[dict]) -> dict:
+def mine(rows: list[dict], korean_rows: list[dict]) -> dict:
     inventories, tables = {}, {}
     for language in sorted({row["language"] for row in rows}):
         module = LANGUAGES.get(language)
-        counts = {label: Counter(phrase for row in rows if row["language"] == language and row["label"] == label
+        mining_rows = korean_rows if language == "ko" else rows
+        counts = {label: Counter(phrase for row in mining_rows if row["language"] == language and row["label"] == label
                                  for phrase in lexical_phrases(row["description"], language))
                   for label in ("FP", "TP")}
         inventories[language] = {
@@ -119,7 +151,7 @@ def mine(rows: list[dict]) -> dict:
         mappings = []
         pairs = zip(module._MAP, module._COMPILED, strict=True) if module else ()
         for (pattern, canonical), (compiled, _) in pairs:
-            matches = {label: [row for row in rows if row["language"] == language and row["label"] == label
+            matches = {label: [row for row in mining_rows if row["language"] == language and row["label"] == label
                                and compiled.search(row["description"])] for label in ("FP", "TP")}
             if not matches["FP"] or matches["TP"]:
                 raise ValueError(f"Mapping is not a mined FP-only cue: {language} {pattern}")
@@ -133,8 +165,8 @@ def mine(rows: list[dict]) -> dict:
                                              ("fp_only_topics_not_normalized", TOPIC_PHRASES[language], "FP", "TP")):
             examples[group] = []
             for phrase in phrases:
-                count = occurrence(phrase, rows, language, label)
-                if not count or occurrence(phrase, rows, language, other):
+                count = occurrence(phrase, mining_rows, language, label)
+                if not count or occurrence(phrase, mining_rows, language, other):
                     raise ValueError(f"Example is not exclusive: {language} {phrase}")
                 examples[group].append({"phrase": phrase, "rows": count})
         tables[language] = {"mappings": mappings, **examples,
@@ -188,7 +220,7 @@ def invariants() -> dict:
             "other_detector_gate_scanner_files_byte_identical": checked}
 
 
-def evaluate(rows: list[dict]) -> dict:
+def evaluate(rows: list[dict], output_name: str = "validation.jsonl") -> dict:
     evaluated = []
     for row in rows:
         scan = scan_file(row["path"], gate=False)
@@ -206,7 +238,7 @@ def evaluate(rows: list[dict]) -> dict:
             raise ValueError("Source changed during validation")
         evaluated.append({"finding_id": row["finding_id"], "label": row["label"], "language": row["language"],
                           "flagged_before": True, "flagged_after": bool(findings)})
-    jsonl(LOCAL / "validation.jsonl", evaluated)
+    jsonl(LOCAL / output_name, evaluated)
     totals = {}
     for language in ["all", *sorted({row["language"] for row in rows})]:
         cohort = [row for row in evaluated if language == "all" or row["language"] == language]
@@ -222,7 +254,8 @@ def evaluate(rows: list[dict]) -> dict:
 def report(result: dict) -> str:
     totals = result["counts"]["all"]
     lines = ["# H1.8 language trigger mining", "",
-             "Frozen 972-finding development corpus; only the 172 FP / 126 TP KEEP cohort is mined and replayed. "
+             "Frozen 972-finding development corpus; the main replay uses the 172 FP / 126 TP KEEP cohort. "
+             "Korean additionally uses the 15 labeled ko-KR H1.8 records in a separate supplemental replay. "
              "Historical/transferred and AI-review labels are preserved, not independently certified. "
              "Mining and evaluation use the same descriptions; this is a development replay, not held-out accuracy.", "",
              f"Actual scanner replay: FP **{totals['fp_before']} → {totals['fp_after']}** "
@@ -240,10 +273,19 @@ def report(result: dict) -> str:
               "the requested all-but-a-couple release criterion is not met. "
               "Some residual descriptions lack usage clauses, and similar translated descriptions have conflicting "
               "FP/TP labels. Suppressing topics merely because they occur only in the FP group would change H1.8 semantics."]
+    korean = result["korean_supplement"]["counts"]
+    lines += ["", "A separate Korean replay includes all 15 labeled H1.8 records under `docs/ko-KR/skills/` "
+              "in the same frozen corpus, including non-KEEP records. "
+              f"FP **{korean['fp_before']} → {korean['fp_after']}**; "
+              f"TP **{korean['tp_before']} → {korean['tp_after']}**. "
+              "The two newly handled Korean FPs are `security-review` and `tdd-workflow`, both originally "
+              "FP / ESCALATE. Their phrase was not present in the requested KEEP-only FP file. "
+              "The original seven Korean TPs remain flagged. This supplemental result is not a 38-FP Korean replay."]
     lines += ["", "Language tags come from content: kana → ja, Hangul → ko, Han → zh; Turkish spelling/ASCII cues "
-              "handle Latin text. Spanish now has a mined normalizer. The supplied corpus contains one Korean FP "
-              "and seven Korean TPs, rather than 38 Korean FPs. Its single FP describes a hook-based learning "
-              "system without an activation clause; no reliable Korean cue was mined, so Korean passes through. "
+              "handle Latin text. Spanish and Korean have mined normalizers. The supplied KEEP-only corpus contains "
+              "one Korean FP and seven Korean TPs, rather than 38 Korean FPs. Its single FP describes a hook-based "
+              "learning system without an activation clause and remains flagged. Korean's explicit use directive "
+              "was mined separately from the additional labeled FP / ESCALATE descriptions. "
               "Supported languages also run the English adapter to retain cues in mixed text. "
               "Script detection cannot reliably distinguish Han-only Japanese from Chinese, "
               "or classify arbitrary Latin/mixed text. No language-detection dependency was added.", "",
@@ -269,11 +311,12 @@ def report(result: dict) -> str:
                 phrase = ", ".join(mapping["observed_phrases"])
                 for source in mapping["fp_sources"]:
                     lines.append(f"| {phrase} | {source['finding_id']} | {source['repository']}/{source['relative_path']} |")
-        elif language == "ko":
-            lines += ["", "No new Korean trigger phrase: the only supplied FP, "
-                      "`u-34b071729eea` (`docs/ko-KR/skills/continuous-learning-v2/SKILL.md`), "
-                      "describes internal observation/learning and a feature announcement. "
-                      "The generic `위한` purpose marker also occurs in six of the seven Korean TPs."]
+        if language == "ko":
+            lines += ["", "This phrase table uses the separate 3-FP / 12-TP Korean cohort described above. "
+                      "The single KEEP-only FP, `u-34b071729eea` "
+                      "(`docs/ko-KR/skills/continuous-learning-v2/SKILL.md`), describes internal observation/learning "
+                      "and a feature announcement. The generic `위한` purpose marker also occurs in six "
+                      "of the original seven Korean TPs and is deliberately left unchanged."]
         lines += ["", "| Other distinguishing phrase | Group | Rows | Handling |",
                   "| --- | --- | ---: | --- |"]
         for row in table["fp_only_topics_not_normalized"]:
@@ -291,7 +334,9 @@ def report(result: dict) -> str:
               "`.hermes/local/h18-language/fp.jsonl` and `tp.jsonl`. Source/finding provenance is retained. "
               "`lexical-phrases.json` contains every FP-only/TP-only 2–4 word gram (including Korean eojeol) "
               "and 3–20 character Chinese/Japanese gram from the six tagged languages; "
-              "`validation.jsonl` records before/after flags by finding identity. "
+              "`validation.jsonl` records before/after flags by finding identity. The Korean supplemental descriptions "
+              "and replay live in `korean-all-labeled.jsonl` and `korean-validation.jsonl`; "
+              "the original KEEP-only files are preserved. "
               "[Aggregate receipt](h18-language-results.json) pins inputs and output files by SHA-256.", "",
               "The replay verifies every selected source against the manifest, every retained H1.8 identity, "
               "the unchanged English regex AST, and byte-identical other detector/gate/scanner files. "
@@ -305,8 +350,10 @@ def report(result: dict) -> str:
 def main() -> None:
     checks = invariants()
     rows = extract()
-    tables = mine(rows)
+    korean_rows = extract_korean()
+    tables = mine(rows, korean_rows)
     counts = evaluate(rows)
+    korean_counts = evaluate(korean_rows, "korean-validation.jsonl")["ko"]
     previous = json.loads(subprocess.check_output(
         ["git", "show", f"{EXTENSION_BASELINE}:evals/gate_wiring/h18-language-results.json"], cwd=ROOT,
     ))
@@ -326,6 +373,12 @@ def main() -> None:
               "label_file_sha256": sha(LABELS.read_bytes()), "manifest_sha256": sha(MANIFEST.read_bytes()),
               "historical_seed_sha256": read(MANIFEST)["seed_sha256"], "invariants": checks,
               "counts": counts, "phrases": tables,
+              "korean_supplement": {
+                  "scope": "All labeled ko-KR H1.8 records in the same frozen corpus, including non-KEEP",
+                  "counts": korean_counts,
+                  "cohort_sha256": {name: sha((LOCAL / name).read_bytes())
+                                    for name in ("korean-all-labeled.jsonl", "korean-validation.jsonl")},
+              },
               "extension_baseline": {"commit": EXTENSION_BASELINE, "counts": previous["counts"]},
               "residual_non_english_fp": residuals,
               "cohort_sha256": {name: sha((LOCAL / name).read_bytes())
@@ -335,6 +388,7 @@ def main() -> None:
     write(ROOT / "evals/gate_wiring/h18-language-results.json", result)
     (ROOT / "evals/gate_wiring/h18-language-mining.md").write_text(report(result), encoding="utf-8")
     print(json.dumps(counts, indent=2))
+    print("Supplemental Korean:", json.dumps(korean_counts, sort_keys=True))
 
 
 if __name__ == "__main__":

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import re
 
-from . import en, es, ja, tr, zh
+from . import en, es, ja, ko, tr, zh
 
 _KANA = re.compile(r"[\u3041-\u3096\u309d-\u309f\u30a1-\u30fa\u30fd-\u30ff\uff66-\uff9f]")
 _HANGUL = re.compile(r"[\u1100-\u11ff\u3130-\u318f\ua960-\ua97f\uac00-\ud7a3\ud7b0-\ud7ff]")
@@ -17,7 +17,8 @@ _HAN = re.compile(r"[\u3400-\u9fff\uf900-\ufaff\U00020000-\U0002ebef]")
 # no Turkish-specific characters. Folder locale is never consulted.
 _TURKISH = re.compile(r"[çğıöşüÇĞİÖŞÜ]|(?i:\b(?:kullanarak|kullanın|metodolojisi|gereksinimleri)\b)")
 _SPANISH = re.compile(r"[ñáéíóú¿¡]|\b(?:para|patrones|desarrollo|pruebas|habilidad)\b", re.IGNORECASE)
-_NORMALIZERS = {"en": en.normalize, "es": es.normalize, "ja": ja.normalize, "tr": tr.normalize, "zh": zh.normalize}
+_NORMALIZERS = {"en": en.normalize, "es": es.normalize, "ja": ja.normalize,
+                "ko": ko.normalize, "tr": tr.normalize, "zh": zh.normalize}
 
 
 def detect(text: str) -> str:
