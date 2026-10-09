@@ -14,7 +14,7 @@ url: "https://lintlang.ai/"
 abstract: >
   lintlang is a zero-LLM static linter for AI agent configurations, tool descriptions,
   and system prompts. It combines HERM v1.1 dimensional scoring (6 dimensions,
-  8 signal categories) with 6 structural detectors (H1-H5, H7) and pipeline detectors
+  8 signal categories) with 5 structural detectors (H1-H4, H7) and pipeline detectors
   (P1-P2) that flag patterns such as vague instructions, missing constraints, and
   uncalibrated thresholds before runtime. Scans are deterministic and make no LLM
   or network calls.
