@@ -1,0 +1,6 @@
+# H1.1 is retired: empty and whitespace-only descriptions are not H1 signals.
+tools:
+  - name: first
+    description: ""
+  - name: second
+    description: "   "

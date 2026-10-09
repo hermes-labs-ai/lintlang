@@ -1,0 +1,90 @@
+{
+  "boundary": "Frozen development cohort with mixed historical and AI-review labels; one unresolved finding. Percentages use resolved TP+FP denominators. Visible means KEEP plus ESCALATE. False-positive share is not FPR over negative inputs. Directory scope applies the ten new component exclusions to the frozen file manifest; explicit-file scans remain available. No labels, model weights, thresholds, or other detector behavior changed.",
+  "detector_source_sha256": {
+    "src/lintlang/detectors/__init__.py": "ec61dc7c24e2698f2be9494430fa89e535d6556ecb54defff3090eab18e79cc5",
+    "src/lintlang/detectors/h1.py": "ffbcf3cbf1dbcd04acbc7fb801848ccf2f350367e64620984ac04ef8b690aca5",
+    "src/lintlang/extractors.py": "f0109d3d23dde628bf021fcb7ce54956c9490ca61b5672a87e22fc39463706e3",
+    "src/lintlang/parsers.py": "8838b450d51df1ec7eb5effba21eafa3c404f21d340b171d8fe2fd1ac0156ad8",
+    "src/lintlang/patterns.py": "ba7f69b348cd2d94cf611dc20082d8b30db303c2d7a48f887c0ad95ba85bc08e",
+    "src/lintlang/scanner.py": "26ee4da75dcf133075569c607b8a6576120cbfdc9a76ba1aa027f62fc40ffc35"
+  },
+  "directory_scoped_replay": {
+    "by_decision": {
+      "DISMISS": {
+        "FP": 46,
+        "TP": 13
+      },
+      "ESCALATE": {
+        "FP": 66,
+        "TP": 178
+      },
+      "KEEP": {
+        "FP": 481,
+        "TP": 186,
+        "UNRESOLVED": 1
+      }
+    },
+    "keep_false_positives_by_rule": {
+      "H1.8": 172,
+      "H5": 309
+    },
+    "keep_precision_percent": 27.886056971514243,
+    "raw_findings": 971,
+    "visible_false_positive_share_percent": 60.04390779363337,
+    "visible_findings": 912,
+    "visible_labels": {
+      "FP": 547,
+      "TP": 364,
+      "UNRESOLVED": 1
+    }
+  },
+  "explicit_file_replay": {
+    "by_decision": {
+      "DISMISS": {
+        "FP": 46,
+        "TP": 13
+      },
+      "ESCALATE": {
+        "FP": 66,
+        "TP": 178
+      },
+      "KEEP": {
+        "FP": 482,
+        "TP": 186,
+        "UNRESOLVED": 1
+      }
+    },
+    "keep_false_positives_by_rule": {
+      "H1.8": 172,
+      "H5": 310
+    },
+    "keep_precision_percent": 27.84431137724551,
+    "raw_findings": 972,
+    "visible_false_positive_share_percent": 60.08771929824562,
+    "visible_findings": 913,
+    "visible_labels": {
+      "FP": 548,
+      "TP": 364,
+      "UNRESOLVED": 1
+    }
+  },
+  "frozen_findings": 972,
+  "labels_sha256": "10ebab44730f469d14ed22dbe191ca493b4944421db5d3b6d051bbc42ad9c444",
+  "manifest_sha256": "e693f3f61a4e78390d67174e32d9a04aa0e96708d5cd116de518ec073624731c",
+  "model_artifact_sha256": {
+    "src/lintlang/gate/artifacts/model.json": "aa50b46bb26311602884801e3c68f750ccc87ed39f0206d12031817df2d98c8d",
+    "src/lintlang/gate/artifacts/scaler.json": "a3d1962a849f069ecd3040c2a2d7c39762a33dd34fe04d9ad1286ec8c4b6d928",
+    "src/lintlang/gate/artifacts/thresholds.json": "0d26d190c226a71477bd5be72eb52d54584f38a158e0094d120de1bb85c064e3"
+  },
+  "retired_h1_1_labels": {},
+  "scope_removed_findings": 1,
+  "scope_removed_labels": {
+    "FP": 1
+  },
+  "status": "PASS_REPLAY",
+  "thresholds": {
+    "dismiss": 0.15,
+    "keep": 0.85
+  },
+  "verified_source_files": 1599
+}

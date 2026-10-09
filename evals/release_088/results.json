@@ -1,0 +1,647 @@
+{
+  "baseline_commit": "5ed167ace815b97ec004eeef98a05a46e6790a0d",
+  "baseline_findings": 1159,
+  "boundary": "Model-reviewed historical labels transferred by exact finding identity and verbatim context to current source snapshots. Retention compares path, rule, location, start line, and evidence, excluding diagnostic prose/severity; non-H6 identity collisions fail. Development corpus, not independently adjudicated population precision. Two historical FP identities have no transferred source match. H6 retirement is separate. Unknown additions/removals require review; this TP retention status alone is not release acceptance.",
+  "by_rule": {
+    "H1.7": {
+      "added": 1,
+      "added_unknown": 1,
+      "baseline": 1,
+      "baseline_fp": 0,
+      "baseline_tp": 1,
+      "candidate": 1,
+      "candidate_fp": 0,
+      "candidate_tp": 0,
+      "diagnostic_wording_changed": 1,
+      "lost_fp": 0,
+      "lost_tp": 1,
+      "reference_fp": 0,
+      "reference_tp": 1,
+      "removed": 1,
+      "removed_unknown": 0,
+      "stable_added": 0,
+      "stable_baseline_fp": 0,
+      "stable_baseline_tp": 1,
+      "stable_candidate_fp": 0,
+      "stable_candidate_tp": 1,
+      "stable_lost_fp": 0,
+      "stable_lost_tp": 0,
+      "stable_removed": 0,
+      "stable_removed_unknown": 0
+    },
+    "H1.8": {
+      "added": 0,
+      "added_unknown": 0,
+      "baseline": 538,
+      "baseline_fp": 88,
+      "baseline_tp": 272,
+      "candidate": 538,
+      "candidate_fp": 88,
+      "candidate_tp": 272,
+      "diagnostic_wording_changed": 0,
+      "lost_fp": 0,
+      "lost_tp": 0,
+      "reference_fp": 88,
+      "reference_tp": 272,
+      "removed": 0,
+      "removed_unknown": 0,
+      "stable_added": 0,
+      "stable_baseline_fp": 88,
+      "stable_baseline_tp": 272,
+      "stable_candidate_fp": 88,
+      "stable_candidate_tp": 272,
+      "stable_lost_fp": 0,
+      "stable_lost_tp": 0,
+      "stable_removed": 0,
+      "stable_removed_unknown": 0
+    },
+    "H1.9": {
+      "added": 2,
+      "added_unknown": 2,
+      "baseline": 2,
+      "baseline_fp": 1,
+      "baseline_tp": 1,
+      "candidate": 2,
+      "candidate_fp": 0,
+      "candidate_tp": 0,
+      "diagnostic_wording_changed": 2,
+      "lost_fp": 1,
+      "lost_tp": 1,
+      "reference_fp": 1,
+      "reference_tp": 1,
+      "removed": 2,
+      "removed_unknown": 0,
+      "stable_added": 0,
+      "stable_baseline_fp": 1,
+      "stable_baseline_tp": 1,
+      "stable_candidate_fp": 1,
+      "stable_candidate_tp": 1,
+      "stable_lost_fp": 0,
+      "stable_lost_tp": 0,
+      "stable_removed": 0,
+      "stable_removed_unknown": 0
+    },
+    "H2": {
+      "added": 0,
+      "added_unknown": 0,
+      "baseline": 1,
+      "baseline_fp": 1,
+      "baseline_tp": 0,
+      "candidate": 1,
+      "candidate_fp": 1,
+      "candidate_tp": 0,
+      "diagnostic_wording_changed": 0,
+      "lost_fp": 0,
+      "lost_tp": 0,
+      "reference_fp": 1,
+      "reference_tp": 0,
+      "removed": 0,
+      "removed_unknown": 0,
+      "stable_added": 0,
+      "stable_baseline_fp": 1,
+      "stable_baseline_tp": 0,
+      "stable_candidate_fp": 1,
+      "stable_candidate_tp": 0,
+      "stable_lost_fp": 0,
+      "stable_lost_tp": 0,
+      "stable_removed": 0,
+      "stable_removed_unknown": 0
+    },
+    "H4": {
+      "added": 0,
+      "added_unknown": 0,
+      "baseline": 14,
+      "baseline_fp": 8,
+      "baseline_tp": 6,
+      "candidate": 14,
+      "candidate_fp": 8,
+      "candidate_tp": 6,
+      "diagnostic_wording_changed": 0,
+      "lost_fp": 0,
+      "lost_tp": 0,
+      "reference_fp": 8,
+      "reference_tp": 6,
+      "removed": 0,
+      "removed_unknown": 0,
+      "stable_added": 0,
+      "stable_baseline_fp": 8,
+      "stable_baseline_tp": 6,
+      "stable_candidate_fp": 8,
+      "stable_candidate_tp": 6,
+      "stable_lost_fp": 0,
+      "stable_lost_tp": 0,
+      "stable_removed": 0,
+      "stable_removed_unknown": 0
+    },
+    "H4.5": {
+      "added": 0,
+      "added_unknown": 0,
+      "baseline": 121,
+      "baseline_fp": 23,
+      "baseline_tp": 96,
+      "candidate": 104,
+      "candidate_fp": 8,
+      "candidate_tp": 96,
+      "diagnostic_wording_changed": 0,
+      "lost_fp": 15,
+      "lost_tp": 0,
+      "reference_fp": 23,
+      "reference_tp": 96,
+      "removed": 17,
+      "removed_unknown": 2,
+      "stable_added": 0,
+      "stable_baseline_fp": 23,
+      "stable_baseline_tp": 96,
+      "stable_candidate_fp": 8,
+      "stable_candidate_tp": 96,
+      "stable_lost_fp": 15,
+      "stable_lost_tp": 0,
+      "stable_removed": 17,
+      "stable_removed_unknown": 2
+    },
+    "H5": {
+      "added": 0,
+      "added_unknown": 0,
+      "baseline": 312,
+      "baseline_fp": 0,
+      "baseline_tp": 0,
+      "candidate": 312,
+      "candidate_fp": 0,
+      "candidate_tp": 0,
+      "diagnostic_wording_changed": 0,
+      "lost_fp": 0,
+      "lost_tp": 0,
+      "reference_fp": 0,
+      "reference_tp": 0,
+      "removed": 0,
+      "removed_unknown": 0,
+      "stable_added": 0,
+      "stable_baseline_fp": 0,
+      "stable_baseline_tp": 0,
+      "stable_candidate_fp": 0,
+      "stable_candidate_tp": 0,
+      "stable_lost_fp": 0,
+      "stable_lost_tp": 0,
+      "stable_removed": 0,
+      "stable_removed_unknown": 0
+    },
+    "H6": {
+      "added": 0,
+      "added_unknown": 0,
+      "baseline": 170,
+      "baseline_fp": 0,
+      "baseline_tp": 0,
+      "candidate": 0,
+      "candidate_fp": 0,
+      "candidate_tp": 0,
+      "lost_fp": 0,
+      "lost_tp": 0,
+      "reference_fp": 0,
+      "reference_tp": 0,
+      "removed": 170,
+      "removed_unknown": 170
+    }
+  },
+  "candidate_findings": 972,
+  "files": 1599,
+  "gate": {
+    "blocking_severity_diagnostics": {
+      "fail": {
+        "keep_labeled": {},
+        "keep_precision": null,
+        "note": "Current --fail-on uses raw severity and is unchanged by the optional gate. KEEP numbers are hypothetical selection diagnostics.",
+        "raw_labeled": {
+          "fp": 1
+        },
+        "raw_precision": 0.0
+      },
+      "review": {
+        "keep_labeled": {
+          "fp": 1,
+          "tp": 184
+        },
+        "keep_precision": 0.9945945945945946,
+        "note": "Current --fail-on uses raw severity and is unchanged by the optional gate. KEEP numbers are hypothetical selection diagnostics.",
+        "raw_labeled": {
+          "fp": 106,
+          "tp": 375
+        },
+        "raw_precision": 0.7796257796257796
+      }
+    },
+    "boundary": "Decisions annotate every detector finding without changing delivered identities. Current --fail-on is based on raw severity. KEEP and fixed score thresholds are exploratory diagnostics on transferred development labels, not tuned or independently validated release policies. Scores are model estimates, not calibrated probabilities or independent truth labels.",
+    "by_reference_label": {
+      "fp": {
+        "DISMISS": 46,
+        "ESCALATE": 59,
+        "KEEP": 1
+      },
+      "tp": {
+        "DISMISS": 13,
+        "ESCALATE": 178,
+        "KEEP": 185
+      },
+      "unknown": {
+        "ESCALATE": 7,
+        "KEEP": 483
+      }
+    },
+    "by_rule": {
+      "H1.7": {
+        "KEEP": 1
+      },
+      "H1.8": {
+        "DISMISS": 41,
+        "ESCALATE": 199,
+        "KEEP": 298
+      },
+      "H1.9": {
+        "DISMISS": 1,
+        "ESCALATE": 1
+      },
+      "H2": {
+        "DISMISS": 1
+      },
+      "H4": {
+        "DISMISS": 13,
+        "ESCALATE": 1
+      },
+      "H4.5": {
+        "DISMISS": 3,
+        "ESCALATE": 43,
+        "KEEP": 58
+      },
+      "H5": {
+        "KEEP": 312
+      }
+    },
+    "decisions": {
+      "DISMISS": 59,
+      "ESCALATE": 244,
+      "KEEP": 669
+    },
+    "delivered_findings": 972,
+    "raw_findings": 972,
+    "score_operating_points": {
+      "0.5": {
+        "fp": 18,
+        "precision": 0.9447852760736196,
+        "tp": 308,
+        "tp_recall_on_candidate_labels": 0.8191489361702128
+      },
+      "0.85": {
+        "fp": 1,
+        "precision": 0.9946236559139785,
+        "tp": 185,
+        "tp_recall_on_candidate_labels": 0.4920212765957447
+      },
+      "0.9": {
+        "fp": 1,
+        "precision": 0.9936305732484076,
+        "tp": 156,
+        "tp_recall_on_candidate_labels": 0.4148936170212766
+      },
+      "0.95": {
+        "fp": 0,
+        "precision": 1.0,
+        "tp": 101,
+        "tp_recall_on_candidate_labels": 0.26861702127659576
+      },
+      "0.99": {
+        "fp": 0,
+        "precision": 1.0,
+        "tp": 12,
+        "tp_recall_on_candidate_labels": 0.031914893617021274
+      }
+    },
+    "status": "PASS_ANNOTATION_ONLY"
+  },
+  "h6_separate": {
+    "added": 0,
+    "added_unknown": 0,
+    "baseline": 170,
+    "baseline_fp": 0,
+    "baseline_tp": 0,
+    "candidate": 0,
+    "candidate_fp": 0,
+    "candidate_tp": 0,
+    "lost_fp": 0,
+    "lost_tp": 0,
+    "reference_fp": 0,
+    "reference_tp": 0,
+    "removed": 170,
+    "removed_unknown": 170
+  },
+  "historical_seed_labels": {
+    "fp": 123,
+    "tp": 376
+  },
+  "manifest_sha256": "e693f3f61a4e78390d67174e32d9a04aa0e96708d5cd116de518ec073624731c",
+  "muse_commit": "fa691c0f7580b56500553b7dd6776a04deecd9a4",
+  "muse_default_gate": {
+    "boundary": "Unmodified Muse scan_file default gate=True actually removes DISMISS findings. Missing findings are counted as suppressed, not inferred to be false positives.",
+    "default_delivered_findings": 40,
+    "delivered_by_gate_decision": {
+      "ESCALATE": 36,
+      "KEEP": 4
+    },
+    "labeled_delivered": {
+      "unknown": 40
+    },
+    "labeled_raw": {
+      "fp": 111,
+      "tp": 369,
+      "unknown": 614
+    },
+    "raw_findings": 1094,
+    "suppressed": 1054,
+    "suppressed_by_reference_label": {
+      "fp": 111,
+      "tp": 369,
+      "unknown": 574
+    },
+    "suppressed_by_rule": {
+      "H1.8": 782,
+      "H4": 1,
+      "H4.5": 122,
+      "H5": 149
+    }
+  },
+  "muse_raw_vs_baseline": {
+    "baseline_findings": 1159,
+    "by_rule": {
+      "H1.7": {
+        "added": 0,
+        "added_unknown": 0,
+        "baseline": 1,
+        "baseline_fp": 0,
+        "baseline_tp": 1,
+        "candidate": 0,
+        "candidate_fp": 0,
+        "candidate_tp": 0,
+        "diagnostic_wording_changed": 0,
+        "lost_fp": 0,
+        "lost_tp": 1,
+        "reference_fp": 0,
+        "reference_tp": 1,
+        "removed": 1,
+        "removed_unknown": 0,
+        "stable_added": 0,
+        "stable_baseline_fp": 0,
+        "stable_baseline_tp": 1,
+        "stable_candidate_fp": 0,
+        "stable_candidate_tp": 0,
+        "stable_lost_fp": 0,
+        "stable_lost_tp": 1,
+        "stable_removed": 1,
+        "stable_removed_unknown": 0
+      },
+      "H1.8": {
+        "added": 244,
+        "added_unknown": 244,
+        "baseline": 538,
+        "baseline_fp": 88,
+        "baseline_tp": 272,
+        "candidate": 782,
+        "candidate_fp": 88,
+        "candidate_tp": 272,
+        "diagnostic_wording_changed": 0,
+        "lost_fp": 0,
+        "lost_tp": 0,
+        "reference_fp": 88,
+        "reference_tp": 272,
+        "removed": 0,
+        "removed_unknown": 0,
+        "stable_added": 244,
+        "stable_baseline_fp": 88,
+        "stable_baseline_tp": 272,
+        "stable_candidate_fp": 88,
+        "stable_candidate_tp": 272,
+        "stable_lost_fp": 0,
+        "stable_lost_tp": 0,
+        "stable_removed": 0,
+        "stable_removed_unknown": 0
+      },
+      "H1.9": {
+        "added": 0,
+        "added_unknown": 0,
+        "baseline": 2,
+        "baseline_fp": 1,
+        "baseline_tp": 1,
+        "candidate": 0,
+        "candidate_fp": 0,
+        "candidate_tp": 0,
+        "diagnostic_wording_changed": 0,
+        "lost_fp": 1,
+        "lost_tp": 1,
+        "reference_fp": 1,
+        "reference_tp": 1,
+        "removed": 2,
+        "removed_unknown": 0,
+        "stable_added": 0,
+        "stable_baseline_fp": 1,
+        "stable_baseline_tp": 1,
+        "stable_candidate_fp": 0,
+        "stable_candidate_tp": 0,
+        "stable_lost_fp": 1,
+        "stable_lost_tp": 1,
+        "stable_removed": 2,
+        "stable_removed_unknown": 0
+      },
+      "H2": {
+        "added": 0,
+        "added_unknown": 0,
+        "baseline": 1,
+        "baseline_fp": 1,
+        "baseline_tp": 0,
+        "candidate": 0,
+        "candidate_fp": 0,
+        "candidate_tp": 0,
+        "diagnostic_wording_changed": 0,
+        "lost_fp": 1,
+        "lost_tp": 0,
+        "reference_fp": 1,
+        "reference_tp": 0,
+        "removed": 1,
+        "removed_unknown": 0,
+        "stable_added": 0,
+        "stable_baseline_fp": 1,
+        "stable_baseline_tp": 0,
+        "stable_candidate_fp": 0,
+        "stable_candidate_tp": 0,
+        "stable_lost_fp": 1,
+        "stable_lost_tp": 0,
+        "stable_removed": 1,
+        "stable_removed_unknown": 0
+      },
+      "H4": {
+        "added": 0,
+        "added_unknown": 0,
+        "baseline": 14,
+        "baseline_fp": 8,
+        "baseline_tp": 6,
+        "candidate": 1,
+        "candidate_fp": 0,
+        "candidate_tp": 1,
+        "diagnostic_wording_changed": 0,
+        "lost_fp": 8,
+        "lost_tp": 5,
+        "reference_fp": 8,
+        "reference_tp": 6,
+        "removed": 13,
+        "removed_unknown": 0,
+        "stable_added": 0,
+        "stable_baseline_fp": 8,
+        "stable_baseline_tp": 6,
+        "stable_candidate_fp": 0,
+        "stable_candidate_tp": 1,
+        "stable_lost_fp": 8,
+        "stable_lost_tp": 5,
+        "stable_removed": 13,
+        "stable_removed_unknown": 0
+      },
+      "H4.5": {
+        "added": 1,
+        "added_unknown": 1,
+        "baseline": 121,
+        "baseline_fp": 23,
+        "baseline_tp": 96,
+        "candidate": 122,
+        "candidate_fp": 23,
+        "candidate_tp": 96,
+        "diagnostic_wording_changed": 0,
+        "lost_fp": 0,
+        "lost_tp": 0,
+        "reference_fp": 23,
+        "reference_tp": 96,
+        "removed": 0,
+        "removed_unknown": 0,
+        "stable_added": 1,
+        "stable_baseline_fp": 23,
+        "stable_baseline_tp": 96,
+        "stable_candidate_fp": 23,
+        "stable_candidate_tp": 96,
+        "stable_lost_fp": 0,
+        "stable_lost_tp": 0,
+        "stable_removed": 0,
+        "stable_removed_unknown": 0
+      },
+      "H5": {
+        "added": 0,
+        "added_unknown": 0,
+        "baseline": 312,
+        "baseline_fp": 0,
+        "baseline_tp": 0,
+        "candidate": 189,
+        "candidate_fp": 0,
+        "candidate_tp": 0,
+        "diagnostic_wording_changed": 0,
+        "lost_fp": 0,
+        "lost_tp": 0,
+        "reference_fp": 0,
+        "reference_tp": 0,
+        "removed": 123,
+        "removed_unknown": 123,
+        "stable_added": 0,
+        "stable_baseline_fp": 0,
+        "stable_baseline_tp": 0,
+        "stable_candidate_fp": 0,
+        "stable_candidate_tp": 0,
+        "stable_lost_fp": 0,
+        "stable_lost_tp": 0,
+        "stable_removed": 123,
+        "stable_removed_unknown": 123
+      },
+      "H6": {
+        "added": 0,
+        "added_unknown": 0,
+        "baseline": 170,
+        "baseline_fp": 0,
+        "baseline_tp": 0,
+        "candidate": 0,
+        "candidate_fp": 0,
+        "candidate_tp": 0,
+        "lost_fp": 0,
+        "lost_tp": 0,
+        "reference_fp": 0,
+        "reference_tp": 0,
+        "removed": 170,
+        "removed_unknown": 170
+      }
+    },
+    "candidate_findings": 1094,
+    "files": 1599,
+    "h6_separate": {
+      "added": 0,
+      "added_unknown": 0,
+      "baseline": 170,
+      "baseline_fp": 0,
+      "baseline_tp": 0,
+      "candidate": 0,
+      "candidate_fp": 0,
+      "candidate_tp": 0,
+      "lost_fp": 0,
+      "lost_tp": 0,
+      "reference_fp": 0,
+      "reference_tp": 0,
+      "removed": 170,
+      "removed_unknown": 170
+    },
+    "historical_seed_labels": {
+      "fp": 123,
+      "tp": 376
+    },
+    "non_h6_exact_text_tp_changes": 7,
+    "non_h6_tp_losses": 7,
+    "reference_labels": {
+      "fp": 121,
+      "tp": 376
+    },
+    "reference_tp_missing_from_baseline": 0,
+    "status": "BLOCKED"
+  },
+  "muse_to_candidate_gate": {
+    "boundary": "Shared exact findings only. Muse DISMISS is inferred from the unchanged source gate filtering; candidate decisions are delivered annotations. Rule ID and context inputs changed simultaneously, so this is a behavior comparison, not a causal attribution.",
+    "by_reference_label": {
+      "fp": {
+        "DISMISS->DISMISS": 37,
+        "DISMISS->ESCALATE": 58,
+        "DISMISS->KEEP": 1
+      },
+      "tp": {
+        "DISMISS->DISMISS": 8,
+        "DISMISS->ESCALATE": 177,
+        "DISMISS->KEEP": 184
+      },
+      "unknown": {
+        "DISMISS->ESCALATE": 7,
+        "DISMISS->KEEP": 320,
+        "ESCALATE->KEEP": 36,
+        "KEEP->KEEP": 4
+      }
+    },
+    "shared_exact_finding_identities": 832,
+    "transitions": {
+      "DISMISS->DISMISS": 45,
+      "DISMISS->ESCALATE": 242,
+      "DISMISS->KEEP": 505,
+      "ESCALATE->KEEP": 36,
+      "KEEP->KEEP": 4
+    }
+  },
+  "non_h6_exact_text_tp_changes": 2,
+  "non_h6_tp_losses": 0,
+  "reference_labels": {
+    "fp": 121,
+    "tp": 376
+  },
+  "reference_tp_missing_from_baseline": 0,
+  "runner_sha256": "a872f1621a438857c424e7f6fde963e5bc377fe1a71e1df4a0224de9b522b5fc",
+  "seed_sha256": "a08029d7cbefe5d3cb7502d7ee6743a37205605e638555261614afb50a725d1f",
+  "source_tree_sha256": {
+    "baseline": "04da453b3a953b43f3386d8905ae33820ed1f35ee79f639fe21b48bb30ed5fd8",
+    "candidate": "eb49c7ff4c629a905660eea66b099b9cfcf1652065778638322ab6ee74385f77",
+    "muse-raw": "0efb90730de403a483d4e1d905a6a36f0db2a02aa8e06f36f757ffc5601338ae"
+  },
+  "status": "PASS_REFERENCE_TP_RETENTION"
+}

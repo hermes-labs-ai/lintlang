@@ -12,6 +12,7 @@ from pathlib import Path
 import pytest
 import yaml
 
+from lintlang import __version__
 from lintlang.instructions import is_recognized_instruction_path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -21,7 +22,7 @@ LINTLANG_ACTION_VERSION = "v0.7.0"
 LINTLANG_V070_SHA = "175a9a19414aff9a1752d3b9850d6cf58d59fb32"
 
 
-def test_precommit_hook_is_explicit_and_advisory_by_default():
+def test_precommit_hook_uses_the_default_scan_mode():
     assert len(HOOKS) == 1
     hook = HOOKS[0]
     assert hook["id"] == "lintlang"
@@ -144,20 +145,14 @@ class TestHookInvokedAsPreCommitWouldInvokeIt:
             env={**os.environ, "NO_COLOR": "1", "PYTHONPATH": str(REPO_ROOT / "src")},
         )
 
-    def test_default_hook_scans_the_selected_files_and_does_not_block(self, tmp_path):
-        """A FAIL verdict alone does not block a commit.
-
-        Without `--fail-on` the scan is advisory: it reports FAIL and exits 0,
-        so pre-commit lets the commit through. This is the behavior the guide
-        has to state, because a hook that reports FAIL and passes looks broken
-        to someone who did not read it.
-        """
+    def test_raw_advisory_hook_scans_the_selected_files_and_does_not_block(self, tmp_path):
+        """An explicit raw scan remains advisory without `--fail-on`."""
         self._repository(tmp_path)
         filenames = self._selected_filenames(tmp_path)
 
         assert filenames == [".github/instructions/review.instructions.md", "AGENTS.md"]
 
-        completed = self._run(tmp_path, [], filenames)
+        completed = self._run(tmp_path, ["--no-gate"], filenames)
 
         assert completed.returncode == 0, completed.stderr
         assert "FAIL" in completed.stdout
@@ -170,7 +165,7 @@ class TestHookInvokedAsPreCommitWouldInvokeIt:
         self._repository(tmp_path)
         filenames = self._selected_filenames(tmp_path)
 
-        completed = self._run(tmp_path, ["--fail-on", "fail"], filenames)
+        completed = self._run(tmp_path, ["--no-gate", "--fail-on", "fail"], filenames)
 
         assert completed.returncode == 1
         assert "FAIL" in completed.stdout
@@ -187,7 +182,7 @@ class TestHookInvokedAsPreCommitWouldInvokeIt:
         filenames = self._selected_filenames(tmp_path)
         assert "CLAUDE.md" in filenames
 
-        completed = self._run(tmp_path, ["docs/notes.md"], filenames)
+        completed = self._run(tmp_path, ["--no-gate", "docs/notes.md"], filenames)
 
         assert completed.returncode == 0, completed.stderr
         # The configured path AND every selected filename were scanned.
@@ -215,9 +210,9 @@ def test_reference_docs_show_exercised_install_and_hook_paths():
     assert "pipx install lintlang" in reference
     assert "pipx ensurepath" in reference
     assert "repo: https://github.com/hermes-labs-ai/lintlang" in integration
-    assert "rev: v0.8.2" in integration
+    assert f"rev: v{__version__}" in integration
     assert "id: lintlang" in integration
-    assert "args: [AGENTS.md, --fail-on, fail]" in integration
+    assert "args: [AGENTS.md, --no-gate, --fail-on, fail]" in integration
     assert "pre-commit install" in integration
     assert "pre-commit run lintlang" in integration
     assert f"hermes-labs-ai/lintlang@{LINTLANG_V070_SHA} # {LINTLANG_ACTION_VERSION}" in baseline

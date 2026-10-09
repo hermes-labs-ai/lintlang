@@ -7,6 +7,10 @@ makes no LLM calls; loading the plugin and installing its package can use the ne
 
 ## Configure
 
+**Unpublished 0.9.0 candidate:** the descriptor's 0.9.0 registry pin is a draft
+release setting. Do not run its package installation before publication. Local
+in-process checks below use the source checkout and do not download that release.
+
 Add the descriptor URL and linter to your existing `.mega-linter.yml`. Preserve
 other entries in `PLUGINS` and `ENABLE_LINTERS`; replacing those lists can disable
 unrelated checks.
@@ -31,13 +35,14 @@ package. Review descriptor changes separately from package upgrades; those are
 different parts of the installation chain.
 
 MegaLinter's loader runs the descriptor's installation step at run time
-(`pip install --no-cache-dir lintlang==0.8.2`) inside the existing image, then invokes:
+(`pip install --no-cache-dir lintlang==0.9.0`) inside the existing image, then invokes:
 
 ```console
-lintlang scan --fail-on fail <selected files>
+lintlang scan --no-gate --fail-on fail <selected files>
 ```
 
-FAIL makes the linter exit nonzero; REVIEW remains advisory. Input errors also
+The plugin preserves raw severity blocking with `--no-gate`. HIGH/CRITICAL
+findings produce FAIL and make the linter exit nonzero; REVIEW remains advisory. Input errors also
 remain nonzero. Default selection covers conventional agent-language names
 (`AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, Copilot `*.instructions.md`, and names
 containing `agent`, `prompt`, `tool`, `skill`, `system`, or `instruction`) rather
@@ -104,7 +109,7 @@ unrelated metadata. It initialized `AI_LINTLANG` and selected only the two
 conventionally named instruction surfaces. The bad fixture produced FAIL; after
 removing it, only `AGENTS.md` was selected and the process exited 0. This is
 historical loader/selector evidence, not a new real-container test of the current
-0.8.2 package, nor a claim about agent behavior or adoption.
+0.9.0 package, nor a claim about agent behavior or adoption.
 
 The descriptor also validates against MegaLinter's published
 [descriptor JSON schema](https://github.com/oxsecurity/megalinter/blob/main/megalinter/descriptors/schemas/megalinter-descriptor.jsonschema.json).

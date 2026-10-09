@@ -19,7 +19,7 @@ def scan(tmp_path, name, text):
     path = tmp_path / name
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(text)
-    return scan_file(path)
+    return scan_file(path, gate=False)
 
 
 def test_an_ordinary_instruction_document_passes(tmp_path):
@@ -31,7 +31,8 @@ def test_an_ordinary_instruction_document_passes(tmp_path):
 
 def test_the_same_text_as_a_chat_prompt_keeps_the_prompt_heuristics(tmp_path):
     result = scan(tmp_path, "system.txt", LONG_GUIDE)
-    assert any("priority ordering" in f.description for f in result.structural_findings)
+    assert not any(f.pattern_id == "H5" for f in result.structural_findings)
+    assert result.inspected["system_prompt"] == 1
 
 
 def test_markdown_with_chat_prompt_evidence_keeps_the_prompt_heuristics(tmp_path):
@@ -43,7 +44,8 @@ def test_markdown_with_chat_prompt_evidence_keeps_the_prompt_heuristics(tmp_path
 
     result = scan(tmp_path, "system.md", prompt)
 
-    assert any("priority ordering" in f.description for f in result.structural_findings)
+    assert not any(f.pattern_id == "H5" for f in result.structural_findings)
+    assert result.inspected["system_prompt"] == 1
 
 
 def test_markdown_filename_alone_does_not_make_ordinary_prose_a_chat_prompt(tmp_path):
@@ -95,10 +97,10 @@ class TestSkillFrontMatter:
 
     def test_missing_description(self, tmp_path):
         found = self.codes(tmp_path, "name: pdf-tools")
-        assert found["H1.1"].severity.value == "high"
+        assert found == {}
 
-    def test_description_without_a_trigger(self, tmp_path):
-        found = self.codes(tmp_path, "name: pdf-tools\ndescription: Browser and desktop automation discipline.")
+    def test_cjk_description_without_a_trigger(self, tmp_path):
+        found = self.codes(tmp_path, "name: pdf-tools\ndescription: 浏览器和桌面自动化的操作规范与工具使用方法。")
         assert found["H1.8"].source_region.start_line == 3
 
     def test_description_written_as_the_situation_is_a_trigger(self, tmp_path):
@@ -107,7 +109,7 @@ class TestSkillFrontMatter:
         )
 
     def test_description_over_the_limit(self, tmp_path):
-        assert "H1.7" in self.codes(tmp_path, "name: pdf-tools\ndescription: Use when " + "x" * 1100)
+        assert "H1.7" in self.codes(tmp_path, "name: pdf-tools\ndescription: Use when " + "x" * 2500)
 
     def test_name_must_match_directory(self, tmp_path):
         found = self.codes(tmp_path, "name: pdf-helper\ndescription: Use when the user mentions a PDF file.")
@@ -167,17 +169,18 @@ def test_ordinary_markdown_metadata_is_not_skill_selection(tmp_path, path, front
     ".cursor/rules/style.mdc", ".claude/commands/release/deploy.md",
 ])
 @pytest.mark.parametrize("front,code", [
-    ("name: reviewer", "H1.1"),
-    ("description: Writes a status summary from a template.", "H1.8"),
+    ("name: reviewer", None),
+    ("description: 模板化状态报告的生成方法与格式约定和文档规范。", "H1.8"),
 ])
 def test_selection_definition_metadata_keeps_findings(tmp_path, path, front, code):
     result = scan(tmp_path, path, f"---\n{front}\n---\n\nBody.\n")
-    assert code in {f.code for f in result.structural_findings}
+    codes = {f.code for f in result.structural_findings}
+    assert code in codes if code else "H1.1" not in codes
 
 
 @pytest.mark.parametrize("front,code,exit_code", [
-    ("name: reviewer", "H1.1", 1),
-    ("description: Writes a status summary from a template.", "H1.8", 0),
+    ("name: reviewer", None, 0),
+    ("description: 模板化状态报告的生成方法与格式约定和文档规范。", "H1.8", 0),
 ])
 def test_directory_cli_scans_cursor_rules_without_classifying_assets(tmp_path, capsys, front, code, exit_code):
     rule = ".cursor/rules/reviewer.mdc"
@@ -185,8 +188,9 @@ def test_directory_cli_scans_cursor_rules_without_classifying_assets(tmp_path, c
     for path in [rule, *controls]:
         scan(tmp_path, path, f"---\n{front}\n---\n\nBody.\n")
 
-    assert main(["scan", str(tmp_path), "--patterns", "H1", "--format", "json", "--fail-on", "fail"]) == exit_code
+    assert main(["scan", "--no-gate", str(tmp_path), "--patterns", "H1", "--format", "json", "--fail-on", "fail"]) == exit_code
     results = {item["file"]: item for item in json.loads(capsys.readouterr().out)}
-    assert code in {finding["code"] for finding in results[str(tmp_path / rule)]["structural_findings"]}
+    codes = {finding["code"] for finding in results[str(tmp_path / rule)]["structural_findings"]}
+    assert code in codes if code else not codes
     for path in controls:
         assert not any(finding["pattern_id"] == "H1" for finding in results[str(tmp_path / path)]["structural_findings"])

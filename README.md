@@ -33,15 +33,16 @@ uvx lintlang scan .
 
 </div>
 
-Below, by contrast, is unedited terminal output on a bundled fixture: two of the ten findings from `lintlang scan samples/bad_tool_descriptions.yaml`, long lines wrapped.
+Below, by contrast, is unedited terminal output on a bundled fixture: two of the nine findings from `lintlang scan --no-gate samples/bad_tool_descriptions.yaml`, long lines wrapped.
 
 ```text
-  ❌ FAIL — 1 CRITICAL, 1 HIGH, 5 MEDIUM, 3 LOW
+  ❌ FAIL — 1 HIGH, 5 MEDIUM, 3 LOW
   Inspected: 5 tools (4 described, 5 with a schema), system prompt
 
-    !! [CRITICAL] H1.1 samples/bad_tool_descriptions.yaml:34  tool:process_ticket
-      Tool 'process_ticket' has no description.
-      → Add a specific, disambiguating description that explains WHEN to use this tool, not just WHAT it does.
+    ~ [MEDIUM] H1.3 samples/bad_tool_descriptions.yaml:27  tool:handle_request
+      Tool 'handle_request' starts with vague verb 'handle'.
+      Evidence: "Handle the user request"
+      → Replace 'handle' with a specific action verb. Instead of 'Handle user data', use 'Validate and persist user profile updates to the database'.
 
     ~ [MEDIUM] H1.6 samples/bad_tool_descriptions.yaml:10  tool:get_user_info vs tool:fetch_user_data
       Tools 'get_user_info' and 'fetch_user_data' carry no differentia — every meaning-bearing term in one is
@@ -67,10 +68,15 @@ LintLang catches problems like:
 - **Ambiguous tools** — sibling tools that overlap without a clear reason for the model to choose one over another.
 - **Missing bounds** — retries, loops, or tool use without explicit stopping or progress conditions.
 - **Schema mismatches** — missing required fields, unclear parameters, and schemas that do not communicate enough intent.
-- **Mixed output formats and missing priorities** — a prompt that names more than one output format (H6 flags any two recognized formats, even when each is scoped to a case), and long instruction lists with no stated priority order (H5). LintLang does not detect semantic contradictions between two instructions, for example "always do X" next to "never do X".
 - **SKILL.md defects** — missing or invalid metadata, unclear usage criteria, and skill names that do not match their directory.
 - **Context and message errors** — stale project references, unbounded persistence, malformed roles, and broken tool-message sequences.
 - **Embedded agent logic** — supported Python prompts, literal tool definitions, and selected pipeline thresholds.
+
+H1.8 runs only for Chinese, Japanese, and Korean descriptions, recognizing a
+finite set of corpus-mined usage phrases through offline normalization. It skips
+other languages. English, Spanish, and Turkish mappings remain research modules
+and are not invoked by H1.8. Other rules retain their existing behavior. See the
+[mined phrase tables and development replay](evals/gate_wiring/h18-language-mining.md).
 
 Each result says what LintLang inspected. Content with no recognized agent-facing structures is reported as `SKIPPED`, never `PASS`. Tool comparisons are within one parsed input; a directory scan does not combine tools from separate files into one selection namespace.
 
@@ -108,19 +114,31 @@ brew install hermes-labs-ai/tap/lintlang
 lintlang scan .
 ```
 
-Findings are advisory by default.
+In this unpublished 0.9.0 candidate, the learned gate is enabled by default:
+KEEP findings remaining after explicit filters and baseline allowances block
+(exit 1), ESCALATE findings request review (exit 0), and
+DISMISS findings are hidden and counted. The frozen development replay has
+**179 TP / 10 FP in KEEP (94.71% observed precision)**. This is a development
+cohort result; held-out accuracy remains unverified. See the
+[draft review report](docs/release-0.9.0.md) before using this candidate in CI.
 
-Block on HIGH or CRITICAL findings:
+Use raw detector behavior with `--no-gate`. Raw findings are advisory unless a
+severity policy is selected:
 
 ```bash
-lintlang scan . --fail-on fail
+lintlang scan . --no-gate --fail-on fail
 ```
 
-Include MEDIUM findings in the gate:
+Include MEDIUM findings in raw mode:
 
 ```bash
-lintlang scan . --fail-on review
+lintlang scan . --no-gate --fail-on review
 ```
+
+Tune the gate with `--gate-threshold 0.85,0.15` (KEEP minimum, DISMISS maximum).
+A single value changes only the KEEP threshold. The old `--gate` flag still
+works but is deprecated because the gate is now the default. Scores are model
+estimates, not calibrated confidence.
 
 LintLang also emits JSON, SARIF, and GitLab Code Quality reports for automation.
 See the [GitLab CI guide](docs/gitlab.md) for a copyable Code Quality job.
@@ -133,7 +151,7 @@ Generate a pinned GitHub Actions workflow that scans the repository directory:
 lintlang init --github --path .
 ```
 
-The generated Action gates HIGH or CRITICAL findings by default. Use a narrower path when CI should check only one configuration source.
+The generated Action uses the pinned published version; its severity policy gates HIGH or CRITICAL findings. The local candidate instead uses the gate policy described above. Use a narrower path when CI should check only one configuration source.
 
 For an existing repository with known findings, record a reviewed baseline:
 
@@ -155,7 +173,8 @@ See [GitHub CI and Code Scanning](docs/github.md) and [baseline adoption](docs/b
 
 What we can claim today, and what we can't:
 
-- **1100 passing tests** across 46 test modules (plus 3 skipped and 5 expected failures), run in CI on Python 3.10–3.13 on every pull request and push to `main`. Every tagged release from v0.3.1 through v0.8.2 points at a commit with a passing CI run; the publish workflow checks tag/version parity and builds, it does not re-run the suite. Reproduce with `pip install -e ".[dev]" && pytest -q`.
+- **Offline engineering checks:** the full pytest suite, Ruff, package installs, and integration contracts are exercised before private handoff. The CI matrix covers Python 3.10–3.13; a local run does not establish every matrix result. Reproduce with `pip install -e ".[dev]" && pytest -q`.
+- **CJK skill-trigger replay:** all **249/249** eligible H1.8 TP identities retained; the supplied KEEP-only FP set falls from **63 to 10 (84.1% fewer)**. Across all labeled gate decisions, CJK FPs fall from **152 to 34**. These are mixed historical/AI-label development replays, not held-out accuracy. [Machine-readable counts](evals/gate_wiring/h18-language-results.json) and [full 972-finding replay](evals/gate_wiring/current-results.json).
 - **Regression corpus** (`evals/corpus/cases.jsonl`, 2 cases and 23 variants today): immutable case IDs with positive/negative controls per phrase class, each linked to a focused test. It guards detector boundaries against drift — it does not estimate accuracy or false-positive rates.
 - **Sample detection check** (`evals/sample-detection-rate.sh`): 4 deliberately-broken fixtures must fail, 1 clean fixture must pass. A release gate, not a benchmark.
 - **Daily proof loop** (`.github/workflows/proof-benchmark.yml`): a clean clone scans a broken fixture to SARIF, swaps in the clean one, and must go fail → pass in under 300 seconds. It proves the wiring and timing, not accuracy.
@@ -191,3 +210,13 @@ LintLang is developed by [Hermes Labs](https://hermes-labs.ai/).
 ## License
 
 [Apache License 2.0](LICENSE)
+
+### 0.9.0 candidate
+
+This private candidate enables the learned gate by default; `--no-gate` restores raw findings and severity policy. H1.8 runs only for Chinese, Japanese, and Korean; English, Spanish, and Turkish are excluded from that rule. See the [draft migration and review report](docs/release-0.9.0.md) and [private testing instructions](docs/testing-0.9.0.md). Public release remains subject to owner review.
+
+Directory scans and discovery skip test, fixture and teaching directories by exact
+component name: `tests`, `test`, `cassettes`, `fixtures`, `mocks`, `memory-tests`,
+`examples`, `cookbook`, `tutorials`, and `lessons`. Name a file explicitly to inspect
+it there. Empty tool and skill descriptions no longer emit H1.1. H5 and H6 are retired;
+LintLang does not judge priority ordering or semantic contradictions.

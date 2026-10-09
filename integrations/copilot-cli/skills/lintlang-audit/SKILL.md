@@ -16,6 +16,18 @@ telemetry, no network access during a scan
 Run this skill on request for the file the user names. It reports a scan verdict
 and does not rewrite the file or block a tool call.
 
+## Unpublished candidate
+
+Version 0.9.0 is not published yet. For this private local candidate, run
+`python -m pip install .` from its source checkout and use that environment's
+`lintlang` command. Registry-pinned 0.9.0 commands below are release examples;
+do not attempt them until publication. The `--no-gate` examples require this
+candidate; do not pass that flag to an older installed release.
+
+These audit commands use raw mode so severity and exit guidance below apply.
+Default scans without `--no-gate` instead use KEEP blocking, ESCALATE advisory
+findings and DISMISS suppression.
+
 ## What to do
 
 1. **Resolve the target.** Audit the file or files the user named. If no file
@@ -29,24 +41,25 @@ and does not rewrite the file or block a tool call.
 
 2. **Resolve a runner, in this order.** Stop at the first that works.
 
-   - `lintlang --version` prints `lintlang 0.8.2` → use `lintlang` for
-     both the version check and scan.
+   - `lintlang --version` prints `lintlang 0.9.0` and `lintlang scan --help`
+     lists `--no-gate` → use `lintlang` for the version check and scan.
    - Otherwise, if `uvx` is available and the pinned release runs, use it
      with no persistent install and no PATH change:
 
      ```bash
-     uvx --from lintlang==0.8.2 lintlang --version
+     uvx --from lintlang==0.9.0 lintlang --version
      ```
 
-     Use `uvx --from lintlang==0.8.2 lintlang` for the scan too. Keep the
-     `==0.8.2` pin so an unreviewed newer release is never fetched.
+     Use `uvx --from lintlang==0.9.0 lintlang` for the scan too. Keep the
+     `==0.9.0` pin so an unreviewed newer release is never fetched.
      This downloads the package into uv's cache once; the scan itself still
      makes no network call.
-   - Otherwise, if `lintlang --version` succeeded with another version,
-     use that installed `lintlang` command and report its version with the
-     result; available checks and findings may differ from 0.8.2.
+   - Otherwise, if `lintlang --version` succeeded with another version and
+     `lintlang scan --help` lists `--no-gate`, use that installed command
+     and report its version; available checks and findings may differ from 0.9.0.
+     A CLI without `--no-gate` is ineligible for the scan commands below.
    - If neither runner works, stop and relay the install line:
-     `python -m pip install lintlang==0.8.2`. Do not install anything
+     `python -m pip install lintlang==0.9.0`. Do not install anything
      persistently on the user's machine yourself.
 
 3. **Scan, once, with JSON output.** Run one of these commands, matching the
@@ -54,12 +67,12 @@ and does not rewrite the file or block a tool call.
 
    ```bash
    file='./prompt.md' # replace with the exact selected path, shell-quoted
-   lintlang scan --format json -- "$file"
+   lintlang scan --no-gate --format json -- "$file"
    ```
 
    ```bash
    file='./prompt.md' # replace with the exact selected path, shell-quoted
-   uvx --from lintlang==0.8.2 lintlang scan --format json -- "$file"
+   uvx --from lintlang==0.9.0 lintlang scan --no-gate --format json -- "$file"
    ```
 
    Set `file` before running the chosen command; `./prompt.md` is only an
@@ -89,7 +102,7 @@ and does not rewrite the file or block a tool call.
 
 5. **Report.** Summarise; do not paste the whole payload back. Lead with the
    verdict and the counts by severity, then the specific findings that matter,
-   naming each by its code (`H1.1`, `H1.6`, `P2`, …) and `location`. Say which
+   naming each by its code (`H1.2`, `H1.6`, `P2`, …) and `location`. Say which
    file each finding belongs to when more than one was scanned.
 
 ## Exit codes

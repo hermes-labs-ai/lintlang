@@ -1,0 +1,65 @@
+{
+  "status": "BLOCKED_KEEP_PRECISION_TARGET",
+  "boundary": "Mixed provenance: historical model-reviewed labels retained unchanged plus new score-blind double AI actionability review. Not human ground truth or independent holdout. One disagreement remains unresolved; no rule/model/threshold changed to obtain labels.",
+  "total_findings": 972,
+  "previously_unlabeled": 490,
+  "new_labels": {
+    "FP": 488,
+    "TP": 1,
+    "UNRESOLVED": 1
+  },
+  "all_labels": {
+    "FP": 594,
+    "TP": 377,
+    "UNRESOLVED": 1
+  },
+  "by_gate_decision": {
+    "KEEP": {
+      "FP": 482,
+      "TP": 186,
+      "UNRESOLVED": 1
+    },
+    "ESCALATE": {
+      "FP": 66,
+      "TP": 178
+    },
+    "DISMISS": {
+      "TP": 13,
+      "FP": 46
+    }
+  },
+  "agreement": {
+    "h5": {
+      "count": 312,
+      "agree": 311,
+      "agreement": 0.9967948717948718,
+      "cohens_kappa": 0.665236051502148,
+      "kappa_note": null
+    },
+    "h18": {
+      "count": 178,
+      "agree": 178,
+      "agreement": 1.0,
+      "cohens_kappa": null,
+      "kappa_note": "Undefined when both reviewers assign one identical category to every item."
+    }
+  },
+  "blocking_precision_resolved": 0.27844311377245506,
+  "blocking_fp_share_resolved": 0.7215568862275449,
+  "blocking_precision_bounds": [
+    0.27802690582959644,
+    0.2795216741405082
+  ],
+  "visible_fp_share_resolved": 0.6008771929824561,
+  "raw_fp_share_resolved": 0.611740473738414,
+  "blocking_reference_tp_retention": 0.493368700265252,
+  "target": ">99% KEEP precision",
+  "meets_target": false,
+  "rubric_sha256": "4dc533c3ee52920a197a66461fe830fb50d5a7a3a113172d7af18b7ffc5470cb",
+  "input_hashes": {
+    "h18-independent.jsonl": "04351d4df0c8bd8d8954bccf9f67bfb47dc9d3dbfc9dc0c8756534aee2e761c2",
+    "h18-primary.jsonl": "3ee86dbc210ff264dba5a2863e870d71c2882a1f2824865b35b2127d9cef7101",
+    "h5-independent.jsonl": "38b990a4df60a0607a32a55460c5c20ce509f4e8c28551de8e9d899c673b44c7",
+    "h5-primary.jsonl": "152eff15228c4503082319d9fec8ef0b160779f6d56a068054e18d8807c04181"
+  }
+}

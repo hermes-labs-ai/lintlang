@@ -1,5 +1,9 @@
 # LintLang for GitHub Copilot CLI
 
+**Unpublished 0.9.0 candidate:** install the scanner from this private checkout
+with `python -m pip install .` for local validation. The 0.9.0 registry commands
+are draft release examples; use them after publication.
+
 Install the Hermes Labs plugin directly from its GitHub repository:
 
 ```bash
@@ -16,7 +20,7 @@ Use lintlang-audit to scan .github/copilot-instructions.md and report its verdic
 The skill scans the named agent instruction, tool definition, or prompt file
 with LintLang and summarizes its static findings. It does not scan all files
 automatically or change the target. Install the scanner separately with
-`python -m pip install lintlang==0.8.2`, or have `uvx` available to run that
+`python -m pip install lintlang==0.9.0`, or have `uvx` available to run that
 release on demand. The plugin itself does not include the Python package.
 Python 3.10+ is required for the scanner. A scan makes no LLM or network calls;
 installing the scanner may download packages. A `PASS` verdict only means that

@@ -15,12 +15,12 @@ from typing import Any
 
 SUPPORTED_SUFFIXES = {".json", ".md", ".prompt", ".py", ".txt", ".yaml", ".yml"}
 MAX_FINDINGS = 8
-PINNED_VERSION = "0.8.2"
+PINNED_VERSION = "0.9.0"
 # The installed runner is accepted at the pinned release or newer: a user who
 # deliberately installed a newer lintlang must never be refused or told to
 # downgrade. The strict `==` pin applies only to the fetch/install guidance
 # (uvx / pip), never to an executable the user already has.
-_MINIMUM_VERSION = (0, 8, 2)
+_MINIMUM_VERSION = (0, 9, 0)
 
 # Claude Code runs hooks with the user's project directory as the working
 # directory, and `python3 -m lintlang` prepends the working directory to the

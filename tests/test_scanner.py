@@ -21,38 +21,38 @@ SAMPLES_DIR = Path(__file__).parent.parent / "samples"
 
 class TestScanConfig:
     def test_empty_config_returns_scan_result(self, empty_config):
-        result = scan_config(empty_config)
+        result = scan_config(empty_config, gate=False)
         assert isinstance(result, ScanResult)
         assert result.structural_findings == []
 
     def test_clean_config_high_herm_score(self, clean_tools_config):
-        result = scan_config(clean_tools_config)
+        result = scan_config(clean_tools_config, gate=False)
         assert result.score >= 70  # HERM scores prompt-like content well
 
     def test_bad_config_has_structural_findings(self, bad_tools_config):
-        result = scan_config(bad_tools_config)
+        result = scan_config(bad_tools_config, gate=False)
         assert len(result.structural_findings) > 0
 
     def test_pattern_filtering(self, bad_tools_config):
-        all_result = scan_config(bad_tools_config)
-        h1_result = scan_config(bad_tools_config, patterns=["H1"])
+        all_result = scan_config(bad_tools_config, gate=False)
+        h1_result = scan_config(bad_tools_config, patterns=["H1"], gate=False)
         assert len(h1_result.structural_findings) <= len(all_result.structural_findings)
         assert all(f.pattern_id == "H1" for f in h1_result.structural_findings)
 
     def test_findings_sorted_by_severity(self, bad_prompt_config):
-        result = scan_config(bad_prompt_config)
+        result = scan_config(bad_prompt_config, gate=False)
         findings = result.structural_findings
         severity_order = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
         for i in range(len(findings) - 1):
             assert severity_order[findings[i].severity.value] <= severity_order[findings[i + 1].severity.value]
 
     def test_herm_dimensions_present(self, clean_tools_config):
-        result = scan_config(clean_tools_config)
+        result = scan_config(clean_tools_config, gate=False)
         assert len(result.herm.dimension_scores) == 6
         assert all("HERM-" in dim for dim in result.herm.dimension_scores)
 
     def test_herm_coverage_and_confidence(self, clean_tools_config):
-        result = scan_config(clean_tools_config)
+        result = scan_config(clean_tools_config, gate=False)
         assert 0.55 <= result.herm.coverage <= 1.0
         assert result.herm.confidence in ("high", "medium", "low")
 
@@ -61,7 +61,7 @@ class TestScanFile:
     def test_missing_file_returns_error_result(self, tmp_path):
         missing = tmp_path / "missing.yaml"
 
-        result = scan_file(missing)
+        result = scan_file(missing, gate=False)
 
         assert result.input_error == "File not found"
         assert compute_verdict(result) == "ERROR"
@@ -70,7 +70,7 @@ class TestScanFile:
         malformed = tmp_path / "broken.json"
         malformed.write_text('{"system_prompt": "unterminated"')
 
-        result = scan_file(malformed)
+        result = scan_file(malformed, gate=False)
 
         assert result.input_error is not None
         assert result.input_error.startswith("Failed to parse:")
@@ -80,7 +80,7 @@ class TestScanFile:
         utf16_file = tmp_path / "utf16.yaml"
         utf16_file.write_bytes(b"\xff\xfe" + "system_prompt: hello\n".encode("utf-16-le"))
 
-        result = scan_file(utf16_file)
+        result = scan_file(utf16_file, gate=False)
 
         assert compute_verdict(result) == "ERROR"
         assert result.input_error is not None
@@ -92,7 +92,7 @@ class TestScanFile:
         invalid_file = tmp_path / "invalid.yaml"
         invalid_file.write_bytes(b"\x80\x81\x82\xff")
 
-        result = scan_file(invalid_file)
+        result = scan_file(invalid_file, gate=False)
 
         assert compute_verdict(result) == "ERROR"
         assert result.input_error is not None
@@ -103,13 +103,13 @@ class TestScanFile:
         python_file = tmp_path / "pipeline.py"
         python_file.write_text("CONFIDENCE_THRESHOLD = 0.75\n")
 
-        result = scan_file(python_file)
+        result = scan_file(python_file, gate=False)
 
         assert result.input_error is None
         assert any(finding.pattern_id == "P1" for finding in result.structural_findings)
 
     def test_scan_yaml_file(self):
-        result = scan_file(SAMPLES_DIR / "bad_tool_descriptions.yaml")
+        result = scan_file(SAMPLES_DIR / "bad_tool_descriptions.yaml", gate=False)
         assert len(result.structural_findings) > 0
 
     def test_root_prompt_keeps_chat_shape_checks_when_nested_templates_exist(self, tmp_path):
@@ -125,9 +125,9 @@ class TestScanFile:
             + "    user_template: Summarize the supplied request before completing the assigned task.\n"
         )
 
-        result = scan_file(path)
+        result = scan_file(path, gate=False)
 
-        assert {finding.pattern_id for finding in result.structural_findings} >= {"H4", "H5", "H6"}
+        assert {finding.pattern_id for finding in result.structural_findings} >= {"H4"}
         assert result.inspected["system_prompt"] == 1
         assert result.inspected["nested_prompts"] == 1
 
@@ -135,7 +135,7 @@ class TestScanFile:
         path = tmp_path / "system.prompt"
         path.write_text("You are a release reviewer. Return JSON only.\n")
 
-        result = scan_file(path)
+        result = scan_file(path, gate=False)
 
         assert result.inspected["system_prompt"] == 1
         assert "instructions" not in result.inspected
@@ -149,7 +149,7 @@ class TestScanFile:
             "  content: Check the package metadata before reporting.\n"
         )
 
-        result = scan_file(path)
+        result = scan_file(path, gate=False)
 
         assert result.skipped is None
         assert result.inspected["messages"] == 2
@@ -165,7 +165,7 @@ class TestScanFile:
             "  instructions: If the tests fail, keep trying until they pass, whatever it takes to get there.\n"
         )
 
-        result = scan_file(path)
+        result = scan_file(path, gate=False)
 
         assert result.skipped is None
         assert result.inspected["nested_prompts"] == 2
@@ -175,39 +175,39 @@ class TestScanFile:
         path = tmp_path / "values.yaml"
         path.write_text("- alpha\n- beta\n")
 
-        result = scan_file(path)
+        result = scan_file(path, gate=False)
 
         assert result.skipped == "no tool definitions, system prompt, messages or output schema were recognised"
 
     def test_scan_json_file(self):
-        result = scan_file(SAMPLES_DIR / "bad_agent_config.json")
+        result = scan_file(SAMPLES_DIR / "bad_agent_config.json", gate=False)
         assert len(result.structural_findings) > 0
 
     def test_scan_text_file(self):
-        result = scan_file(SAMPLES_DIR / "bad_system_prompt.txt")
+        result = scan_file(SAMPLES_DIR / "bad_system_prompt.txt", gate=False)
         assert len(result.structural_findings) > 0
 
     def test_clean_config_file_high_score(self):
-        result = scan_file(SAMPLES_DIR / "clean_config.yaml")
+        result = scan_file(SAMPLES_DIR / "clean_config.yaml", gate=False)
         assert result.score >= 70
         assert result.structural_findings == []
 
     def test_scan_returns_scan_result(self):
-        result = scan_file(SAMPLES_DIR / "clean_config.yaml")
+        result = scan_file(SAMPLES_DIR / "clean_config.yaml", gate=False)
         assert isinstance(result, ScanResult)
         assert isinstance(result.score, float)
 
 
 class TestScanDirectory:
     def test_scan_samples_directory(self):
-        results = scan_directory(SAMPLES_DIR)
+        results = scan_directory(SAMPLES_DIR, gate=False)
         assert len(results) > 0
         # All results should be ScanResults
         for r in results.values():
             assert isinstance(r, ScanResult)
 
     def test_scan_nonexistent_directory(self):
-        results = scan_directory("/nonexistent/path/12345")
+        results = scan_directory("/nonexistent/path/12345", gate=False)
         [result] = results.values()
         assert result.input_error == "Directory not found: /nonexistent/path/12345"
 
@@ -215,7 +215,7 @@ class TestScanDirectory:
         file_path = tmp_path / "config.yaml"
         file_path.write_text("system_prompt: You are helpful.")
 
-        results = scan_directory(file_path)
+        results = scan_directory(file_path, gate=False)
 
         [result] = results.values()
         assert result.input_error == f"Directory scan requires a directory: {file_path}"
@@ -223,7 +223,7 @@ class TestScanDirectory:
     def test_malformed_file_produces_error_finding(self, tmp_path):
         bad_file = tmp_path / "broken.json"
         bad_file.write_text("{invalid json content")
-        results = scan_directory(tmp_path)
+        results = scan_directory(tmp_path, gate=False)
         assert len(results) > 0
         for result in results.values():
             assert result.input_error is not None
@@ -241,7 +241,7 @@ class TestScanDirectory:
             dependency_file.write_text("CONFIDENCE_THRESHOLD = 0.25\n")
             dependency_files.append(dependency_file)
 
-        results = scan_directory(tmp_path)
+        results = scan_directory(tmp_path, gate=False)
 
         assert str(first_party) in results
         assert all(str(dependency_file) not in results for dependency_file in dependency_files)
@@ -263,7 +263,7 @@ class TestScanDirectory:
 
         monkeypatch.setattr("lintlang.scanner.os.walk", recording_walk)
 
-        results = scan_directory(tmp_path)
+        results = scan_directory(tmp_path, gate=False)
 
         assert str(tmp_path / "pipeline.py") in results
         assert visited_roots == [tmp_path]
@@ -277,7 +277,7 @@ class TestScanDirectory:
 
         monkeypatch.setattr("lintlang.scanner.os.walk", failing_walk)
 
-        results = scan_directory(tmp_path)
+        results = scan_directory(tmp_path, gate=False)
 
         assert str(blocked) in results
         assert results[str(blocked)].input_error is not None
@@ -292,7 +292,7 @@ class TestScanDirectory:
         (tmp_path / "linked_file.txt").symlink_to(outside_file)
         (tmp_path / "linked_directory").symlink_to(outside, target_is_directory=True)
 
-        results = scan_directory(tmp_path)
+        results = scan_directory(tmp_path, gate=False)
 
         assert all("linked_file" not in path for path in results)
         assert all("linked_directory" not in path for path in results)
@@ -305,8 +305,8 @@ class TestScanDirectory:
         nested.mkdir()
         (nested / "m_config.yaml").write_text("system_prompt: You are helpful.")
 
-        first = list(scan_directory(tmp_path))
-        second = list(scan_directory(tmp_path))
+        first = list(scan_directory(tmp_path, gate=False))
+        second = list(scan_directory(tmp_path, gate=False))
 
         assert first == second
         assert first == sorted(first)
@@ -322,26 +322,26 @@ class TestScanDirectory:
             raise AssertionError("Directory scanning attempted a network request")
 
         monkeypatch.setattr("urllib.request.urlopen", reject_network)
-        results = scan_directory(tmp_path)
+        results = scan_directory(tmp_path, gate=False)
 
         assert str(py_file) in results
         assert results[str(py_file)].input_error is None
 
     def test_directory_scan_reports_excluded_python_test_code(self, tmp_path):
-        py_file = tmp_path / "tests" / "test_agent.py"
+        py_file = tmp_path / "app" / "test_agent.py"
         py_file.parent.mkdir()
         py_file.write_text(
             'SYSTEM_PROMPT = """You are an assistant. Keep trying until the operation succeeds, '
             'and report every attempt to the user."""\n'
         )
 
-        results = scan_directory(tmp_path)
+        results = scan_directory(tmp_path, gate=False)
 
         assert results[str(py_file)].inspected == {}
         assert results[str(py_file)].skipped == (
             "Python test code is excluded from directory scans; name this file explicitly to inspect it"
         )
-        assert any(f.pattern_id == "H2" for f in scan_file(py_file).structural_findings)
+        assert any(f.pattern_id == "H2" for f in scan_file(py_file, gate=False).structural_findings)
 
     def test_direct_python_scans_inside_dependency_directories(self, tmp_path):
         for directory_name in (".venv", "venv", "site-packages", "__pypackages__"):
@@ -349,7 +349,7 @@ class TestScanDirectory:
             py_file.parent.mkdir()
             py_file.write_text("CONFIDENCE_THRESHOLD = 0.75\n")
 
-            result = scan_python_file(py_file)
+            result = scan_python_file(py_file, gate=False)
 
             assert result.file == str(py_file)
             assert result.input_error is None
@@ -405,7 +405,7 @@ class TestFileTypeFiltering:
         (tmp_path / "README.md").write_text("# My Agent\n\nAn AI agent.")
         (tmp_path / "LICENSE.md").write_text("MIT License")
 
-        results = scan_directory(tmp_path)
+        results = scan_directory(tmp_path, gate=False)
         scanned_names = {Path(p).name for p in results}
         assert "SKILL.md" in scanned_names
         assert "pipeline.py" in scanned_names
@@ -420,7 +420,7 @@ class TestFileTypeFiltering:
         (tmp_path / "config.yaml").write_text("system_prompt: You are helpful.")
         (tmp_path / "test_config.yaml").write_text("system_prompt: Test mode.")
 
-        results = scan_directory(tmp_path, exclude=["test_*"])
+        results = scan_directory(tmp_path, exclude=["test_*"], gate=False)
         scanned_names = {Path(p).name for p in results}
         assert "config.yaml" in scanned_names
         assert "test_config.yaml" not in scanned_names
@@ -431,7 +431,7 @@ class TestFileTypeFiltering:
         (tmp_path / "draft.md").write_text("You are a draft assistant.")
         (tmp_path / ".lintlangignore").write_text("draft.md\n")
 
-        results = scan_directory(tmp_path)
+        results = scan_directory(tmp_path, gate=False)
         scanned_names = {Path(p).name for p in results}
         assert "config.yaml" in scanned_names
         assert "draft.md" not in scanned_names
@@ -526,3 +526,47 @@ class TestHealthScore:
         findings = [Finding(f"H{i}", "Test", Severity.CRITICAL, "loc", "desc", "fix") for i in range(20)]
         score = compute_health_score(findings)
         assert score >= 0
+
+
+def test_fixture_and_teaching_directories_are_pruned_by_component(tmp_path):
+    from lintlang.instructions import discover_instruction_files
+
+    excluded = ("tests", "test", "cassettes", "fixtures", "mocks", "memory-tests",
+                "examples", "cookbook", "tutorials", "lessons")
+    text = '# Instructions\nKeep trying until the operation succeeds.\n'
+    kept = []
+    for name in excluded:
+        for component in (name, name.upper(), f"{name}-service"):
+            path = tmp_path / "app" / component / "AGENTS.md"
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(text)
+            if component.endswith("-service"):
+                kept.append(path)
+            else:
+                assert _is_non_prompt_file(path)
+                assert any(f.pattern_id == "H2" for f in scan_file(path, gate=False).structural_findings)
+        assert not _is_non_prompt_file(Path("app") / name)  # A filename is not a directory.
+    results = scan_directory(tmp_path, gate=False)
+    assert set(results) == {str(path) for path in kept}
+    assert all(any(f.pattern_id == "H2" for f in result.structural_findings) for result in results.values())
+    assert set(discover_instruction_files(tmp_path)) == set(kept)
+
+
+def test_retired_empty_description_fixture_has_no_h1_findings():
+    result = scan_file(SAMPLES_DIR / "release_088/empty-descriptions.yaml", gate=False)
+    assert result.input_error is None
+    assert result.inspected["tools"] == 2
+    assert not any(f.pattern_id == "H1" for f in result.structural_findings)
+
+
+def test_directory_exclusions_ignore_ancestors_above_scan_root(tmp_path):
+    root = tmp_path / "tests" / "project"
+    root.mkdir(parents=True)
+    path = root / "AGENTS.md"
+    path.write_text("Keep trying until the operation succeeds.\n")
+    excluded = root / "fixtures" / "AGENTS.md"
+    excluded.parent.mkdir()
+    excluded.write_text(path.read_text())
+    results = scan_directory(root, gate=False)
+    assert set(results) == {str(path)}
+    assert any(f.pattern_id == "H2" for f in results[str(path)].structural_findings)

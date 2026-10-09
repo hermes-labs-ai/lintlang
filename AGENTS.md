@@ -54,7 +54,7 @@ python -m build
 ## Output shape
 
 - repository scan outcomes: `ERROR`, `PASS`, `REVIEW`, or `FAIL`
-- structural findings by pattern `H1` through `H7`, plus Python pipeline findings `P1` and `P2`
+- structural findings by pattern `H1` through `H4`, plus `H7`, plus Python pipeline findings `P1` and `P2`
 - JSON output for CI via `--format json`
 - conservative `scan --fix` for `Don't be verbose` as the first body line after a file-leading `# Instructions`; `--dry-run` previews and `--backup` saves the original bytes
 - preflight states: `ALLOW`, `NOTICE`, `HOLD`, `UNAVAILABLE`, or `ERROR`
@@ -77,6 +77,7 @@ python -m build
 ## Maintainer notes
 
 - keep detector language aligned with the exact patterns exercised by the samples
+- H1.8 runs only for Chinese, Japanese, and Korean descriptions and normalizes their corpus-mined usage phrases in `detectors/lang/`; English/Spanish/Turkish maps are research-only and must not be invoked by H1.8; keep its English trigger regex and original diagnostic evidence unchanged
 - keep CLI examples and severity semantics aligned with README
 - keep the tool fully offline and deterministic
 - keep repository `scan` and in-flight `preflight` result types and exit semantics separate

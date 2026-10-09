@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "lintlang"
-version = "0.8.2"
+version = "0.9.0"
 description = "Static linter for AI agent configs, tool descriptions, and system prompts with zero-LLM CI gating"
 readme = "README.md"
 license = {text = "Apache-2.0"}
@@ -74,6 +74,8 @@ packages = ["src/lintlang"]
 # published artifact. The ".hermes/**" exclusion below already covers it.
 exclude = [
     "GAP.md",
+    "WORKSPACE.md",
+    "evals/release_088/local/**",
     ".hermes/**",
     ".github/workflows/hermes-quality.yml",
 ]

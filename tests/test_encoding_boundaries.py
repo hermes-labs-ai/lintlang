@@ -30,8 +30,8 @@ def test_file_newlines_preserve_metadata_and_finding_locations(tmp_path, newline
     path.write_bytes(source.replace("\n", newline).encode("utf-8"))
 
     assert parse_file(path) == parse_source(source, path)
-    result = scan_file(path)
-    expected = scan_source(source, path)
+    result = scan_file(path, gate=False)
+    expected = scan_source(source, path, gate=False)
     assert result.input_error is None
     assert any(f.pattern_id == "H2" and f.source_region is not None for f in expected.structural_findings)
     assert result.structural_findings == expected.structural_findings
@@ -55,7 +55,7 @@ def test_supported_utf8_bom_preserves_parsed_content(tmp_path, filename, source)
     path = tmp_path / filename
     path.write_bytes(b"\xef\xbb\xbf" + source.encode("utf-8"))
     assert parse_file(path) == parse_source(source, path)
-    assert scan_file(path).input_error is None
+    assert scan_file(path, gate=False).input_error is None
 
 
 def test_json_utf8_bom_keeps_existing_parser_rejection(tmp_path):
@@ -76,7 +76,7 @@ def test_valid_multilingual_utf8_cli_input(tmp_path, monkeypatch, capsys, input_
         (tmp_path / "agent.yaml").write_bytes(raw)
         inputs = ["agent.yaml" if input_kind == "file" else "."]
 
-    assert main(["scan", *inputs, "--format", "json"]) == 0
+    assert main(["scan", "--no-gate", *inputs, "--format", "json"]) == 0
     [result] = json.loads(capsys.readouterr().out)
     assert result["file"] == "agent.yaml"
     assert result["input_error"] is None
@@ -86,11 +86,35 @@ def test_valid_multilingual_utf8_cli_input(tmp_path, monkeypatch, capsys, input_
 @pytest.mark.parametrize(
     ("raw", "hint"),
     [
+        (
+            "system_prompt: Be concise.\n".encode("utf-16-le"),
+            "contains a NUL byte",
+        ),
+        (
+            "system_prompt: Be concise.\n".encode("utf-16-be"),
+            "contains a NUL byte",
+        ),
+        (
+            "system_prompt: Be concise.\n".encode("utf-32-le"),
+            "contains a NUL byte",
+        ),
+        (
+            "system_prompt: Be concise.\n".encode("utf-32-be"),
+            "contains a NUL byte",
+        ),
         (b"\xff\xfe" + "system_prompt: Be concise.\n".encode("utf-16-le"), "appears to be UTF-16 encoded"),
         (b"\xfe\xff" + "system_prompt: Be concise.\n".encode("utf-16-be"), "appears to be UTF-16 encoded"),
         (b"system_prompt: \x80\x81\xff\n", "File is not valid UTF-8"),
     ],
-    ids=["utf16-le", "utf16-be", "invalid-utf8"],
+    ids=[
+        "utf16-le-no-bom",
+        "utf16-be-no-bom",
+        "utf32-le-no-bom",
+        "utf32-be-no-bom",
+        "utf16-le",
+        "utf16-be",
+        "invalid-utf8",
+    ],
 )
 @pytest.mark.parametrize("input_kind", ["file", "directory", "stdin"])
 @pytest.mark.parametrize("output_format", ["terminal", "json", "sarif"])
@@ -105,7 +129,7 @@ def test_encoding_errors_fail_all_cli_input_and_output_paths(
         (tmp_path / "agent.yaml").write_bytes(raw)
         inputs = ["agent.yaml" if input_kind == "file" else "."]
 
-    assert main(["scan", *inputs, "--format", output_format]) == 1
+    assert main(["scan", "--no-gate", *inputs, "--format", output_format]) == 1
     captured = capsys.readouterr()
     if output_format == "sarif":
         [run] = json.loads(captured.out)["runs"]
@@ -136,7 +160,7 @@ def test_text_stdin_unicode_errors_remain_input_errors(monkeypatch, capsys):
             raise UnicodeError("text stream decoding failed")
 
     monkeypatch.setattr("sys.stdin", UnreadableTextStream())
-    assert main(["scan", "-", "--stdin-filename", "agent.yaml", "--format", "json"]) == 1
+    assert main(["scan", "--no-gate", "-", "--stdin-filename", "agent.yaml", "--format", "json"]) == 1
     [result] = json.loads(capsys.readouterr().out)
     assert result["verdict"] == "ERROR"
     assert result["input_error"] == "Failed to read standard input: text stream decoding failed"
@@ -147,6 +171,6 @@ def test_python_file_keeps_existing_tolerant_extraction(tmp_path, scan):
     path = tmp_path / "pipeline.py"
     path.write_bytes(b"# Legacy comment: \xff\nCONFIDENCE_THRESHOLD = 0.75\n")
 
-    result = scan(path)
+    result = scan(path, gate=False)
     assert result.input_error is None
     assert any(f.pattern_id == "P1" for f in result.structural_findings)

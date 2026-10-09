@@ -11,9 +11,13 @@ inputs:
     description: File or directory containing agent instructions to scan.
     required: true
   fail-on:
-    description: "Verdict threshold that fails the workflow. Leave empty (the default) for advisory mode: the scan reports findings but never fails on verdicts. Set to 'fail' to fail on FAIL verdicts, or 'review' to fail on FAIL or REVIEW verdicts."
+    description: "Raw-mode verdict threshold when gate is false. Leave empty for an advisory raw scan; set to 'fail' for FAIL or 'review' for FAIL and REVIEW. The default gate uses KEEP decisions to block regardless of this input."
     required: false
     default: ""
+  gate:
+    description: "Use the learned finding gate and block KEEP decisions (default true). Set to false to scan raw detector findings and use fail-on severity thresholds."
+    required: false
+    default: "true"
   baseline:
     description: Optional existing baseline file. Only unmatched findings affect the verdict; CI never creates a baseline.
     required: false
@@ -44,10 +48,16 @@ runs:
       shell: bash
       env:
         LINTLANG_PATH: ${{ inputs.path }}
+        LINTLANG_GATE: ${{ inputs.gate }}
         LINTLANG_FAIL_ON: ${{ inputs.fail-on }}
         LINTLANG_BASELINE: ${{ inputs.baseline }}
       run: |
         LINTLANG_ARGS=(scan "$LINTLANG_PATH")
+        case "$LINTLANG_GATE" in
+          true) ;;
+          false) LINTLANG_ARGS+=(--no-gate) ;;
+          *) echo "Error: gate must be 'true' or 'false'." >&2; exit 2 ;;
+        esac
         LINTLANG_FAIL_ON_TRIMMED="$(python -c 'import sys; print(sys.argv[1].strip())' "$LINTLANG_FAIL_ON")"
         if [ -n "$LINTLANG_FAIL_ON_TRIMMED" ]; then
           LINTLANG_ARGS+=(--fail-on "$LINTLANG_FAIL_ON_TRIMMED")
@@ -62,6 +72,7 @@ runs:
       shell: bash
       env:
         LINTLANG_PATH: ${{ inputs.path }}
+        LINTLANG_GATE: ${{ inputs.gate }}
         LINTLANG_FAIL_ON: ${{ inputs.fail-on }}
         LINTLANG_BASELINE: ${{ inputs.baseline }}
         LINTLANG_SARIF_FILE: ${{ inputs.sarif-file }}
@@ -73,6 +84,11 @@ runs:
           exit 1
         fi
         LINTLANG_ARGS=(scan "$LINTLANG_PATH" --format sarif)
+        case "$LINTLANG_GATE" in
+          true) ;;
+          false) LINTLANG_ARGS+=(--no-gate) ;;
+          *) echo "Error: gate must be 'true' or 'false'." >&2; exit 2 ;;
+        esac
         LINTLANG_FAIL_ON_TRIMMED="$(python -c 'import sys; print(sys.argv[1].strip())' "$LINTLANG_FAIL_ON")"
         if [ -n "$LINTLANG_FAIL_ON_TRIMMED" ]; then
           LINTLANG_ARGS+=(--fail-on "$LINTLANG_FAIL_ON_TRIMMED")

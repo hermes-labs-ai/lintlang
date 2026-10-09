@@ -66,6 +66,8 @@ class Finding:
     offset: int | None = None
     """Character offset of the evidence inside ``AgentConfig.system_prompt``.
     The scanner turns it into a file line for text inputs."""
+    gate_decision: str | None = None
+    gate_probability: float | None = None
 
     @property
     def code(self) -> str:

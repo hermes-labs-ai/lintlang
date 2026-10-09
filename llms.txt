@@ -42,3 +42,12 @@ Key success condition:
 ## About Hermes Labs
 
 Hermes Labs is an agentic infrastructure company building the reliability layer for autonomous systems. More at [hermes-labs.ai](https://hermes-labs.ai).
+
+## Private 0.9.0 candidate
+
+- Draft review and migration: docs/release-0.9.0.md
+- Muse testing instructions: docs/testing-0.9.0.md
+- Full frozen-corpus replay: evals/gate_wiring/current-results.json
+- CJK H1.8 replay: evals/gate_wiring/h18-language-results.json
+- Further Korean corpus extraction is parked; source URLs are saved in docs/testing-0.9.0.md.
+- No public publication; private owner review precedes promotion.

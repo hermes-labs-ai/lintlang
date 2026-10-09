@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from lintlang.patterns import AgentConfig, detect_h2, detect_h5
+from lintlang.patterns import AgentConfig, detect_h2
 
 # The exact shape that blocked the 0.4.0 commit, reduced to its essentials.
 DOCUMENTATION_DESCRIBING_ANTIPATTERNS = (
@@ -19,7 +19,7 @@ DOCUMENTATION_DESCRIBING_ANTIPATTERNS = (
 def test_quoted_antipatterns_do_not_fire() -> None:
     """Quoted examples are documentation, not live instructions."""
     config = AgentConfig(system_prompt=DOCUMENTATION_DESCRIBING_ANTIPATTERNS)
-    findings = detect_h2(config) + detect_h5(config)
+    findings = detect_h2(config)
 
     assert findings == []
 
