@@ -19,13 +19,14 @@ from pathlib import Path
 from replay import LABELS, MANIFEST, ROOT, identity, read, sha, write
 
 from lintlang.detectors.h1 import _SKILL_TRIGGER
-from lintlang.detectors.lang import detect, en, ja, normalize, tr, zh
+from lintlang.detectors.lang import detect, en, es, ja, normalize, tr, zh
 from lintlang.parsers import parse_source, read_file_text
 from lintlang.scanner import scan_file
 
 LOCAL = ROOT / ".hermes/local/h18-language"
 BASELINE = "83e8fdb"
-LANGUAGES = {"zh": zh, "ja": ja, "tr": tr, "en": en}
+EXTENSION_BASELINE = "d980608"
+LANGUAGES = {"zh": zh, "ja": ja, "tr": tr, "en": en, "es": es}
 # Human-selected readable examples from the lexical inventory, not negative
 # rules. Their exclusivity is verified against every row in the two cohorts.
 TP_PHRASES = {
@@ -33,12 +34,16 @@ TP_PHRASES = {
     "ja": ("日本語翻訳が必要です", "テスト戦略", "セキュリティベストプラクティス"),
     "tr": ("kapsamlı doğrulama sistemi", "evrensel kodlama standartları", "frontend geliştirme kalıpları"),
     "en": ("Windows native desktop apps", "development for Laravel", "terminal-style screen recording"),
+    "es": (),
+    "ko": ("범용 코딩 표준",),
 }
 TOPIC_PHRASES = {
     "zh": ("专业知识", "年以上经验"),
     "ja": ("を構築します", "を生成します"),
     "tr": ("test kalıpları", "API tasarımı"),
     "en": ("best practices", "architecture patterns"),
+    "es": ("patrones",),
+    "ko": ("본능 기반 학습 시스템",),
 }
 
 
@@ -86,7 +91,7 @@ def lexical_phrases(text: str, language: str) -> set[str]:
     independent). No tokenizer, dictionary, or guessed translation is used.
     """
     text = text.casefold()
-    if language in {"en", "tr"}:
+    if language in {"en", "tr", "es", "ko"}:
         words = re.findall(r"[^\W_]+(?:['’-][^\W_]+)*", text)
         return {" ".join(words[i:i + n]) for n in range(2, 5) for i in range(len(words) - n + 1)}
     runs = re.findall(r"[\u3041-\u30ff\u3400-\u9fff]+", text)
@@ -100,7 +105,8 @@ def occurrence(phrase: str, rows: list[dict], language: str, label: str) -> int:
 
 def mine(rows: list[dict]) -> dict:
     inventories, tables = {}, {}
-    for language, module in LANGUAGES.items():
+    for language in sorted({row["language"] for row in rows}):
+        module = LANGUAGES.get(language)
         counts = {label: Counter(phrase for row in rows if row["language"] == language and row["label"] == label
                                  for phrase in lexical_phrases(row["description"], language))
                   for label in ("FP", "TP")}
@@ -111,14 +117,17 @@ def mine(rows: list[dict]) -> dict:
             for label, other in (("FP", "TP"), ("TP", "FP"))
         }
         mappings = []
-        for (pattern, canonical), (compiled, _) in zip(module._MAP, module._COMPILED, strict=True):
+        pairs = zip(module._MAP, module._COMPILED, strict=True) if module else ()
+        for (pattern, canonical), (compiled, _) in pairs:
             matches = {label: [row for row in rows if row["language"] == language and row["label"] == label
                                and compiled.search(row["description"])] for label in ("FP", "TP")}
             if not matches["FP"] or matches["TP"]:
                 raise ValueError(f"Mapping is not a mined FP-only cue: {language} {pattern}")
             observed = sorted({match.group() for row in matches["FP"] for match in compiled.finditer(row["description"])})
+            sources = [{key: row[key] for key in ("finding_id", "repository", "relative_path")}
+                       for row in matches["FP"]]
             mappings.append({"pattern": pattern, "observed_phrases": observed, "canonical": canonical.strip(),
-                             "fp_rows": len(matches["FP"]), "tp_rows": len(matches["TP"])})
+                             "fp_rows": len(matches["FP"]), "tp_rows": len(matches["TP"]), "fp_sources": sources})
         examples = {}
         for group, phrases, label, other in (("tp_only_examples", TP_PHRASES[language], "TP", "FP"),
                                              ("fp_only_topics_not_normalized", TOPIC_PHRASES[language], "FP", "TP")):
@@ -219,14 +228,23 @@ def report(result: dict) -> str:
              f"Actual scanner replay: FP **{totals['fp_before']} → {totals['fp_after']}** "
              f"({totals['fp_removed']} removed, {totals['fp_reduction']:.2%} reduction); "
              f"TP **{totals['tp_before']} → {totals['tp_after']}** ({totals['tp_retention']:.2%} retention).", "",
-             "| Description language | FP before | FP after | TP before | TP after |",
-             "| --- | ---: | ---: | ---: | ---: |"]
+             "| Description language | FP raw | FP before extension | FP after | TP before | TP after |",
+             "| --- | ---: | ---: | ---: | ---: | ---: |"]
     for language, counts in result["counts"].items():
         if language != "all":
-            lines.append(f"| {language} | {counts['fp_before']} | {counts['fp_after']} | {counts['tp_before']} | {counts['tp_after']} |")
+            prior = result["extension_baseline"]["counts"][language]["fp_after"]
+            lines.append(f"| {language} | {counts['fp_before']} | {prior} | {counts['fp_after']} | {counts['tp_before']} | {counts['tp_after']} |")
+    lines += ["", f"The extension removes {result['extension_baseline']['counts']['all']['fp_after'] - totals['fp_after']} "
+              f"additional FPs from commit `{EXTENSION_BASELINE}`. "
+              f"{len(result['residual_non_english_fp'])} labeled non-English FPs remain flagged; "
+              "the requested all-but-a-couple release criterion is not met. "
+              "Some residual descriptions lack usage clauses, and similar translated descriptions have conflicting "
+              "FP/TP labels. Suppressing topics merely because they occur only in the FP group would change H1.8 semantics."]
     lines += ["", "Language tags come from content: kana → ja, Hangul → ko, Han → zh; Turkish spelling/ASCII cues "
-              "handle Latin text. Spanish is tagged for completeness. Korean and Spanish have no normalizer in this change "
-              "and pass through. Supported languages also run the English adapter to retain cues in mixed text. "
+              "handle Latin text. Spanish now has a mined normalizer. The supplied corpus contains one Korean FP "
+              "and seven Korean TPs, rather than 38 Korean FPs. Its single FP describes a hook-based learning "
+              "system without an activation clause; no reliable Korean cue was mined, so Korean passes through. "
+              "Supported languages also run the English adapter to retain cues in mixed text. "
               "Script detection cannot reliably distinguish Han-only Japanese from Chinese, "
               "or classify arbitrary Latin/mixed text. No language-detection dependency was added.", "",
               "Counts below are row/document frequencies within each language, including duplicate descriptions. "
@@ -243,18 +261,37 @@ def report(result: dict) -> str:
         for mapping in table["mappings"]:
             phrase = ", ".join(mapping["observed_phrases"])
             lines.append(f"| {phrase} | {mapping['fp_rows']} | {mapping['tp_rows']} | {mapping['canonical']} |")
+        added = [mapping for mapping in table["mappings"] if mapping["new_in_extension"]]
+        if added:
+            lines += ["", "| New cue source | Finding | FP skill description |",
+                      "| --- | --- | --- |"]
+            for mapping in added:
+                phrase = ", ".join(mapping["observed_phrases"])
+                for source in mapping["fp_sources"]:
+                    lines.append(f"| {phrase} | {source['finding_id']} | {source['repository']}/{source['relative_path']} |")
+        elif language == "ko":
+            lines += ["", "No new Korean trigger phrase: the only supplied FP, "
+                      "`u-34b071729eea` (`docs/ko-KR/skills/continuous-learning-v2/SKILL.md`), "
+                      "describes internal observation/learning and a feature announcement. "
+                      "The generic `위한` purpose marker also occurs in six of the seven Korean TPs."]
         lines += ["", "| Other distinguishing phrase | Group | Rows | Handling |",
                   "| --- | --- | ---: | --- |"]
         for row in table["fp_only_topics_not_normalized"]:
             lines.append(f"| {row['phrase']} | FP only | {row['rows']} | Topic; unchanged |")
         for row in table["tp_only_examples"]:
             lines.append(f"| {row['phrase']} | TP only | {row['rows']} | No activation clause; unchanged |")
+    lines += ["", "## Remaining non-English FP descriptions", "",
+              "These are the frozen labels, not an assertion that every description contains an activation clause.", "",
+              "| Language | Finding | Skill description |", "| --- | --- | --- |"]
+    for row in result["residual_non_english_fp"]:
+        lines.append(f"| {row['language']} | {row['finding_id']} | {row['repository']}/{row['relative_path']} |")
     lines += ["", "## Reproduction and artifacts", "", "```bash",
               "PYTHONPATH=src python3 evals/gate_wiring/mine_h18_languages.py", "```", "",
               "Requires the existing private frozen corpus. Full tagged descriptions are saved separately in "
               "`.hermes/local/h18-language/fp.jsonl` and `tp.jsonl`. Source/finding provenance is retained. "
-              "`lexical-phrases.json` contains every FP-only/TP-only 2–4 word gram and 3–20 character CJK gram "
-              "from the requested four languages; `validation.jsonl` records before/after flags by finding identity. "
+              "`lexical-phrases.json` contains every FP-only/TP-only 2–4 word gram (including Korean eojeol) "
+              "and 3–20 character Chinese/Japanese gram from the six tagged languages; "
+              "`validation.jsonl` records before/after flags by finding identity. "
               "[Aggregate receipt](h18-language-results.json) pins inputs and output files by SHA-256.", "",
               "The replay verifies every selected source against the manifest, every retained H1.8 identity, "
               "the unchanged English regex AST, and byte-identical other detector/gate/scanner files. "
@@ -270,10 +307,27 @@ def main() -> None:
     rows = extract()
     tables = mine(rows)
     counts = evaluate(rows)
+    previous = json.loads(subprocess.check_output(
+        ["git", "show", f"{EXTENSION_BASELINE}:evals/gate_wiring/h18-language-results.json"], cwd=ROOT,
+    ))
+    for name in ("fp.jsonl", "tp.jsonl"):
+        if previous["cohort_sha256"][name] != sha((LOCAL / name).read_bytes()):
+            raise ValueError("Extension baseline used a different labeled cohort")
+    for language, table in tables.items():
+        prior_pairs = {(mapping["pattern"], mapping["canonical"])
+                       for mapping in previous["phrases"].get(language, {}).get("mappings", [])}
+        for mapping in table["mappings"]:
+            mapping["new_in_extension"] = (mapping["pattern"], mapping["canonical"]) not in prior_pairs
+    flags = {row["finding_id"]: row["flagged_after"] for row in
+             (json.loads(line) for line in (LOCAL / "validation.jsonl").read_text().splitlines())}
+    residuals = [{key: row[key] for key in ("language", "finding_id", "repository", "relative_path")}
+                 for row in rows if row["label"] == "FP" and row["language"] != "en" and flags[row["finding_id"]]]
     result = {"scope": "Frozen labeled development KEEP cohort; no held-out accuracy claim",
               "label_file_sha256": sha(LABELS.read_bytes()), "manifest_sha256": sha(MANIFEST.read_bytes()),
               "historical_seed_sha256": read(MANIFEST)["seed_sha256"], "invariants": checks,
               "counts": counts, "phrases": tables,
+              "extension_baseline": {"commit": EXTENSION_BASELINE, "counts": previous["counts"]},
+              "residual_non_english_fp": residuals,
               "cohort_sha256": {name: sha((LOCAL / name).read_bytes())
                                 for name in ("fp.jsonl", "tp.jsonl", "lexical-phrases.json", "validation.jsonl")},
               "normalizer_sha256": {path.name: sha(path.read_bytes())

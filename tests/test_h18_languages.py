@@ -65,6 +65,7 @@ def test_language_routing_uses_description_content(description, language):
     "Toolkit for interacting with and testing local web applications.",
     "Database patterns for query optimization.",
     "Compaction at logical intervals preserves the project context.",
+    "Patrones para construir aplicaciones.",
 ])
 def test_mined_activation_cues_reach_existing_english_gate(description):
     assert not _SKILL_TRIGGER.search(description)
@@ -137,7 +138,7 @@ def test_existing_english_triggers_are_preserved(description):
     assert not any(finding.code == "H1.8" for finding in findings(description))
 
 
-@pytest.mark.parametrize("parenthetical", ["查询优化", "クエリ最適化", "veritabanı sorgusu"])
+@pytest.mark.parametrize("parenthetical", ["查询优化", "クエリ最適化", "veritabanı sorgusu", "optimización de consultas"])
 def test_supported_language_parenthetical_does_not_hide_mined_english_cue(parenthetical):
     description = f"Database patterns for query optimization ({parenthetical})."
     assert detect(description) != "en"
@@ -147,7 +148,7 @@ def test_supported_language_parenthetical_does_not_hide_mined_english_cue(parent
 
 @pytest.mark.parametrize(("description", "language"), [
     ("훅을 통해 세션을 관찰하는 본능 기반 학습 시스템.", "ko"),
-    ("Patrones para construir aplicaciones.", "es"),
+    ("Patrones de diseño para aplicaciones.", "es"),
     ("适用于数据管理。", "unknown"),
     ("當用戶需要檢查報告時使用。", "zh"),
 ])
@@ -174,7 +175,8 @@ def test_normalization_does_not_change_other_skill_rules():
     assert result["H1.9"].evidence == "WRONG_NAME"
 
 
-@pytest.mark.parametrize("directory", ["zh-trigger", "ja-trigger", "tr-trigger", "en-trigger"])
+@pytest.mark.parametrize("directory", ["zh-trigger", "ja-trigger", "tr-trigger", "en-trigger", "es-trigger",
+                                       "ja-additional-trigger", "tr-additional-trigger"])
 def test_bundled_language_fixtures_have_no_h18_finding(directory):
     path = Path(__file__).resolve().parents[1] / "samples/h18_languages" / directory / "SKILL.md"
     result = scan_file(path, gate=False)

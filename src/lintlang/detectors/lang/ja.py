@@ -7,6 +7,11 @@ they are not activation clauses and are never normalized by themselves.
 import re
 
 _MAP = (
+    # u-6e792b39af1e, social-graph-ranker: the activation condition has an
+    # intervening scope parenthetical. Require the observed positive ending.
+    (r"場合（[^）\n。]+）に使用する(?=[。.!?！？]|$)", " use when "),
+    # u-87a3e9e53107, agent-architecture-audit: explicit intended audience.
+    (r"構築する開発者に必須です(?=[。.!?！？]|$)", " use for developers building "),
     (r"場合にこのスキルを使用(?!しない|しません|するな|すべきではない)", " use this when "),
     (r"場合に使用(?!しない|しません|するな|すべきではない)", " use when "),
     (r"ときに使用(?!しない|しません|するな|すべきではない)", " use when "),
