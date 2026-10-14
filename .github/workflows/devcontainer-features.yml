@@ -22,7 +22,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Validate Feature metadata
-        uses: devcontainers/action@1082abd5d2bf3a11abccba70eef98df068277772 # v1.5.1
+        uses: devcontainers/action@bef2cf2d1a019b00b45e184f83035e01bd1972f3 # v1.5.1
         with:
           validate-only: true
           base-path-to-features: ./integrations/devcontainer/src
@@ -45,7 +45,7 @@ jobs:
           DEVCONTAINER_GHCR_TOKEN: ${{ secrets.DEVCONTAINER_GHCR_TOKEN }}
         run: test -n "${DEVCONTAINER_GHCR_TOKEN}"
       - name: Publish Feature and metadata namespace
-        uses: devcontainers/action@1082abd5d2bf3a11abccba70eef98df068277772 # v1.5.1
+        uses: devcontainers/action@bef2cf2d1a019b00b45e184f83035e01bd1972f3 # v1.5.1
         with:
           publish-features: true
           base-path-to-features: ./integrations/devcontainer/src
