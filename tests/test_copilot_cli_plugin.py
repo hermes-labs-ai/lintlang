@@ -34,10 +34,10 @@ def test_copilot_plugin_has_portable_root_manifest_and_skill() -> None:
     metadata = yaml.safe_load(raw_metadata)
     assert metadata["name"] == SKILL.parent.name == "lintlang-audit"
     assert "Python 3.10+" in metadata["compatibility"]
-    assert 'lintlang scan --format json -- "$file"' in body
+    assert 'lintlang scan --no-gate --format json -- "$file"' in body
     assert "pass it as one argv element" in body
     assert f"uvx --from lintlang=={__version__}" in body
-    assert f'uvx --from lintlang=={__version__} lintlang scan --format json -- "$file"' in body
+    assert f'uvx --from lintlang=={__version__} lintlang scan --no-gate --format json -- "$file"' in body
     assert "if `lintlang --version` succeeded with another version" in body
     assert "`verdict` is `SKIPPED`" in body
     assert "If every named file is `SKIPPED`, the command exits `1`" in body
@@ -50,13 +50,13 @@ def test_copilot_install_path_and_scanner_prerequisite_are_documented() -> None:
     assert "Requires Python 3.10+" in root_skill
 
 
-def test_packaged_skill_scan_command_reports_a_real_finding(tmp_path: Path) -> None:
+def test_packaged_skill_raw_scan_reports_a_real_finding(tmp_path: Path) -> None:
     target = tmp_path / "tool.yaml"
-    target.write_text('tools:\n  - name: process_ticket\n    description: ""\n', encoding="utf-8")
+    target.write_text('tools:\n  - name: process_ticket\n    description: "Get data"\n', encoding="utf-8")
     env = os.environ.copy()
     env["PYTHONPATH"] = str(ROOT / "src")
     result = subprocess.run(
-        [sys.executable, "-m", "lintlang", "scan", "--format", "json", "--", str(target)],
+        [sys.executable, "-m", "lintlang", "scan", "--no-gate", "--format", "json", "--", str(target)],
         capture_output=True,
         text=True,
         env=env,
@@ -66,4 +66,4 @@ def test_packaged_skill_scan_command_reports_a_real_finding(tmp_path: Path) -> N
     assert len(reports) == 1
     report = reports[0]
     assert report["verdict"] == "FAIL"
-    assert any(finding["code"] == "H1.1" for finding in report["structural_findings"])
+    assert any(finding["code"] == "H1.2" for finding in report["structural_findings"])

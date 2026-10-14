@@ -1,0 +1,211 @@
+{
+  "boundary": "Frozen development replay with mixed historical and AI-review labels. KEEP precision uses resolved TP+FP labels; this is not held-out population accuracy. Default scanner delivery, scores, identities, and unchanged gate artifacts checked. Excluded language records are not counted as FP or TP. Historical receipts are preserved.",
+  "by_rule": {
+    "H1.7": {
+      "by_decision": {
+        "ESCALATE": {},
+        "KEEP": {
+          "TP": 1
+        }
+      },
+      "keep_false_positives_by_rule": {},
+      "keep_precision_percent": 100.0,
+      "raw_findings": 1,
+      "visible_false_positive_share_percent": 0.0,
+      "visible_findings": 1,
+      "visible_labels": {
+        "TP": 1
+      }
+    },
+    "H1.8": {
+      "by_decision": {
+        "DISMISS": {
+          "FP": 9,
+          "TP": 4
+        },
+        "ESCALATE": {
+          "FP": 15,
+          "TP": 125
+        },
+        "KEEP": {
+          "FP": 10,
+          "TP": 120
+        }
+      },
+      "keep_false_positives_by_rule": {
+        "H1.8": 10
+      },
+      "keep_precision_percent": 92.3076923076923,
+      "raw_findings": 283,
+      "visible_false_positive_share_percent": 9.25925925925926,
+      "visible_findings": 270,
+      "visible_labels": {
+        "FP": 25,
+        "TP": 245
+      }
+    },
+    "H1.9": {
+      "by_decision": {
+        "DISMISS": {
+          "FP": 1
+        },
+        "ESCALATE": {
+          "TP": 1
+        },
+        "KEEP": {}
+      },
+      "keep_false_positives_by_rule": {},
+      "keep_precision_percent": null,
+      "raw_findings": 2,
+      "visible_false_positive_share_percent": 0.0,
+      "visible_findings": 1,
+      "visible_labels": {
+        "TP": 1
+      }
+    },
+    "H2": {
+      "by_decision": {
+        "DISMISS": {
+          "FP": 1
+        },
+        "ESCALATE": {},
+        "KEEP": {}
+      },
+      "keep_false_positives_by_rule": {},
+      "keep_precision_percent": null,
+      "raw_findings": 1,
+      "visible_false_positive_share_percent": null,
+      "visible_findings": 0,
+      "visible_labels": {}
+    },
+    "H4": {
+      "by_decision": {
+        "DISMISS": {
+          "FP": 7,
+          "TP": 6
+        },
+        "ESCALATE": {
+          "FP": 1
+        },
+        "KEEP": {}
+      },
+      "keep_false_positives_by_rule": {},
+      "keep_precision_percent": null,
+      "raw_findings": 14,
+      "visible_false_positive_share_percent": 100.0,
+      "visible_findings": 1,
+      "visible_labels": {
+        "FP": 1
+      }
+    },
+    "H4.5": {
+      "by_decision": {
+        "DISMISS": {
+          "FP": 1,
+          "TP": 2
+        },
+        "ESCALATE": {
+          "FP": 7,
+          "TP": 36
+        },
+        "KEEP": {
+          "TP": 58
+        }
+      },
+      "keep_false_positives_by_rule": {},
+      "keep_precision_percent": 100.0,
+      "raw_findings": 104,
+      "visible_false_positive_share_percent": 6.930693069306931,
+      "visible_findings": 101,
+      "visible_labels": {
+        "FP": 7,
+        "TP": 94
+      }
+    }
+  },
+  "current": {
+    "by_decision": {
+      "DISMISS": {
+        "FP": 19,
+        "TP": 12
+      },
+      "ESCALATE": {
+        "FP": 23,
+        "TP": 162
+      },
+      "KEEP": {
+        "FP": 10,
+        "TP": 179
+      }
+    },
+    "keep_false_positives_by_rule": {
+      "H1.8": 10
+    },
+    "keep_precision_percent": 94.70899470899471,
+    "raw_findings": 405,
+    "visible_false_positive_share_percent": 8.823529411764707,
+    "visible_findings": 374,
+    "visible_labels": {
+      "FP": 33,
+      "TP": 341
+    }
+  },
+  "detector_source_sha256": {
+    "src/lintlang/detectors/__init__.py": "ec61dc7c24e2698f2be9494430fa89e535d6556ecb54defff3090eab18e79cc5",
+    "src/lintlang/detectors/h1.py": "a5b978745c223ec8a62b8c64542166bfc15b94c79d3aed710897d6ce0e2dda1f",
+    "src/lintlang/detectors/lang/__init__.py": "ff155f6fbf7b8940d6d0180e1e698a47a01230b555b07dd3120dc8b2ef123f63",
+    "src/lintlang/detectors/lang/en.py": "550a4ce17a1e6a5068eff746245dc83dd515839119b3d0efb3c600fd65da2209",
+    "src/lintlang/detectors/lang/es.py": "e44db15cf988d9a8e5023e1a93a0a9f09d4e7ac838febc10707fab529408ca71",
+    "src/lintlang/detectors/lang/ja.py": "e0914ca1102a0078384d5d49055371ebb0c17953a77f49dc11bf77b070440602",
+    "src/lintlang/detectors/lang/ko.py": "d81fb3a09f9b5c1c48071140ea06f4e6de423e2fb9bd6a471128e29d84201a13",
+    "src/lintlang/detectors/lang/tr.py": "a9eb1a46761ca42e973aa23e2a2d1cd0aab56f0614ef95ee8f38ef5910cecb5c",
+    "src/lintlang/detectors/lang/zh.py": "78e5118c45b70d512a734a9d514bfcbd6f1e70c804b4284f7f7e2d0f24d95aa0",
+    "src/lintlang/extractors.py": "f0109d3d23dde628bf021fcb7ce54956c9490ca61b5672a87e22fc39463706e3",
+    "src/lintlang/parsers.py": "8838b450d51df1ec7eb5effba21eafa3c404f21d340b171d8fe2fd1ac0156ad8",
+    "src/lintlang/patterns.py": "3a8c420e39fa0c5515be01e8661f9761bae3a6e84901a6ea7bc6e1be9bf62e90",
+    "src/lintlang/scanner.py": "4b7c9aaa23a2e44e8c8132462f2fa6fabf456811f5e9db16ae36b8b0e56e819b"
+  },
+  "frozen_findings": 972,
+  "h18_all_tp_retained": 249,
+  "h18_keep_counts": {
+    "fp_after": 10,
+    "fp_before": 63,
+    "fp_excluded": 109,
+    "fp_input": 172,
+    "fp_reduction": 0.8412698412698413,
+    "fp_removed": 53,
+    "tp_after": 120,
+    "tp_before": 120,
+    "tp_excluded": 6,
+    "tp_input": 126,
+    "tp_retention": 1.0
+  },
+  "labels_sha256": "10ebab44730f469d14ed22dbe191ca493b4944421db5d3b6d051bbc42ad9c444",
+  "manifest_sha256": "e693f3f61a4e78390d67174e32d9a04aa0e96708d5cd116de518ec073624731c",
+  "model_artifact_sha256": {
+    "src/lintlang/gate/artifacts/model.json": "aa50b46bb26311602884801e3c68f750ccc87ed39f0206d12031817df2d98c8d",
+    "src/lintlang/gate/artifacts/scaler.json": "a3d1962a849f069ecd3040c2a2d7c39762a33dd34fe04d9ad1286ec8c4b6d928",
+    "src/lintlang/gate/artifacts/thresholds.json": "0d26d190c226a71477bd5be72eb52d54584f38a158e0094d120de1bb85c064e3"
+  },
+  "removed": {
+    "H1.8 language excluded": {
+      "FP": 114,
+      "TP": 23
+    },
+    "H1.8 trigger recognized": {
+      "FP": 118
+    },
+    "H5 retired": {
+      "FP": 310,
+      "TP": 1,
+      "UNRESOLVED": 1
+    }
+  },
+  "status": "PASS_REPLAY",
+  "thresholds": {
+    "dismiss": 0.15,
+    "keep": 0.85
+  },
+  "verified_source_files": 1599,
+  "version": "0.9.0"
+}

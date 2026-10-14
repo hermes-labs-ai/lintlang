@@ -39,7 +39,9 @@ def test_instruction_surface_scope_is_narrow() -> None:
 def test_fail_keeps_one_coding_turn_open(tmp_path) -> None:
     prompt = tmp_path / "prompts" / "agent.yaml"
     prompt.parent.mkdir()
-    prompt.write_text('tools:\n  - name: lookup\n    description: "Do stuff"\n', encoding="utf-8")
+    prompt = tmp_path / "audit" / "SKILL.md"
+    prompt.parent.mkdir()
+    prompt.write_text("---\nname: audit\ndescription: Build MCP servers with the TypeScript SDK, typed tools, resource handlers, prompts, schema validation, HTTP transports and deployment configuration (工具配置指南).\n---\nBody.\n", encoding="utf-8")
 
     result = pre_verify(coding=True, attempt=0, changed_paths=[str(prompt)])
 

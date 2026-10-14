@@ -30,7 +30,7 @@ class TestStdinRejections:
     def test_dash_without_stdin_filename_is_rejected(self, stdin_text, capsys):
         stdin_text("system_prompt: Be concise.\n")
 
-        exit_code = main(["scan", "-"])
+        exit_code = main(["scan", "--no-gate", "-"])
 
         assert exit_code != 0
         assert "--stdin-filename" in capsys.readouterr().err
@@ -38,14 +38,14 @@ class TestStdinRejections:
     def test_more_than_one_dash_is_rejected(self, stdin_text, capsys):
         stdin_text("system_prompt: Be concise.\n")
 
-        exit_code = main(["scan", "-", "-", "--stdin-filename", "agent.yaml"])
+        exit_code = main(["scan", "--no-gate", "-", "-", "--stdin-filename", "agent.yaml"])
 
         assert exit_code != 0
         assert "exactly once" in capsys.readouterr().err
 
     def test_stdin_filename_without_dash_is_rejected(self, capsys):
         exit_code = main(
-            ["scan", str(SAMPLES_DIR / "clean_config.yaml"), "--stdin-filename", "agent.yaml"]
+            ["scan", "--no-gate", str(SAMPLES_DIR / "clean_config.yaml"), "--stdin-filename", "agent.yaml"]
         )
 
         assert exit_code != 0
@@ -56,7 +56,7 @@ class TestStdinIdentity:
     def test_virtual_path_drives_parser_selection(self, stdin_text, capsys):
         stdin_text('{"system_prompt": "You are helpful."}\n')
 
-        exit_code = main(["scan", "-", "--stdin-filename", "config/agent.json", "--format", "json"])
+        exit_code = main(["scan", "--no-gate", "-", "--stdin-filename", "config/agent.json", "--format", "json"])
 
         assert exit_code == 0
         data = json.loads(capsys.readouterr().out)
@@ -68,7 +68,7 @@ class TestStdinIdentity:
         source = (SAMPLES_DIR / "bad_tool_descriptions.yaml").read_text(encoding="utf-8")
         stdin_text(source)
 
-        exit_code = main(["scan", "-", "--stdin-filename", "virtual/tools.yaml", "--format", "json"])
+        exit_code = main(["scan", "--no-gate", "-", "--stdin-filename", "virtual/tools.yaml", "--format", "json"])
 
         assert exit_code == 0
         data = json.loads(capsys.readouterr().out)
@@ -82,11 +82,11 @@ class TestStdinIdentity:
     def test_stdin_json_matches_a_real_file_scan(self, sample, stdin_text, capsys):
         path = SAMPLES_DIR / sample
 
-        assert main(["scan", str(path), "--format", "json"]) == 0
+        assert main(["scan", "--no-gate", str(path), "--format", "json"]) == 0
         from_file = capsys.readouterr().out
 
         stdin_text(path.read_text(encoding="utf-8"))
-        assert main(["scan", "-", "--stdin-filename", str(path), "--format", "json"]) == 0
+        assert main(["scan", "--no-gate", "-", "--stdin-filename", str(path), "--format", "json"]) == 0
         from_stdin = capsys.readouterr().out
 
         assert from_stdin == from_file
@@ -94,7 +94,7 @@ class TestStdinIdentity:
     def test_python_virtual_path_uses_extraction(self, stdin_text, capsys):
         stdin_text('CONFIDENCE_THRESHOLD = 0.75\n')
 
-        exit_code = main(["scan", "-", "--stdin-filename", "pipeline.py", "--format", "json"])
+        exit_code = main(["scan", "--no-gate", "-", "--stdin-filename", "pipeline.py", "--format", "json"])
 
         assert exit_code == 0
         data = json.loads(capsys.readouterr().out)
@@ -106,11 +106,11 @@ class TestStdinIdentity:
         real = tmp_path / "pipeline.py"
         real.write_text(source, encoding="utf-8")
 
-        assert main(["scan", str(real), "--format", "json"]) == 0
+        assert main(["scan", "--no-gate", str(real), "--format", "json"]) == 0
         from_file = capsys.readouterr().out
 
         stdin_text(source)
-        assert main(["scan", "-", "--stdin-filename", str(real), "--format", "json"]) == 0
+        assert main(["scan", "--no-gate", "-", "--stdin-filename", str(real), "--format", "json"]) == 0
         from_stdin = capsys.readouterr().out
 
         assert from_stdin == from_file
@@ -118,7 +118,7 @@ class TestStdinIdentity:
     def test_unparsable_python_stdin_is_a_fatal_input_error(self, stdin_text, capsys):
         stdin_text("def broken(:\n")
 
-        exit_code = main(["scan", "-", "--stdin-filename", "pipeline.py", "--format", "json"])
+        exit_code = main(["scan", "--no-gate", "-", "--stdin-filename", "pipeline.py", "--format", "json"])
 
         assert exit_code == 1
         data = json.loads(capsys.readouterr().out)
@@ -130,7 +130,7 @@ class TestStdinIdentity:
 
         exit_code = main(
             [
-                "scan",
+                "scan", "--no-gate",
                 str(SAMPLES_DIR / "clean_config.yaml"),
                 "-",
                 "--stdin-filename", "virtual/agent.yaml",
@@ -155,11 +155,11 @@ class TestStdinIdentity:
         real.write_text(source, encoding="utf-8")
         baseline = tmp_path / "baseline.json"
 
-        assert main(["scan", "tools.yaml", "--write-baseline", str(baseline)]) == 0
+        assert main(["scan", "--no-gate", "tools.yaml", "--write-baseline", str(baseline)]) == 0
         capsys.readouterr()
 
         stdin_text(source)
-        assert main(["scan", "-", "--stdin-filename", "tools.yaml", "--baseline", str(baseline), "--format", "json"]) == 0
+        assert main(["scan", "--no-gate", "-", "--stdin-filename", "tools.yaml", "--baseline", str(baseline), "--format", "json"]) == 0
         data = json.loads(capsys.readouterr().out)
         assert data[0]["file"] == "tools.yaml"
         assert data[0]["structural_findings"] == []

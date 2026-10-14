@@ -38,10 +38,26 @@ def _quality_threshold(value: str) -> float:
     return threshold
 
 
+def _gate_threshold(value: str) -> tuple[float, float]:
+    """Parse KEEP or KEEP,DISMISS with a finite ordered decision boundary."""
+    parts = value.split(",")
+    message = "requires KEEP or KEEP,DISMISS with finite 0 <= DISMISS < KEEP <= 1"
+    if len(parts) not in (1, 2):
+        raise argparse.ArgumentTypeError(message)
+    try:
+        keep = float(parts[0])
+        dismiss = float(parts[1]) if len(parts) == 2 else 0.15
+    except ValueError:
+        raise argparse.ArgumentTypeError(message) from None
+    if not (math.isfinite(keep) and math.isfinite(dismiss) and 0 <= dismiss < keep <= 1):
+        raise argparse.ArgumentTypeError(message)
+    return keep, dismiss
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="lintlang",
-        description="Linguistic linter for AI agent systems. H1-H7 structural analysis with PASS/REVIEW/FAIL verdicts.",
+        description="Linguistic linter for AI agent systems with PASS/REVIEW/FAIL verdicts.",
     )
     parser.add_argument("--version", action="version", version=f"lintlang {__version__}")
 
@@ -153,6 +169,16 @@ def main(argv: list[str] | None = None) -> int:
         default="terminal",
         help="Output format (default: terminal)",
     )
+    gate_group = scan_parser.add_mutually_exclusive_group()
+    gate_group.add_argument("--gate", dest="gate", action="store_true", default=True,
+                            help="Deprecated compatibility alias for the default learned gate; use --no-gate for raw mode")
+    gate_group.add_argument("--no-gate", dest="gate", action="store_false",
+                            help="Use raw detector findings and severity verdicts without the learned gate")
+    scan_parser.add_argument(
+        "--gate-threshold", type=_gate_threshold, metavar="KEEP[,DISMISS]",
+        help="Gate boundaries: KEEP score >= KEEP, DISMISS score < DISMISS; "
+             "finite 0 <= DISMISS < KEEP <= 1 (default: 0.85,0.15). Only with gate enabled.",
+    )
     scan_parser.add_argument(
         "--no-suggestions",
         action="store_true",
@@ -162,19 +188,19 @@ def main(argv: list[str] | None = None) -> int:
         "--min-severity",
         choices=["critical", "high", "medium", "low", "info"],
         default="info",
-        help="Minimum severity for structural findings (default: info)",
+        help="Explicitly select findings at or above this raw severity (default: info); only selected KEEP findings block",
     )
     scan_parser.add_argument(
         "--fail-under",
         type=_quality_threshold,
         default=0.0,
-        help="Exit with code 1 if quality score is below this finite 0-100 threshold; 0 disables (legacy; prefer --fail-on)",
+        help="Independent HERM quality-score exit threshold (finite 0-100); may block even when all gate decisions are ESCALATE or DISMISS; 0 disables",
     )
     scan_parser.add_argument(
         "--fail-on",
         choices=["fail", "review"],
         default=None,
-        help="Exit with code 1 on verdict: 'fail' (any CRITICAL/HIGH) or 'review' (any MEDIUM+). Default: no exit on verdict.",
+        help="In --no-gate mode, exit 1 on raw severity: 'fail' (HIGH+) or 'review' (MEDIUM+). Gate mode always blocks KEEP and leaves ESCALATE advisory.",
     )
     scan_parser.add_argument(
         "--exclude",
@@ -220,7 +246,7 @@ def _cmd_patterns() -> int:
     from .patterns import PATTERNS
 
     print()
-    print("  STRUCTURAL DETECTORS (H1-H7)")
+    print("  STRUCTURAL DETECTORS")
     print("  " + "─" * 50)
     for pid, info in sorted(PATTERNS.items()):
         print(f"  {pid}: {info['name']}")
@@ -232,11 +258,14 @@ def _cmd_patterns() -> int:
 
 
 def _cmd_scan(args: argparse.Namespace) -> int:
-    """Scan files with H1-H7 structural detectors."""
+    """Scan files with structural detectors and the learned gate."""
     import json as json_mod
     import time
 
     t_start = time.monotonic()
+    if not args.gate and args.gate_threshold is not None:
+        print("Error: --gate-threshold requires the gate; remove --no-gate.", file=sys.stderr)
+        return 2
 
     if args.dry_run and not args.fix:
         print("Error: --dry-run requires --fix.", file=sys.stderr)
@@ -413,7 +442,8 @@ def _cmd_scan(args: argparse.Namespace) -> int:
             except (OSError, UnicodeError) as error:
                 results[str(virtual)] = input_error_result(virtual, f"Failed to read standard input: {error}")
                 continue
-            result = scan_source(text, virtual, patterns=args.patterns, explicit=not args.allow_uninspected)
+            result = scan_source(text, virtual, patterns=args.patterns, explicit=not args.allow_uninspected,
+                                 gate=args.gate, gate_thresholds=args.gate_threshold)
             result.structural_findings = [
                 f for f in result.structural_findings if severity_order.get(f.severity.value, 4) <= min_sev
             ]
@@ -430,6 +460,8 @@ def _cmd_scan(args: argparse.Namespace) -> int:
                 path,
                 patterns=args.patterns,
                 exclude=args.exclude,
+                gate=args.gate,
+                gate_thresholds=args.gate_threshold,
             )
             for fpath, result in dir_results.items():
                 result.structural_findings = [
@@ -439,7 +471,8 @@ def _cmd_scan(args: argparse.Namespace) -> int:
             continue
 
         try:
-            result = scan_file(path, patterns=args.patterns, explicit=not args.allow_uninspected)
+            result = scan_file(path, patterns=args.patterns, explicit=not args.allow_uninspected,
+                               gate=args.gate, gate_thresholds=args.gate_threshold)
             result.structural_findings = [
                 f for f in result.structural_findings if severity_order.get(f.severity.value, 4) <= min_sev
             ]
@@ -501,7 +534,7 @@ def _cmd_scan(args: argparse.Namespace) -> int:
             requested = ", ".join(sorted(args.patterns))
             print(
                 f"Warning: --patterns {requested} do not apply to Python extraction mode "
-                "(only H2, H4, H5, H6 run against prompts extracted from .py files); "
+                "(only H2, H4 run against prompts extracted from .py files); "
                 f"{len(scanned_python_files)} Python file(s) will report zero structural "
                 "findings for these patterns regardless of content.",
                 file=sys.stderr,
@@ -589,6 +622,10 @@ def _cmd_scan(args: argparse.Namespace) -> int:
                     "inspected": result.inspected,
                     "not_inspected": result.notes,
                     "skipped": result.skipped,
+                    **({"gate": {"status": result.gate_status, "error": result.gate_error,
+                                 "thresholds": result.gate_thresholds,
+                                 "raw_findings": result.raw_findings_count,
+                                 "suppressed": result.suppressed_count}} if args.gate else {}),
                     "structural_findings": [
                         {
                             "pattern_id": f.pattern_id,
@@ -602,6 +639,7 @@ def _cmd_scan(args: argparse.Namespace) -> int:
                             "description": f.description,
                             "suggestion": f.suggestion,
                             "evidence": f.evidence,
+                            **({"gate_decision": f.gate_decision, "gate_probability": f.gate_probability} if args.gate else {}),
                         }
                         for f in result.structural_findings
                     ],
@@ -690,6 +728,15 @@ def _cmd_scan(args: argparse.Namespace) -> int:
                 file=sys.stderr,
             )
         sarif_output_errors = location_errors
+        if args.gate:
+            raw_count = sum(r.raw_findings_count for r in results.values())
+            suppressed = sum(r.suppressed_count for r in results.values())
+            print(f"Gate: {raw_count} raw finding(s), {suppressed} dismissed from GitLab output.", file=sys.stderr)
+
+    if args.gate and args.format != "json":
+        for result in results.values():
+            if result.gate_error:
+                print(f"Error: {result.file}: {result.gate_error}", file=sys.stderr)
 
     # Summary table for multi-file terminal scans
     if args.format == "terminal" and len(results) > 1:
@@ -732,7 +779,7 @@ def _cmd_scan(args: argparse.Namespace) -> int:
 
     # Input integrity is a fatal channel, independent of lint severity and
     # --fail-on. Never let another valid input mask a requested input error.
-    if input_errors or sarif_output_errors:
+    if input_errors or sarif_output_errors or any(r.gate_status == "unavailable" for r in results.values()):
         return 1
 
     if pending_baseline is not None:
@@ -746,8 +793,13 @@ def _cmd_scan(args: argparse.Namespace) -> int:
         count = sum(entry["count"] for entry in pending_baseline["entries"])
         print(f"Baseline written to {args.write_baseline}: {count} finding(s). Review before committing.", file=sys.stderr)
 
-    # Verdict-based exit
-    if args.fail_on:
+    # Gate decisions own blocking semantics. ESCALATE remains advisory even
+    # when --fail-on review was supplied for raw severity scans.
+    if args.gate and any(compute_verdict(r) == "FAIL" for r in results.values()):
+        return 1
+
+    # Raw severity verdicts preserve the historical --fail-on contract.
+    if not args.gate and args.fail_on:
         verdicts = [compute_verdict(r) for r in results.values()]
         if args.fail_on == "fail" and "FAIL" in verdicts:
             worst = next(r for r in results.values() if compute_verdict(r) == "FAIL")

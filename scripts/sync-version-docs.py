@@ -16,10 +16,21 @@ REPLACEMENTS = (
 )
 
 
-def product_docs(root: Path) -> list[Path]:
+def product_docs(root: Path, version: str) -> list[Path]:
     candidates = [root / "llms.txt", root / "llms-full.txt"]
     candidates.extend(sorted((root / "docs").rglob("*.md")))
-    return [path for path in candidates if path.is_file() and path.name.lower() != "readme.md"]
+    current_match = re.match(r"(\d+)\.(\d+)\.(\d+)", version)
+    assert current_match is not None
+    current = tuple(int(part) for part in current_match.groups())
+    selected = []
+    for path in candidates:
+        if not path.is_file() or path.name.lower() == "readme.md":
+            continue
+        release_match = re.fullmatch(r"release-(\d+)\.(\d+)\.(\d+)\.md", path.name)
+        if release_match and tuple(int(part) for part in release_match.groups()) < current:
+            continue
+        selected.append(path)
+    return selected
 
 
 def synchronized(text: str, version: str) -> str:
@@ -40,7 +51,7 @@ def main(argv: list[str] | None = None) -> int:
 
     changed: list[Path] = []
     root = args.root.resolve()
-    for path in product_docs(root):
+    for path in product_docs(root, args.version):
         before = path.read_text(encoding="utf-8")
         after = synchronized(before, args.version)
         if after == before:

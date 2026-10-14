@@ -27,7 +27,7 @@ fails=0
 unexpected=0
 
 for f in "${EXPECTED_FAIL[@]}"; do
-    if lintlang scan "$f" --fail-on fail >/dev/null 2>&1; then
+    if lintlang scan "$f" --no-gate --fail-on fail >/dev/null 2>&1; then
         echo "UNEXPECTED PASS on known-bad: $f"
         unexpected=$((unexpected+1))
     else
@@ -37,7 +37,7 @@ for f in "${EXPECTED_FAIL[@]}"; do
 done
 
 for f in "${EXPECTED_PASS[@]}"; do
-    if lintlang scan "$f" --fail-on fail >/dev/null 2>&1; then
+    if lintlang scan "$f" --no-gate --fail-on fail >/dev/null 2>&1; then
         echo "  ✓ correctly passed:  $f"
     else
         echo "UNEXPECTED FAIL on known-clean: $f"

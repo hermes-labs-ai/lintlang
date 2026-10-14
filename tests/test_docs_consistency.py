@@ -63,7 +63,7 @@ def test_reference_failing_demo_count_matches_the_fixture():
 
     from lintlang.scanner import scan_file
 
-    findings = scan_file(REPO_ROOT / "samples/bad_tool_descriptions.yaml").structural_findings
+    findings = scan_file(REPO_ROOT / "samples/bad_tool_descriptions.yaml", gate=False).structural_findings
     counts = Counter(finding.severity.name for finding in findings)
     summary = ", ".join(
         f"{counts[severity]} {severity}"
@@ -151,12 +151,12 @@ def test_reference_api_example_executes_with_real_findings(tmp_path, monkeypatch
     assert example is not None
     monkeypatch.chdir(tmp_path)
     (tmp_path / "config.yaml").write_text(
-        'tools:\n  - name: process_ticket\n    description: ""\n', encoding="utf-8",
+        'tools:\n  - name: process_ticket\n    description: "Get data"\n', encoding="utf-8",
     )
     (tmp_path / "prompts").mkdir()
     exec(compile(example.group(1), "llms-full.txt API example", "exec"), {})
     output = capsys.readouterr().out
-    assert "FAIL" in output and "H1.1" in output
+    assert "FAIL" in output and "H1.2" in output
     (tmp_path / "config.yaml").unlink()
     exec(compile(example.group(1), "llms-full.txt API example", "exec"), {})
     assert "ERROR" in capsys.readouterr().out

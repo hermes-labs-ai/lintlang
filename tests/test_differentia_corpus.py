@@ -6,13 +6,15 @@ match the design. This module measures it against text nobody wrote for us, and
 freezes the result, so that a later lexicon edit cannot buy recall with silent
 precision loss.
 
-The corpus is NOT vendored. It is read from the locally installed Claude Code
-plugin marketplace when present, and the module skips otherwise. That keeps
-third-party description text out of this repository while keeping the
-measurement reproducible on any machine that has the marketplace.
+The corpus is NOT vendored. It is read in memory from a pinned Git snapshot of
+the locally installed Claude Code plugin marketplace, and the module skips
+when that snapshot is unavailable. Reading the mutable installed files lets
+marketplace updates change these counts without any detector change. The
+snapshot keeps third-party description text out of this repository and fixes
+the input of the precision tripwire.
 
 **Consequence worth stating plainly: these three tests do not run in CI.** No
-GitHub Actions runner has that marketplace installed, so the suite gates 266
+GitHub Actions runner has that snapshot installed, so the suite gates 266
 there and 269 on a maintainer machine. The one test measuring this detector
 against text nobody wrote for the project is therefore a local pre-merge check,
 not an automated gate. Quote 266 when quoting a CI number. Vendoring a small
@@ -85,9 +87,12 @@ red test green.
 
 from __future__ import annotations
 
+import io
 import itertools
 import os
 import re
+import subprocess
+import tarfile
 from pathlib import Path
 
 import pytest
@@ -97,6 +102,12 @@ from lintlang.patterns import AgentConfig, ToolDef, _differentia, detect_h1
 MARKETPLACE = Path(
     os.path.expanduser("~/.claude/plugins/marketplaces/claude-plugins-official")
 )
+
+# The 2026-08-05 local Git snapshot of ~/.claude contains the original 76-entry
+# corpus. Its marketplace .gcs-sha records upstream revision
+# 87c11d11ec90ecabd5def24a11929c0f6e4614b0. No third-party text is vendored;
+# machines without this snapshot explicitly skip this local-only tripwire.
+MARKETPLACE_SNAPSHOT = "d3a0294ff418fbc4b67be784f78a6e21ea0139a5"
 
 # Was 5. The fifth was H1.5 on `agent-sdk-verifier-py` vs `-ts`, which the note
 # above already calls a real distinction ("differ only by language"). H1.5 no
@@ -114,29 +125,48 @@ _DESCRIPTION = re.compile(r"^description:\s*(.+?)(?=\n[a-z_-]+:\s|\Z)", re.S | r
 
 def _load_corpus() -> list[ToolDef]:
     """Real skill/agent/command descriptions from independent plugin authors."""
+    try:
+        root = subprocess.run(
+            ["git", "-C", str(MARKETPLACE), "rev-parse", "--show-toplevel"],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        prefix = MARKETPLACE.resolve().relative_to(Path(root).resolve()).as_posix()
+        archive = subprocess.run(
+            ["git", "-C", root, "archive", MARKETPLACE_SNAPSHOT, prefix],
+            check=True,
+            capture_output=True,
+        ).stdout
+    except (OSError, subprocess.CalledProcessError, ValueError):
+        pytest.skip(f"pinned marketplace snapshot {MARKETPLACE_SNAPSHOT} unavailable")
+
     seen: dict[str, str] = {}
-    for path in MARKETPLACE.rglob("*.md"):
-        try:
-            text = path.read_text(errors="replace")
-        except OSError:
-            continue
-        matter = _FRONTMATTER.match(text)
-        if not matter:
-            continue
-        block = matter.group(1)
-        described = _DESCRIPTION.search(block)
-        if not described:
-            continue
-        description = " ".join(described.group(1).split())
-        if len(description) < 12:
-            continue
-        named = _NAME.search(block)
-        name = named.group(1).strip() if named else path.parent.name
-        # Key on owning plugin + name: two plugins may each ship a skill called
-        # "commands", and both are legitimate independent entries.
-        parts = path.relative_to(MARKETPLACE).parts
-        plugin = parts[1] if len(parts) > 1 else parts[0]
-        seen.setdefault(f"{plugin}\t{name}", description)
+    with tarfile.open(fileobj=io.BytesIO(archive)) as snapshot:
+        for member in snapshot:
+            if not member.isfile() or not member.name.endswith(".md"):
+                continue
+            source = snapshot.extractfile(member)
+            assert source is not None
+            text = source.read().decode("utf-8", errors="replace")
+            matter = _FRONTMATTER.match(text)
+            if not matter:
+                continue
+            block = matter.group(1)
+            described = _DESCRIPTION.search(block)
+            if not described:
+                continue
+            description = " ".join(described.group(1).split())
+            if len(description) < 12:
+                continue
+            path = Path(member.name).relative_to(prefix)
+            named = _NAME.search(block)
+            name = named.group(1).strip() if named else path.parent.name
+            # Key on owning plugin + name: two plugins may each ship a skill
+            # called "commands", and both are legitimate independent entries.
+            parts = path.parts
+            plugin = parts[1] if len(parts) > 1 else parts[0]
+            seen.setdefault(f"{plugin}\t{name}", description)
     return [ToolDef(key.split("\t", 1)[1], desc) for key, desc in sorted(seen.items())]
 
 

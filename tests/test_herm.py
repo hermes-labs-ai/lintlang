@@ -31,7 +31,7 @@ def test_priority_order_prose_corpus_boundary() -> None:
 
 
 def test_priority_order_prose_scanner_fixture() -> None:
-    result = scan_file(SAMPLES_DIR / "herm_priority_ordering.yaml")
+    result = scan_file(SAMPLES_DIR / "herm_priority_ordering.yaml", gate=False)
 
     assert result.input_error is None
     assert result.herm.signal_counts["priority"] == 1

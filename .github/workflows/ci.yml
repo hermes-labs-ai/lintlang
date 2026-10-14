@@ -40,6 +40,20 @@ jobs:
       - name: Self-scan samples
         run: lintlang scan samples/clean_config.yaml --format json
 
+  package-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - run: python -m pip install build twine
+      - run: python -m build
+      - run: python -m twine check dist/*
+      - run: python scripts/smoke_distributions.py dist
+
   action-smoke:
     runs-on: ubuntu-latest
 
@@ -53,10 +67,11 @@ jobs:
         with:
           path: samples/clean_config.yaml
 
-      - name: Action remains advisory on a failing fixture by default
+      - name: Action raw scan remains advisory without fail-on
         uses: ./
         with:
           path: samples/bad_tool_descriptions.yaml
+          gate: 'false'
 
       - name: Action fails on a failing fixture with explicit enforcement
         id: failing-scan
@@ -64,6 +79,7 @@ jobs:
         uses: ./
         with:
           path: samples/bad_tool_descriptions.yaml
+          gate: 'false'
           fail-on: fail
 
       - name: Assert failing fixture returned failure
@@ -71,8 +87,20 @@ jobs:
           ACTION_OUTCOME: ${{ steps.failing-scan.outcome }}
         run: test "$ACTION_OUTCOME" = "failure"
 
+      - name: Action default gate blocks a retained finding
+        id: gated-failing-scan
+        continue-on-error: true
+        uses: ./
+        with:
+          path: samples/bad_system_prompt.txt
+
+      - name: Assert default gate returned failure
+        env:
+          ACTION_OUTCOME: ${{ steps.gated-failing-scan.outcome }}
+        run: test "$ACTION_OUTCOME" = "failure"
+
       - name: Released Action writes clean SARIF
-        uses: hermes-labs-ai/lintlang@6aace2a175483757c64d7aa2105346d1cc34b857 # v0.7.1
+        uses: hermes-labs-ai/lintlang@6115fb5b86611b81e18144a9d9ec7111b68978f5 # v0.8.2
         with:
           path: samples/clean_config.yaml
           sarif-file: lintlang-clean.sarif
@@ -80,9 +108,10 @@ jobs:
       - name: Released Action writes failing SARIF
         id: released-failing-scan
         continue-on-error: true
-        uses: hermes-labs-ai/lintlang@6aace2a175483757c64d7aa2105346d1cc34b857 # v0.7.1
+        uses: hermes-labs-ai/lintlang@6115fb5b86611b81e18144a9d9ec7111b68978f5 # v0.8.2
         with:
           path: samples/bad_tool_descriptions.yaml
+          fail-on: fail
           sarif-file: lintlang-bad.sarif
 
       - name: Assert released Action version, findings, and exit code

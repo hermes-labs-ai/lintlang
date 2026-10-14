@@ -1,0 +1,9 @@
+{
+  "artifact_version": "1.0.0",
+  "training_date": "2026-10-08",
+  "model_type": "LogisticRegression",
+  "calibration": "unverified",
+  "n_features": 34,
+  "status": "release_candidate_validation_pending",
+  "note": "Bundled Muse model. Gate decisions block KEEP, review ESCALATE, and hide DISMISS findings; release corpus safety and benefit require separate validation."
+}

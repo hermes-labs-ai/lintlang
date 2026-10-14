@@ -120,12 +120,23 @@ def _result(
         if finding.source_region.end_line != finding.source_region.start_line:
             region["endLine"] = finding.source_region.end_line
         physical_location["region"] = region
-    return {
+    result = {
         "ruleId": finding.code,
-        "level": _LEVELS[finding.severity],
+        "level": (
+            "error" if finding.gate_decision == "KEEP"
+            else "warning" if finding.gate_decision == "ESCALATE"
+            else _LEVELS[finding.severity]
+        ),
         "message": {"text": _message(finding, show_suggestions)},
         "locations": [{"physicalLocation": physical_location}],
     }
+    if finding.gate_decision:
+        result["properties"] = {
+            "lintlangGateDecision": finding.gate_decision,
+            "lintlangGateProbability": finding.gate_probability,
+            "lintlangGateAdvisory": finding.gate_decision != "KEEP",
+        }
+    return result
 
 
 def prepare_sarif_results(
@@ -185,8 +196,11 @@ def format_sarif(
     rules: dict[str, dict[str, object]] = {}
     sarif_results: list[tuple[tuple[object, ...], dict[str, object]]] = []
     errors: list[str] = []
+    gate_diagnostics: list[str] = []
 
     for path, scan_result in results.items():
+        if scan_result.gate_error:
+            gate_diagnostics.append(scan_result.gate_error)
         if scan_result.input_error is not None:
             errors.append(_safe_input_error(scan_result.input_error))
             continue
@@ -221,7 +235,7 @@ def format_sarif(
     if not results and not allow_empty:
         errors.append("No files were successfully scanned")
 
-    invocation: dict[str, object] = {"executionSuccessful": not errors}
+    invocation: dict[str, object] = {"executionSuccessful": not errors and not gate_diagnostics}
     if errors:
         invocation["toolExecutionNotifications"] = [
             {
@@ -231,6 +245,27 @@ def format_sarif(
             }
             for error in sorted(errors)
         ]
+    if gate_diagnostics:
+        invocation["toolExecutionNotifications"] = invocation.get("toolExecutionNotifications", []) + [
+            {"descriptor": {"id": "LL_GATE_UNAVAILABLE"}, "level": "error", "message": {"text": message}}
+            for message in sorted(set(gate_diagnostics))
+        ]
+
+    gated = [result for result in results.values() if result.gate_status != "disabled"]
+    run_properties: dict[str, object] | None = None
+    if gated:
+        threshold_sets = {
+            (result.gate_thresholds["keep"], result.gate_thresholds["dismiss"])
+            for result in gated if result.gate_thresholds is not None
+        }
+        run_properties = {"lintlangGate": {
+            "status": "unavailable" if gate_diagnostics else "evaluated",
+            "rawFindings": sum(result.raw_findings_count for result in gated),
+            "suppressed": sum(result.suppressed_count for result in gated),
+        }}
+        if len(threshold_sets) == 1:
+            keep, dismiss = next(iter(threshold_sets))
+            run_properties["lintlangGate"]["thresholds"] = {"keep": keep, "dismiss": dismiss}
 
     document = {
         "$schema": SARIF_SCHEMA_URI,
@@ -247,6 +282,7 @@ def format_sarif(
                 },
                 "invocations": [invocation],
                 "results": [item for _, item in sorted(sarif_results, key=lambda pair: pair[0])],
+                **({"properties": run_properties} if run_properties else {}),
             }
         ],
     }

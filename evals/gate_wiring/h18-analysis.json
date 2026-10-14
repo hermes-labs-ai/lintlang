@@ -1,0 +1,214 @@
+{
+  "boundary": "Frozen 972-finding development cohort. Labels are unchanged historical/AI judgments, not newly confirmed ground truth. Counts do not reproduce the claimed 150 TP cohort. Path locale is not a language classifier; translated copies are not independent tasks. Length is Unicode code points, not tokens. H1.8 code and all gate parameters are unchanged.",
+  "exact_descriptions_with_conflicting_tp_and_keep_fp_labels": 0,
+  "examples": [
+    {
+      "description": "pytest\u3001TDD\u624b\u6cd5\u3001\u30d5\u30a3\u30af\u30b9\u30c1\u30e3\u3001\u30e2\u30c3\u30af\u3001\u30d1\u30e9\u30e1\u30fc\u30bf\u5316\u3001\u30ab\u30d0\u30ec\u30c3\u30b8\u8981\u4ef6\u3092\u4f7f\u7528\u3057\u305fPython\u30c6\u30b9\u30c8\u6226\u7565\u3002",
+      "finding_id": "u-be2324595860",
+      "label": "TP",
+      "label_provenance": "historical_transferred",
+      "length": 55,
+      "relative_path": "docs/ja-JP/skills/python-testing/SKILL.md",
+      "repository": "affaan-m__ECC",
+      "severity": "medium"
+    },
+    {
+      "description": "JUnit 5\u3001Mockito\u3001REST Assured\u3001Camel\u30c6\u30b9\u30c8\u3001JaCoCo\u3092\u4f7f\u7528\u3057\u305fQuarkus 3.x\u306e\u30c6\u30b9\u30c8\u99c6\u52d5\u958b\u767a\u3002\u6a5f\u80fd\u8ffd\u52a0\u3001\u30d0\u30b0\u4fee\u6b63\u3001\u307e\u305f\u306f\u30a4\u30d9\u30f3\u30c8\u99c6\u52d5\u30b5\u30fc\u30d3\u30b9\u306e\u30ea\u30d5\u30a1\u30af\u30bf\u30ea\u30f3\u30b0\u6642\u306b\u4f7f\u7528\u3002",
+      "finding_id": "u-0a8e50b9773b",
+      "label": "FP",
+      "label_provenance": "historical_transferred",
+      "length": 106,
+      "relative_path": "docs/ja-JP/skills/quarkus-tdd/SKILL.md",
+      "repository": "affaan-m__ECC",
+      "severity": "medium"
+    },
+    {
+      "description": "pytest, TDD metodolojisi, fixture'lar, mocking, parametrizasyon ve coverage gereksinimleri kullanarak Python test stratejileri.",
+      "finding_id": "u-fbee1f8a3df9",
+      "label": "FP",
+      "label_provenance": "new_double_blind_ai",
+      "length": 127,
+      "relative_path": "docs/tr/skills/python-testing/SKILL.md",
+      "repository": "affaan-m__ECC",
+      "severity": "low"
+    },
+    {
+      "description": "Claude Code oturumlar\u0131 i\u00e7in kapsaml\u0131 do\u011frulama sistemi.",
+      "finding_id": "u-bfe9caf36be1",
+      "label": "TP",
+      "label_provenance": "historical_transferred",
+      "length": 55,
+      "relative_path": "docs/tr/skills/verification-loop/SKILL.md",
+      "repository": "affaan-m__ECC",
+      "severity": "medium"
+    },
+    {
+      "description": "Go\u6d4b\u8bd5\u6a21\u5f0f\u5305\u62ec\u8868\u683c\u9a71\u52a8\u6d4b\u8bd5\u3001\u5b50\u6d4b\u8bd5\u3001\u57fa\u51c6\u6d4b\u8bd5\u3001\u6a21\u7cca\u6d4b\u8bd5\u548c\u6d4b\u8bd5\u8986\u76d6\u7387\u3002\u9075\u5faaTDD\u65b9\u6cd5\u8bba\uff0c\u91c7\u7528\u5730\u9053\u7684Go\u5b9e\u8df5\u3002",
+      "finding_id": "u-a83bcfeb2c0a",
+      "label": "TP",
+      "label_provenance": "historical_transferred",
+      "length": 54,
+      "relative_path": "docs/zh-CN/skills/golang-testing/SKILL.md",
+      "repository": "affaan-m__ECC",
+      "severity": "medium"
+    },
+    {
+      "description": "Go testing patterns including table-driven tests, subtests, benchmarks, fuzzing, and test coverage. Follows TDD methodology with idiomatic Go practices.",
+      "finding_id": "u-0c585d477e99",
+      "label": "FP",
+      "label_provenance": "new_double_blind_ai",
+      "length": 152,
+      "relative_path": "docs/zh-TW/skills/golang-testing/SKILL.md",
+      "repository": "affaan-m__ECC",
+      "severity": "low"
+    }
+  ],
+  "expanded_fp": {
+    "count": 178,
+    "file_extensions": {
+      ".md": 177,
+      ".mdc": 1
+    },
+    "label_provenance": {
+      "new_double_blind_ai": 178
+    },
+    "length_codepoints": {
+      "max": 683,
+      "median": 152.0,
+      "min": 25
+    },
+    "path_prefixes": {
+      ".agents/skills": 9,
+      ".claude/skills": 5,
+      ".cursor/rules": 1,
+      ".cursor/skills": 1,
+      ".kiro/skills": 19,
+      "docs/es": 37,
+      "docs/ja-JP": 53,
+      "docs/ko-KR": 1,
+      "docs/tr": 24,
+      "docs/zh-CN": 20,
+      "docs/zh-TW": 7,
+      "skills/webapp-testing": 1
+    },
+    "repositories": {
+      "affaan-m__ECC": 162,
+      "anthropics__skills": 1,
+      "calesthio__OpenMontage": 15
+    },
+    "severity": {
+      "low": 177,
+      "medium": 1
+    },
+    "under_120_characters": 1,
+    "unique_descriptions": 162
+  },
+  "h1_source_sha256": "ffbcf3cbf1dbcd04acbc7fb801848ccf2f350367e64620984ac04ef8b690aca5",
+  "historical_seed_sha256": "a08029d7cbefe5d3cb7502d7ee6743a37205605e638555261614afb50a725d1f",
+  "historical_tp": {
+    "count": 272,
+    "file_extensions": {
+      ".md": 272
+    },
+    "label_provenance": {
+      "historical_transferred": 272
+    },
+    "length_codepoints": {
+      "max": 119,
+      "median": 60.0,
+      "min": 20
+    },
+    "path_prefixes": {
+      ".agents/skills": 5,
+      ".claude/skills": 1,
+      ".kiro/skills": 3,
+      "docs/es": 1,
+      "docs/ja-JP": 143,
+      "docs/ko-KR": 12,
+      "docs/tr": 5,
+      "docs/zh-CN": 96,
+      "docs/zh-TW": 6
+    },
+    "repositories": {
+      "affaan-m__ECC": 267,
+      "calesthio__OpenMontage": 5
+    },
+    "severity": {
+      "medium": 272
+    },
+    "under_120_characters": 272,
+    "unique_descriptions": 268
+  },
+  "keep_fp": {
+    "count": 172,
+    "file_extensions": {
+      ".md": 172
+    },
+    "label_provenance": {
+      "historical_transferred": 1,
+      "new_double_blind_ai": 171
+    },
+    "length_codepoints": {
+      "max": 683,
+      "median": 152.0,
+      "min": 106
+    },
+    "path_prefixes": {
+      ".agents/skills": 8,
+      ".claude/skills": 4,
+      ".cursor/skills": 1,
+      ".kiro/skills": 19,
+      "docs/es": 37,
+      "docs/ja-JP": 51,
+      "docs/ko-KR": 1,
+      "docs/tr": 24,
+      "docs/zh-CN": 19,
+      "docs/zh-TW": 7,
+      "skills/webapp-testing": 1
+    },
+    "repositories": {
+      "affaan-m__ECC": 159,
+      "anthropics__skills": 1,
+      "calesthio__OpenMontage": 12
+    },
+    "severity": {
+      "low": 171,
+      "medium": 1
+    },
+    "under_120_characters": 1,
+    "unique_descriptions": 157
+  },
+  "keep_tp": {
+    "count": 126,
+    "file_extensions": {
+      ".md": 126
+    },
+    "label_provenance": {
+      "historical_transferred": 126
+    },
+    "length_codepoints": {
+      "max": 119,
+      "median": 54.5,
+      "min": 23
+    },
+    "path_prefixes": {
+      ".agents/skills": 1,
+      "docs/ja-JP": 81,
+      "docs/ko-KR": 7,
+      "docs/tr": 4,
+      "docs/zh-CN": 33
+    },
+    "repositories": {
+      "affaan-m__ECC": 125,
+      "calesthio__OpenMontage": 1
+    },
+    "severity": {
+      "medium": 126
+    },
+    "under_120_characters": 126,
+    "unique_descriptions": 126
+  },
+  "label_sha256": "10ebab44730f469d14ed22dbe191ca493b4944421db5d3b6d051bbc42ad9c444",
+  "manifest_sha256": "e693f3f61a4e78390d67174e32d9a04aa0e96708d5cd116de518ec073624731c",
+  "same_skill_directory_names_in_both_keep_label_groups": 37
+}

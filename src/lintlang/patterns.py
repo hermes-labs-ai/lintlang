@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
+from typing import NamedTuple
 
 from .detectors.h1 import _ALIAS_NOTICE as _ALIAS_NOTICE
 from .detectors.h1 import _CAMEL_BOUNDARY as _CAMEL_BOUNDARY
@@ -45,22 +46,12 @@ from .models import SkillMeta as SkillMeta
 from .models import SourceRegion as SourceRegion
 from .models import ToolDef as ToolDef
 from .models import is_localization_reference as is_localization_reference
-from .preflight.models import ScopeKind
 from .preflight.scope import ScopeAnalysis, analyze_scope
 
 
 def _is_direct_match(scope: ScopeAnalysis, start: int, end: int) -> bool:
     """Return whether a match is live text, preserving detection if classification fails."""
     return scope.unavailable_reason is not None or scope.is_direct(start, end)
-
-
-def _is_h5_negative_match(scope: ScopeAnalysis, start: int, end: int) -> bool:
-    """Keep H5 negative directives operative while excluding quoted and non-operative text."""
-    return scope.unavailable_reason is not None or (
-        0 <= start < end <= len(scope.scopes)
-        and all(kind in {ScopeKind.DIRECT, ScopeKind.NEGATED} for kind in scope.scopes[start:end])
-    )
-
 
 
 # ── H2: Missing Constraint Scaffolding ─────────────────────────────
@@ -820,8 +811,184 @@ _HYPOTHETICAL_LINE = re.compile(
 )
 
 
+_OUTPUT_VERB_AT_END = re.compile(r"\b(?:emits?|writes?|produces?|generates?)\s*$", re.IGNORECASE)
+_CREATE_LIST = re.compile(r"(?:\b(?:create|generate|write)|创建|作成する)\s*[:：]\s*$", re.IGNORECASE)
+_LIST_ITEM = re.compile(r"^\s*[-*+]\s+")
+_EXTERNAL_FILE_DECLARATION = re.compile(
+    r"Load these files from `([A-Za-z0-9]+(?:-[A-Za-z0-9]+)*)/([A-Za-z0-9][A-Za-z0-9._-]{0,99})`"
+    r" \(they are not available locally\)\.[ \t]*"
+)
+_EXTERNAL_BARE_ITEM = re.compile(r"- `([^`\s]+)`[ \t]*")
+_EXISTENCE_TEST_OPERAND = re.compile(r"(?:- )?If (`[^`\s]+`) exists,(?: |$)")
+_EXTERNAL_ROUTING_INTRO = "After loading the matching workflow prompt or skill, follow it directly:"
+_EXTERNAL_ROUTING_ITEM = re.compile(r"- ([A-Za-z][A-Za-z0-9 ,()/+-]*): `([^`\s]+)`[ \t]*")
+_ROUTING_LOCAL_SOURCE = re.compile(
+    r"\b(?:local|locally|repository)\b|"
+    r"\b(?:from|in|within|inside) (?:this|current|the current) (?:checkout|workspace|working tree)\b",
+    re.IGNORECASE,
+)
+
+
+def _literal_reference_token(raw: str) -> str | None:
+    """Keep the existing relative-file eligibility shared by checks and bindings."""
+    token = re.sub(r"(?::\d+(?:-\d+)?|#[\w-]+)$", "", raw.strip())
+    if token.startswith("./"):
+        token = token[2:]
+    if "/" not in token.strip("/") or _NOT_A_LITERAL_PATH.search(token):
+        return None
+    if not _PATH_EXTENSION.search(token):
+        return None
+    if re.search(r"(?:^|[/_.-])(?:your|my|foo|bar|baz|name|xxx|placeholder)(?:[/_.-]|$)", token, re.I):
+        return None
+    return token
+
+
+class _ExternalReferenceBinding(NamedTuple):
+    asserted_repository: str
+    declaration_line: int
+    occurrence_span: tuple[int, int]
+
+
+def _external_reference_bindings(lines: list[str]) -> dict[int, _ExternalReferenceBinding]:
+    """Bind only contiguous exact bare items after an external declaration.
+
+    Fence and interruption transitions precede any hypothetical-line filtering.
+    The assertion records external origin; it does not verify remote existence.
+    """
+    bindings: dict[int, _ExternalReferenceBinding] = {}
+    state = "IDLE"
+    asserted_repository = ""
+    declaration_line = 0
+    in_fence = False
+    for index, line in enumerate(lines):
+        if _FENCE.match(line):
+            in_fence = not in_fence
+            state = "IDLE"
+            continue
+        if in_fence:
+            continue
+        declaration = _EXTERNAL_FILE_DECLARATION.fullmatch(line)
+        if declaration and len(declaration.group(1)) <= 39:
+            asserted_repository = f"{declaration.group(1)}/{declaration.group(2)}"
+            declaration_line = index
+            state = "WAITING"
+            continue
+        item = _EXTERNAL_BARE_ITEM.fullmatch(line)
+        if state != "IDLE" and item and _literal_reference_token(item.group(1)) is not None:
+            state = "ACTIVE"
+            bindings[index] = _ExternalReferenceBinding(
+                asserted_repository, declaration_line, (item.start(1) - 1, item.end(1) + 1)
+            )
+        else:
+            state = "IDLE"
+    return bindings
+
+
+def _external_routing_bindings(
+    lines: list[str], external_items: dict[int, _ExternalReferenceBinding],
+) -> dict[int, _ExternalReferenceBinding]:
+    """Join prior unique external membership to exact contiguous routing roles.
+
+    Membership persists after its import list, but only an explicit routing
+    role can use it. Competing sources and recognized local directives retain
+    ordinary review. No future declaration or token-global exemption applies.
+    """
+    bindings: dict[int, _ExternalReferenceBinding] = {}
+    members: dict[str, dict[str, _ExternalReferenceBinding]] = {}
+    active = False
+    in_fence = False
+    for index, line in enumerate(lines):
+        if _FENCE.match(line):
+            in_fence = not in_fence
+            active = False
+            continue
+        if in_fence:
+            continue
+        external = external_items.get(index)
+        if external is not None:
+            item = _EXTERNAL_BARE_ITEM.fullmatch(line)
+            token = _literal_reference_token(item.group(1)) if item else None
+            if token is not None:
+                members.setdefault(token, {}).setdefault(external.asserted_repository, external)
+        if line.rstrip(" \t") == _EXTERNAL_ROUTING_INTRO:
+            active = True
+            continue
+        if not active:
+            continue
+        route = _EXTERNAL_ROUTING_ITEM.fullmatch(line)
+        if route is None or _ROUTING_LOCAL_SOURCE.search(route.group(1)):
+            active = False
+            continue
+        token = _literal_reference_token(route.group(2))
+        if token is None:
+            active = False
+            continue
+        sources = members.get(token, {})
+        if len(sources) == 1:
+            source = next(iter(sources.values()))
+            bindings[index] = _ExternalReferenceBinding(
+                source.asserted_repository, source.declaration_line,
+                (route.start(2) - 1, route.end(2) + 1),
+            )
+    return bindings
+
+
+def _reference_is_output(lines: list[str], index: int, start: int, end: int) -> bool:
+    """Recognize a path as an explicit output, without hiding input references.
+
+    Match only its own clause or a directly preceding creation-list introducer.
+    A new paragraph, heading, or prose line ends any inherited output context.
+    """
+    line = lines[index]
+    before, after = line[:start], line[end:]
+    # A later path may be an input even on an output line: "a.js and reads
+    # b.py", "a.js. Read b.py", or "report.md from template.py". Inherit an
+    # output verb only through a path list, never through another operation.
+    def output_fragment(fragment: str) -> bool:
+        fragment = _PATH_CANDIDATE.sub("PATH", fragment)
+        return bool(re.fullmatch(
+            r"(?:\s|,|PATH|and\b|a\b|lazy\b|bundled\b|dependency-free\b)*",
+            fragment,
+        ))
+
+    output_position = output_fragment(_LIST_ITEM.sub("", before, count=1))
+    if re.search(r"\binstalled\s+as\s*$|(?:创建|写入)\s*$", before, re.IGNORECASE):
+        return True
+    if re.match(r"\s*に書き込", after):
+        return True
+    # A wrapped output sentence: "Build emits\n `dist/app.js`, ...".
+    # Only continuation lines beginning with a path or output-list adjective
+    # inherit the verb; a later 'then' clause refers to a separate operation.
+    if output_position and re.match(r"^\s*(?:`|bundled\s+`|dependency-free\s+`)", line) and not re.search(
+        r"\bthen\b", before, re.IGNORECASE
+    ):
+        for previous in reversed(lines[max(0, index - 2):index]):
+            if _OUTPUT_VERB_AT_END.search(previous):
+                return True
+            if not previous.strip() or not output_fragment(previous):
+                break
+            if re.search(r"\bthen\b|[.!?]\s*$", previous):
+                break
+    if output_position and re.match(r"^\s*[-*+]\s+`", line):
+        # Only the first item inherits the explicit introducer. Walking past
+        # other items could cross into a nested required-input list.
+        for previous in reversed(lines[max(0, index - 8):index]):
+            if not previous.strip():
+                continue
+            return bool(_CREATE_LIST.search(previous))
+    return False
+
+
 _AGENT_DOCUMENT_NAMES = frozenset(
     {"AGENTS.md", "CLAUDE.md", "GEMINI.md", "SKILL.md", "copilot-instructions.md", ".cursorrules", ".windsurfrules"}
+)
+_NON_ACTIONABLE_PATH_SEGMENTS = frozenset(
+    {"example", "examples", "template", "templates", "prompt", "prompts", "fixture", "fixtures", "sample", "samples", "testdata"}
+)
+_ACTIONABLE_PATH_CONTEXT = re.compile(
+    r"\b(?:run|execute|read|open|load|edit|update|modify|inspect|import|source|check|see|use|"
+    r"entry point|source of truth|canonical|required|must|always)\b",
+    re.IGNORECASE,
 )
 
 
@@ -872,26 +1039,53 @@ def _detect_dangling_references(config: AgentConfig) -> list[Finding]:
     seen: set[str] = set()
     in_fence = False
     offset = 0
-    for line in config.system_prompt.split("\n"):
+    lines = config.system_prompt.split("\n")
+    external_bindings = _external_reference_bindings(lines)
+    external_bindings.update(_external_routing_bindings(lines, external_bindings))
+    for index, line in enumerate(lines):
         line_offset = offset
         offset += len(line) + 1
         if _FENCE.match(line):
             in_fence = not in_fence
             continue
-        if in_fence or _HYPOTHETICAL_LINE.search(line):
+        # Examine prose without path text: `examples/file.py` is not itself an
+        # "example" cue, and an instruction to run it remains actionable.
+        prose = _PATH_CANDIDATE.sub("", line)
+        if in_fence:
             continue
+        hypothetical = _HYPOTHETICAL_LINE.search(prose) is not None
+        # Preserve the older line-level exemption except when a creation
+        # statement also names a required input. Mixed lines are then checked
+        # one path at a time, so the output cannot mask that input.
+        if hypothetical and (
+            not re.search(r"\b(?:create|generate|write|produce|output|emit)(?:s|d)?\b", prose, re.I)
+            or re.search(r"\b(?:not|never|don't|do not|e\.g\.|for example|such as|like)\b", prose, re.I)
+        ):
+            continue
+        existence_test = _EXISTENCE_TEST_OPERAND.match(line)
         for match in _PATH_CANDIDATE.finditer(line):
-            token = (match.group(1) or match.group(2) or "").strip()
-            token = re.sub(r"(?::\d+(?:-\d+)?|#[\w-]+)$", "", token)
-            if token.startswith("./"):
-                token = token[2:]
-            if "/" not in token.strip("/") or _NOT_A_LITERAL_PATH.search(token):
+            if existence_test is not None and existence_test.span(1) == match.span():
                 continue
-            # Files only: a named directory is as often a build output or a
-            # runtime location as a checked-in one.
-            if not _PATH_EXTENSION.search(token):
+            binding = external_bindings.get(index)
+            if binding is not None and binding.occurrence_span == match.span():
                 continue
-            if re.search(r"(?:^|[/_.-])(?:your|my|foo|bar|baz|example|sample|name|xxx|placeholder)(?:[/_.-]|$)", token, re.I):
+            token = _literal_reference_token(match.group(1) or match.group(2) or "")
+            if token is None:
+                continue
+            before = line[:match.start()]
+            if hypothetical and not re.search(
+                r"\b(?:read|open|load|import|source|inspect|edit|update|run|execute|check|use)s?\s*$|"
+                r"\bfrom\s*$",
+                before,
+                re.I,
+            ):
+                continue
+            if _reference_is_output(lines, index, match.start(), match.end()):
+                continue
+            if (
+                _NON_ACTIONABLE_PATH_SEGMENTS.intersection(part.lower() for part in token.split("/")[:-1])
+                and not _ACTIONABLE_PATH_CONTEXT.search(prose)
+            ):
                 continue
             if token in seen:
                 continue
@@ -1003,519 +1197,9 @@ def detect_h4(config: AgentConfig) -> list[Finding]:
     return findings
 
 
-# ── H5: Implicit Instruction Failure ───────────────────────────────
-
-NEGATIVE_PATTERNS = [
-    (r"\bdon'?t\b", "Negative instruction"),
-    (r"\bnever\b", "Negative instruction"),
-    (r"\bavoid\b", "Negative instruction"),
-    (r"\bdo\s+not\b", "Negative instruction"),
-]
-
-# ── Layer 1: Structural exemptions ────────────────────────────────
-# Precompiled regexes for regions where negatives should be ignored entirely.
-# HTML comments, fenced code blocks, and template/generated-file markers.
-_STRUCTURAL_EXEMPT_REGIONS: list[re.Pattern[str]] = [
-    re.compile(r"<!--.*?-->", re.DOTALL),  # HTML comments
-    re.compile(r"```.*?```", re.DOTALL),  # Fenced code blocks
-    re.compile(r"`[^`\n]+`"),  # Inline code spans
-    re.compile(r"(?:DO NOT EDIT|GENERATED|AUTO-GENERATED)[^\n]*", re.IGNORECASE),  # Generated-file markers
-]
-
-# ── Layer 2: Phrase-level exemptions ──────────────────────────────
-# Regex patterns for negatives that are idiomatic, descriptive, or non-instructional.
-# Each is compiled once; a match anywhere around the negative text exempts it.
-H5_PHRASE_EXEMPTIONS: list[re.Pattern[str]] = [
-    # Privacy / telemetry disclaimers
-    re.compile(r"never\s+(?:sent|shared|stored|transmitted|collected|uploaded|tracked|leaves)", re.IGNORECASE),
-    # Idiomatic / deliberate style (specific-object phrases)
-    re.compile(
-        r"don'?t\s+(?:cry\s+wolf|dance\s+around|reinvent|overthink|overengineer|second.guess|sugar.coat|sweat)",
-        re.IGNORECASE,
-    ),
-    # UI / button labels — negatives inside quoted strings that look like choices
-    re.compile(
-        r'["\u201c](?:Never\s+ask\s+again|Not?\s+now|Don\'?t\s+show\s+again|Don\'?t\s+remind)["\u201d]', re.IGNORECASE
-    ),
-    # Descriptive / explanatory text (third-person subject + negative verb — describing state, not instructing)
-    # Excludes "I" and "you" which commonly appear in direct agent behavioral instructions.
-    re.compile(
-        r"\b(?:it|we|they|that|this|there|the\s+\w+)\s+(?:don'?t|doesn'?t|didn'?t|won'?t|can'?t|couldn'?t|isn'?t|aren'?t|wasn'?t|haven'?t|hasn'?t)\b",
-        re.IGNORECASE,
-    ),
-    # "do not edit" / "do not modify" markers (build system boilerplate)
-    re.compile(r"do\s+not\s+(?:edit|modify|change|touch|remove|delete)\s+(?:directly|manually|this)", re.IGNORECASE),
-    # "avoid" in non-instruction context (e.g., "to avoid confusion", "avoid false positives")
-    re.compile(r"\bto\s+avoid\b", re.IGNORECASE),
-    # Negatives inside array/list literals: ["...", "Never ask again", ...]
-    re.compile(r'\[(?:[^\]]*,\s*)?["\u201c][^"\u201d]*(?:never|don\'?t|not\s+now)[^"\u201d]*["\u201d]', re.IGNORECASE),
-]
-
-# Safety/constraint keywords — negative instructions near these are EXEMPT from H5 flagging
-# Covers: security, authorization, accuracy, policy/business rules
-SAFETY_CONTEXT_KEYWORDS = {
-    # Security
-    "api key",
-    "api_key",
-    "secret",
-    "password",
-    "credential",
-    "token",
-    "auth",
-    "permission",
-    "authorize",
-    "authorization",
-    "authenticated",
-    "security",
-    "secure",
-    "sensitive",
-    "private",
-    "confidential",
-    "protected",
-    "dangerous",
-    "destructive",
-    "delete",
-    "drop",
-    "overwrite",
-    "truncate",
-    "production",
-    "prod",
-    "execute",
-    "eval",
-    "exec",
-    "code",
-    "share",
-    "expose",
-    "leak",
-    "disclose",
-    "external",
-    "public",
-    "sql injection",
-    "xss",
-    "cve",
-    "vulnerability",
-    "attack",
-    # Authorization / approval gates
-    "approval",
-    "approved",
-    "review",
-    "reviewed",
-    "confirmation",
-    "confirm",
-    "without",
-    "manager",
-    "supervisor",
-    "admin",
-    # Accuracy / methodology constraints
-    "estimate",
-    "guess",
-    "hallucinate",
-    "fabricate",
-    "make up",
-    "invent",
-    "assume",
-    "speculate",
-    "infer",
-    "combine",
-    "unrelated",
-    "extrapolate",
-    "correlation",
-    "causation",
-    "cherry-pick",
-    "cherry pick",
-    "outlier",
-    "preliminary",
-    "findings",
-    "data",
-    # Policy / business rules
-    "promise",
-    "guarantee",
-    "commit",
-    "warrant",
-    "assure",
-    "refund",
-    "pricing",
-    "competitor",
-    "internal",
-    "investment",
-    "recommendation",
-    "legal",
-    "medical",
-    "financial",
-    "advice",
-    "liability",
-    # Content moderation
-    "hate speech",
-    "explicit",
-    "sexually",
-    "violence",
-    "approve",
-    "content",
-    "moderate",
-    "moderation",
-    "flag",
-    "manual review",
-    # Scope constraints
-    "reference",
-    "previous",
-    "prior",
-    "history",
-    "context",
-    # Safety actions
-    "irreversible",
-    "damage",
-    "command",
-    "test",
-    "tests",
-    "break",
-    "modify",
-    "workspace",
-    "directory",
-    "file",
-    "system",
-}
-
-VAGUE_QUALIFIERS = [
-    # "be + adjective" with no operational definition
-    (r"\bbe\s+(?:concise|brief|helpful|careful|thorough|creative|professional)\b", "Vague qualitative instruction"),
-    (r"\bbe\s+(?:smart|natural|aggressive|adversarial|rigorous|pragmatic|nuanced)\b", "Vague qualitative instruction"),
-    (
-        r"\bbe\s+(?:appropriate|reasonable|responsible|respectful|transparent|consistent)\b",
-        "Vague qualitative instruction",
-    ),
-    # Human-level inference
-    (
-        r"\buse\s+(?:common\s+sense|good\s+judgment|your\s+best\s+judgment|your\s+discretion)\b",
-        "Assumes human-level inference",
-    ),
-    # Ambiguous conditionals
-    (r"\bas\s+(?:needed|appropriate|necessary)\b", "Ambiguous conditional — 'as needed' by whose criteria?"),
-    (r"\bwhen\s+(?:appropriate|necessary|relevant|possible)\b", "Ambiguous conditional"),
-    (r"\bif\s+(?:appropriate|necessary|relevant|needed)\b", "Ambiguous conditional"),
-    # Figurative verbs — almost never have operational definitions
-    (r"\b(?:dance|shy|shying)\s+around\b", "Figurative verb — no operational definition"),
-    (r"\blean\s+into\b", "Figurative verb — no operational definition"),
-    (r"\bdouble\s+down\s+on\b", "Figurative verb — no operational definition"),
-    (r"\bpush\s+back\s+on\b", "Figurative verb — no operational definition"),
-    (r"\berr\s+on\s+the\s+side\s+of\b", "Figurative verb — no operational definition"),
-    (r"\bkeep\s+(?:it|things)\s+(?:simple|clean|tight|short)\b", "Vague qualitative instruction"),
-]
-
-
-def detect_h5(config: AgentConfig) -> list[Finding]:
-    """Detect implicit instruction failures."""
-    findings: list[Finding] = []
-    prompt = config.system_prompt
-
-    if not prompt:
-        return findings
-
-    scope = analyze_scope(prompt)
-
-    # Negative instructions — layered exemption filtering
-    neg_matches = []
-    for pattern, _category in NEGATIVE_PATTERNS:
-        matches = list(re.finditer(pattern, prompt, re.IGNORECASE))
-        for match in matches:
-            if not _is_h5_negative_match(scope, match.start(), match.end()):
-                continue
-            neg_matches.append((match.start(), match.end(), match.group()))
-
-    # ── Layer 1: Build set of structurally-exempt character ranges ──
-    exempt_ranges: list[tuple[int, int]] = []
-    for region_re in _STRUCTURAL_EXEMPT_REGIONS:
-        for m in region_re.finditer(prompt):
-            exempt_ranges.append((m.start(), m.end()))
-
-    # ── Layered filtering ──────────────────────────────────────────
-    safety_context_window = 100  # chars before/after — covers most full sentences
-    legitimate_negatives = 0  # negatives exempted (these are GOOD)
-    problematic_negatives = []  # negatives NOT exempted
-
-    for neg_start, neg_end, neg_text in neg_matches:
-        # Layer 1: Skip if inside a structurally-exempt region
-        if any(rs <= neg_start and neg_end <= re for rs, re in exempt_ranges):
-            legitimate_negatives += 1
-            continue
-
-        # Layer 2: Skip if the surrounding text matches a known-good phrase
-        phrase_window = 80  # chars around the negative to check
-        phrase_start = max(0, neg_start - phrase_window)
-        phrase_end = min(len(prompt), neg_end + phrase_window)
-        phrase_ctx = prompt[phrase_start:phrase_end]
-
-        if any(pat.search(phrase_ctx) for pat in H5_PHRASE_EXEMPTIONS):
-            legitimate_negatives += 1
-            continue
-
-        # Layer 3 (fallback): Skip if near a safety keyword
-        context_start = max(0, neg_start - safety_context_window)
-        context_end = min(len(prompt), neg_end + safety_context_window)
-        context = prompt[context_start:context_end].lower()
-
-        in_safety_context = any(keyword in context for keyword in SAFETY_CONTEXT_KEYWORDS)
-
-        if in_safety_context:
-            legitimate_negatives += 1
-        else:
-            problematic_negatives.append((neg_start, neg_text))
-
-    # The two density heuristics below judge the SHAPE of a chat system prompt.
-    # An instruction document (AGENTS.md, CLAUDE.md, a SKILL.md body) is a
-    # reference an agent consults, not one prompt. In the audited instruction
-    # corpus, "N instructions with no priority ordering" fired broadly and
-    # named no sentence to repair. A finding that cannot point at its evidence,
-    # on a surface it was not designed for, is noise.
-    is_chat_prompt = config.kind not in ("instructions", "templates", "server")
-
-    # Flag problematic negatives (those NOT near safety keywords)
-    if is_chat_prompt and len(problematic_negatives) > 3:
-        findings.append(
-            Finding(
-                pattern_id="H5",
-                pattern_name="Implicit Instruction Failure",
-                severity=Severity.MEDIUM,
-                location="system_prompt",
-                description=f"System prompt has {len(problematic_negatives)} negative instructions ('don't', 'never', 'avoid'). Models follow positive instructions more reliably.",
-                suggestion="Rewrite negatives as positives. Instead of 'Don't apologize', use 'Respond directly without apologies'. Instead of 'Never make up data', use 'Only cite data from provided context'.",
-                evidence=problematic_negatives[0][1],
-                offset=problematic_negatives[0][0],
-            )
-        )
-
-    # Per-negative LOW notices were removed: a single unexempted negative directive
-    # is ordinary, correct instruction prose, and the exemption layers above are a
-    # 100-character keyword window rather than a scope decision, so each notice
-    # asserted a defect the detector had not demonstrated (RESEARCH.md section 5).
-    # The tested density signal — more than three unexempted negatives in one
-    # prompt — is kept above, unchanged, as the aggregated MEDIUM finding.
-
-    # Vague qualifiers (deduplicate identical matched text)
-    seen_vague: set[str] = set()
-    for pattern, category in VAGUE_QUALIFIERS:
-        matches = list(re.finditer(pattern, prompt, re.IGNORECASE))
-        for match in matches:
-            if not _is_direct_match(scope, match.start(), match.end()):
-                continue
-            key = match.group().lower()
-            if key in seen_vague:
-                continue
-            seen_vague.add(key)
-            start = max(0, match.start() - 20)
-            end = min(len(prompt), match.end() + 30)
-            findings.append(
-                Finding(
-                    pattern_id="H5",
-                    pattern_name="Implicit Instruction Failure",
-                    severity=Severity.LOW,
-                    location="system_prompt",
-                    description=f"{category}: '{match.group()}'",
-                    suggestion="Make it procedural. Instead of 'be concise', specify 'Respond in 2-3 sentences maximum'. Instead of 'as needed', specify the exact condition.",
-                    evidence=prompt[start:end].strip(),
-                    offset=match.start(),
-                )
-            )
-
-    # Check for conflicting instructions without priority
-    has_priority = any(
-        keyword in prompt.lower()
-        for keyword in ["priority", "most important", "above all", "first and foremost", "override"]
-    )
-    # Count instructions more accurately (sentence-ending periods + list items)
-    instruction_count = (
-        len(re.findall(r"[.!?]\s+[A-Z]", prompt)) + prompt.count("\n-") + prompt.count("\n*") + prompt.count("\n1")
-    )
-    if is_chat_prompt and instruction_count > 10 and not has_priority:
-        findings.append(
-            Finding(
-                pattern_id="H5",
-                pattern_name="Implicit Instruction Failure",
-                # A sentence count is not evidence of a conflict. It stays MEDIUM
-                # where it was designed (a standalone prompt file or a config's
-                # system prompt) and is advice for a literal extracted from code.
-                severity=Severity.LOW if config.kind == "python" else Severity.MEDIUM,
-                location="system_prompt",
-                description=f"System prompt has ~{instruction_count} instructions with no explicit priority ordering.",
-                suggestion="Add priority ordering: 'PRIORITY 1: Always cite sources. PRIORITY 2: Be concise. When these conflict, prioritize accuracy over brevity.'",
-            )
-        )
-
-    return findings
-
-
-# ── H6: Template Format Contract Violation ─────────────────────────
-
-
-_OUTPUT_FORMAT_INSTRUCTION_TEMPLATES = (
-    # A descriptive contract on the agent's own response is still a contract:
-    # "The agent's reply is delivered as JSON ... and as Markdown ...". Keep
-    # the subject explicit so descriptions of another service stay silent.
-    r"\b(?:the\s+agent(?:'s)?\s+)?(?:responses?|reply|replies|answers?)\b"
-    r"[^\n.!?]{{0,120}}\b(?:as|in|using)\s+{fmt}\b",
-    # "respond in JSON", "return the result as markdown", "output using XML", and
-    # the coordinated form "respond in JSON and Markdown" / "output as JSON or XML",
-    # where one instruction names both halves of the competing contract.
-    r"\b(?:respond|reply|answer|output|return|emit|print|render|produce|send|format|write)"
-    r"(?:\w+)?\s+(?:[\w'-]+\s+){{0,3}}?(?:in|as|with|using|to)\s+"
-    r"(?:(?:valid|plain|raw|pure|strict)\s+)?"
-    r"(?:[\w'-]+\s*(?:,|/|\band\b|\bor\b)\s*){{0,3}}?{fmt}\b",
-    # "write your reply as friendly Markdown text", "answer the user in plain XML" —
-    # a response verb pointed at the format through a single descriptive word
-    # ("friendly", "clean", "simple") rather than a comma/and/or coordination.
-    r"\b(?:respond|reply|answer|write)\s+(?:[\w'-]+\s+){{0,3}}?(?:as|in|using|with|to)\s+"
-    r"(?:[\w'-]+\s+){{0,1}}?{fmt}\b",
-    # "use JSON for data queries", "use markdown when it helps"
-    r"\b(?:use|using|prefer|choose)\s+{fmt}\s+(?:for|when|if|unless)\b",
-    # dispatch ellipsis at the start of a sentence: "XML for configs."
-    r"(?:^|[.;:!?\n]\s*){fmt}\s+for\s+[\w'-]+",
-    # "XML is acceptable", "Markdown is also allowed"
-    r"(?:^|[.;:!?\n]\s*){fmt}\s+(?:is|are)\s+(?:also\s+)?"
-    r"(?:acceptable|allowed|fine|ok|okay|preferred|required|expected|permitted)\b",
-    # "output format: JSON", "output format is markdown"
-    r"\boutput\s+format\s*(?:[:=]|is|must\s+be|should\s+be)\s*"
-    r"(?:[\w'-]+\s+){{0,2}}?{fmt}\b",
-    # "JSON output only", "markdown response required"
-    r"\b{fmt}\s+(?:output|response|responses|reply|replies)\s+"
-    r"(?:only|required|expected|is\s+required|is\s+expected)\b",
-    # "responses conform to this JSON schema", "output adheres to the XML format" —
-    # a schema/format-conformance contract on the response/output is itself an
-    # output-format instruction (kept narrow: the subject must name the
-    # response/output, not just any document or file conforming to a schema).
-    r"\b(?:responses?|output|reply|replies|answers?)\s+"
-    r"(?:must\s+|should\s+|will\s+|shall\s+)?"
-    r"(?:conform|conforms|conforming|adhere|adheres|adhering)\s+to\s+"
-    r"(?:(?:this|a|an|the)\s+)?(?:[\w'-]+\s+){{0,2}}?{fmt}\b",
-    # Bare imperative taking the format as a direct object: "Always output
-    # JSON.", "Return JSON only.", "Emit XML." This is the most ordinary way to
-    # state an output contract, and without it the narrowing above cut a real
-    # positive. The verb must be imperative — at a sentence start, or after a
-    # modal or one of these adverbs — so a descriptive third-person clause
-    # ("The upstream service returns JSON.") is still not a contract.
-    r"(?:(?:^|[.;:!?\n]|\b(?:always|only|just|strictly|must|should|shall|will|please|also|and)\b)\s*)"
-    r"(?:(?:always|only|just|strictly|also)\s+)?"
-    r"(?:respond|reply|answer|output|return|emit)\s+"
-    r"(?:(?:only|always|just|strictly)\s+)?"
-    r"(?:(?:valid|plain|raw|pure|strict|well-?formed)\s+)?{fmt}\b",
-)
-
-_OUTPUT_FORMAT_INSTRUCTIONS: dict[str, tuple[re.Pattern[str], ...]] = {
-    fmt: tuple(
-        re.compile(template.format(fmt=fmt), re.IGNORECASE)
-        for template in _OUTPUT_FORMAT_INSTRUCTION_TEMPLATES
-    )
-    for fmt in ("json", "markdown", "xml")
-}
-
-
-def _instructs_output_format(cleaned: str, fmt: str) -> bool:
-    """Return whether the prompt actually instructs responding in ``fmt``.
-
-    H6's competing-contract finding used to be true whenever the words "JSON",
-    "Markdown", or "XML" appeared twice over, so a document that merely listed
-    the file types a tool accepts was reported as a format contract violation.
-    A format now counts only when the prompt gives it as an output instruction:
-    a response verb pointing at it (including through a single descriptive word,
-    as in "write your reply as friendly Markdown"), a "use X for/when" dispatch,
-    a sentence-initial dispatch ellipsis ("XML for configs."), an explicit
-    acceptability statement, an "output format:" declaration, an "X output only"
-    demand, or a response/output schema-conformance clause ("responses conform
-    to this JSON schema"). The existing code-block, inline-code, filename, and
-    CLI-flag cleaning still runs first and is unchanged.
-    """
-    return any(pattern.search(cleaned) for pattern in _OUTPUT_FORMAT_INSTRUCTIONS[fmt])
-
-
 def detect_h6(config: AgentConfig) -> list[Finding]:
-    """Detect template format contract violations."""
-    findings: list[Finding] = []
-    prompt = config.system_prompt
-
-    if not prompt:
-        return findings
-
-    # Build a cleaned version of the prompt that strips out non-instructional
-    # format references (code blocks, inline code, filenames, CLI flags) to
-    # reduce false positives when counting output-format keywords.
-    cleaned = re.sub(r"```[^`]*```", " ", prompt, flags=re.DOTALL)  # fenced code blocks
-    cleaned = re.sub(r"`[^`]+`", " ", cleaned)  # inline code
-    cleaned = re.sub(r"\w+\.(?:json|yaml|yml|xml|md|toml|csv)\b", " ", cleaned, flags=re.IGNORECASE)  # filenames
-    cleaned = re.sub(r"--(?:json|format|output)(?:\s+\w+)?", " ", cleaned, flags=re.IGNORECASE)  # CLI flags
-
-    # Mixed format instructions. A bare mention is not a contract: naming JSON and
-    # Markdown while describing which file types a tool reads is ordinary prose,
-    # and it made any document that named two formats an H6 MEDIUM
-    # (RESEARCH.md section 5). Each format must carry its own output-format
-    # instruction before it counts towards a competing contract.
-    has_json = _instructs_output_format(cleaned, "json")
-    has_markdown = _instructs_output_format(cleaned, "markdown")
-    has_xml = _instructs_output_format(cleaned, "xml")
-    format_count = sum([has_json, has_markdown, has_xml])
-
-    if format_count > 1:
-        formats = [f for f, present in [("JSON", has_json), ("Markdown", has_markdown), ("XML", has_xml)] if present]
-        findings.append(
-            Finding(
-                pattern_id="H6",
-                pattern_name="Template Format Contract Violation",
-                severity=Severity.MEDIUM,
-                location="system_prompt",
-                description=f"System prompt references multiple output formats ({', '.join(formats)}) — model may produce hybrid output.",
-                suggestion="Specify ONE primary output format per response type, or clearly delineate: 'For data queries, respond in JSON. For explanations, use Markdown.'",
-            )
-        )
-
-    # No output format specification at all. The recognizer has to accept the
-    # ordinary ways of stating one, or the finding contradicts the document it
-    # is reporting on: "Return Markdown only." and "Return a plan as Markdown."
-    # both specify a format, and both used to be missed because the verb had to
-    # be immediately followed by in/as/with/using. It is deliberately not
-    # widened to arbitrary words before the format name, which would reopen the
-    # mere-mention false positive that the competing-contract rule above just
-    # removed — so "Output exactly one Markdown document." is a known miss.
-    has_output_format = bool(
-        re.search(
-            r"\b(?:respond|output|return|reply|answer|emit|format)\s+"
-            r"(?:(?:[\w'-]+\s+){0,3}?(?:in|as|with|using)\s+)?"
-            r"(?:(?:only|valid|plain|raw|strict|well-?formed)\s+)*"
-            r"(?:json|markdown|xml|yaml|text|html|csv)\b",
-            prompt,
-            re.IGNORECASE,
-        )
-    )
-    has_format_example = bool(re.search(r"```|example\s*(?:output|response)", prompt, re.IGNORECASE))
-
-    # An output contract is a property of a chat/system prompt. A Markdown
-    # instruction document has no single response to contract.
-    is_chat_prompt = config.kind not in ("instructions", "templates", "server")
-    if is_chat_prompt and len(prompt) > 200 and not has_output_format and not has_format_example:
-        findings.append(
-            Finding(
-                pattern_id="H6",
-                pattern_name="Template Format Contract Violation",
-                severity=Severity.LOW,
-                location="system_prompt",
-                description="System prompt has no explicit output format specification or example.",
-                suggestion="Add an output format contract: 'Always respond in JSON with keys: answer, confidence, sources.' Or provide an example output.",
-            )
-        )
-
-    # Check for versioning
-    has_version = bool(
-        re.search(r"(?:^|\s)v\d+\.\d|version\s*[:\d]|prompt\s*v\d", prompt, re.IGNORECASE | re.MULTILINE)
-    )
-    if is_chat_prompt and config.kind != "python" and len(prompt) > 500 and not has_version:
-        findings.append(
-            Finding(
-                pattern_id="H6",
-                pattern_name="Template Format Contract Violation",
-                severity=Severity.INFO,
-                location="system_prompt",
-                description="Long system prompt with no version marker.",
-                suggestion="Add a version comment (e.g., '# Prompt v2.1 — 2024-01-15') to track prompt changes and enable A/B testing.",
-            )
-        )
-
-    return findings
+    """Compatibility entry point for the removed H6 detector."""
+    return []
 
 
 # ── H7: Role Confusion ────────────────────────────────────────────
@@ -1625,7 +1309,5 @@ PATTERNS = {
     "H2": {"name": "Missing Constraint Scaffolding", "detect": detect_h2},
     "H3": {"name": "Schema-Intent Mismatch", "detect": detect_h3},
     "H4": {"name": "Context Boundary Erosion", "detect": detect_h4},
-    "H5": {"name": "Implicit Instruction Failure", "detect": detect_h5},
-    "H6": {"name": "Template Format Contract Violation", "detect": detect_h6},
     "H7": {"name": "Role Confusion", "detect": detect_h7},
 }

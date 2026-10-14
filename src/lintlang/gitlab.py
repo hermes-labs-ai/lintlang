@@ -79,11 +79,20 @@ def format_gitlab(
         description = finding.description
         if show_suggestions and finding.suggestion:
             description += f" Suggested action: {finding.suggestion}"
-        entries.append({
+        entry = {
             "description": description,
             "check_name": finding.code,
             "fingerprint": hashlib.sha256(identity).hexdigest(),
-            "severity": _SEVERITIES[finding.severity],
+            "severity": (
+                "blocker" if finding.gate_decision == "KEEP"
+                else "major" if finding.gate_decision == "ESCALATE"
+                else _SEVERITIES[finding.severity]
+            ),
             "location": {"path": path, "lines": {"begin": line}},
-        })
+        }
+        if finding.gate_decision:
+            entry["description"] += (
+                f" Gate: {finding.gate_decision} (model score={finding.gate_probability:.3f})."
+            )
+        entries.append(entry)
     return json.dumps(entries, indent=2) + "\n", omitted

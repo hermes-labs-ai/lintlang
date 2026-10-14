@@ -52,13 +52,15 @@ def test_root_extension_declares_stable_bounded_hook_contract() -> None:
 
 def test_after_tool_returns_bounded_actionable_context(tmp_path: Path) -> None:
     target = tmp_path / "agent.yaml"
-    target.write_text("tools:\n  - name: lookup\n    description: Get data\n", encoding="utf-8")
+    target = tmp_path / "audit" / "SKILL.md"
+    target.parent.mkdir()
+    target.write_text("---\nname: audit\ndescription: Build MCP servers with the TypeScript SDK, typed tools, resource handlers, prompts, schema validation, HTTP transports and deployment configuration (工具配置指南).\n---\nBody.\n", encoding="utf-8")
 
     output = _run_hook(target)
 
     specific = output["hookSpecificOutput"]
     assert specific["hookEventName"] == "AfterTool"
-    assert "agent.yaml" in specific["additionalContext"]
+    assert "SKILL.md" in specific["additionalContext"]
     assert "Suggested repair:" in specific["additionalContext"]
     assert "evidence" not in specific["additionalContext"].lower()
 

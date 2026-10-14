@@ -19,6 +19,18 @@ Run this skill when someone asks for an audit. It is not the plugin's
 asked, on the file the user names, and reports a full verdict. Neither one
 rewrites a file or blocks a tool call.
 
+## Unpublished candidate
+
+Version 0.9.0 is not published yet. For this private local candidate, run
+`python -m pip install .` from its source checkout and use that environment's
+`lintlang` command. Registry-pinned 0.9.0 commands below are release examples;
+do not attempt them until publication. The `--no-gate` examples require this
+candidate; do not pass that flag to an older installed release.
+
+These audit commands use raw mode so severity and exit guidance below apply.
+Default scans without `--no-gate` instead use KEEP blocking, ESCALATE advisory
+findings and DISMISS suppression.
+
 ## What to do
 
 1. **Resolve the target.** Audit the file or files the user named. If no file
@@ -32,37 +44,39 @@ rewrites a file or blocks a tool call.
 
 2. **Resolve a runner, in this order.** Stop at the first that works.
 
-   - `lintlang --version` prints `lintlang` 0.8.2 or newer → use `lintlang`.
+   - `lintlang --version` prints `lintlang` 0.9.0 or newer and
+     `lintlang scan --help` lists `--no-gate` → use `lintlang`.
      A newer installed release is fine — report which version produced the
      result, because counts and codes can differ between releases.
    - Otherwise, if `uvx` is available, use the pinned release with no install
      and no PATH change:
 
      ```bash
-     uvx --from lintlang==0.8.2 lintlang --version
+     uvx --from lintlang==0.9.0 lintlang --version
      ```
 
-     Keep the `==0.8.2` pin so an unreviewed newer release is never fetched.
+     Keep the `==0.9.0` pin so an unreviewed newer release is never fetched.
      This downloads the package into uv's cache once; the scan itself still
      makes no network call.
    - Otherwise stop and relay the install line:
-     `python -m pip install lintlang==0.8.2`. Do not install anything
+     `python -m pip install lintlang==0.9.0`. Do not install anything
      persistently on the user's machine yourself.
 
-   A different installed version still works — say which version produced the
-   result, because counts and codes can differ between releases.
+   Every selected runner must list `--no-gate` in its `scan --help`. A CLI
+   without that capability is ineligible for the raw-mode commands below.
+   Use the private source checkout while the pinned release is unpublished.
 
 3. **Scan, once, with JSON output.** Use the same runner that passed the
    version check in step 2:
 
    ```bash
-   lintlang scan --format json -- <file> [<file> ...]
+   lintlang scan --no-gate --format json -- <file> [<file> ...]
    ```
 
    If step 2 selected `uvx`, run the pinned package instead:
 
    ```bash
-   uvx --from lintlang==0.8.2 lintlang scan --format json -- <file> [<file> ...]
+   uvx --from lintlang==0.9.0 lintlang scan --no-gate --format json -- <file> [<file> ...]
    ```
 
    The `--` keeps a path that begins with `-` from being read as a flag. JSON
@@ -83,7 +97,7 @@ rewrites a file or blocks a tool call.
 
 5. **Report.** Summarise; do not paste the whole payload back. Lead with the
    verdict and the counts by severity, then the specific findings that matter,
-   naming each by its code (`H1.1`, `H1.6`, `P2`, …) and `location`. Say which
+   naming each by its code (`H1.2`, `H1.6`, `P2`, …) and `location`. Say which
    file each finding belongs to when more than one was scanned.
 
 ## Exit codes
@@ -142,7 +156,7 @@ system_prompt: |
   You are a support agent. Use the tools to help the user.
 tools:
   - name: process_ticket
-    description: ""
+    description: "Get data"
     parameters:
       type: object
       properties:
@@ -150,10 +164,10 @@ tools:
           type: string
 YAML
 
-lintlang scan --fail-on fail -- "${TMPDIR:-/tmp}/lintlang-check.yaml"
+lintlang scan --no-gate --fail-on fail -- "${TMPDIR:-/tmp}/lintlang-check.yaml"
 ```
 
-On `lintlang 0.8.2` that reports `FAIL` and exits `1`, with `H1.1
-tool:process_ticket` — "Tool 'process_ticket' has no description." The seeded
+On `lintlang 0.9.0` that reports `FAIL` and exits `1`, with H1.2 at
+`tool:process_ticket` identifying the underspecified "Get data" description. The seeded
 finding is the expected outcome: it shows the detector fired, not that the
 install is broken. Delete the file afterwards.

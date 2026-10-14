@@ -65,18 +65,18 @@ def test_server_instructions_are_inspected_without_host_prompt_requirements():
         }}],
         "instructions": "The service reads files. " * 12,
     }
-    result = scan_config(parse_json(json.dumps(data)))
+    result = scan_config(parse_json(json.dumps(data)), gate=False)
     assert result.inspected["system_prompt"] == 1
     assert result.structural_findings == []
     data["instructions"] = "Keep trying until it works."
-    assert any(f.pattern_id == "H2" for f in scan_config(parse_json(json.dumps(data))).structural_findings)
+    assert any(f.pattern_id == "H2" for f in scan_config(parse_json(json.dumps(data)), gate=False).structural_findings)
 
 
 def test_localization_keys_are_not_counted_as_inspected_descriptions():
     result = scan_config(parse_json(json.dumps({"tools": [{
         "name": "search", "modelDescription": "%tool.search.description%",
         "inputSchema": {"properties": {"query": {"type": "string", "description": "%tool.query%"}}},
-    }]})))
+    }]})), gate=False)
     assert result.inspected["tools"] == 1
     assert result.inspected["tools_described"] == 0
     assert len(result.notes) == 2
@@ -88,13 +88,13 @@ def test_skill_catalog_skip_does_not_hide_tool_definitions():
     from lintlang.scanner import scan_source
 
     catalog = [{"name": "format-code", "description": "Format source code", "repo": "org/repo", "skillPath": "SKILL.md"}]
-    result = scan_source(json.dumps(catalog), "catalog.json", explicit=True)
+    result = scan_source(json.dumps(catalog), "catalog.json", explicit=True, gate=False)
     assert result.input_error is None
     assert "skill source catalog" in result.skipped
     catalog.append({"name": "broken", "inputSchema": {"type": "object"}})
-    result = scan_source(json.dumps(catalog), "catalog.json", explicit=True)
+    result = scan_source(json.dumps(catalog), "catalog.json", explicit=True, gate=False)
     assert result.inspected["tools"] == 1
-    assert any(f.code == "H1.1" for f in result.structural_findings)
+    assert not any(f.code in {"H1.1", "H1.2"} for f in result.structural_findings)
 
 
 @pytest.mark.parametrize("description", ["Count", "Validate", "Get all", "Delete all", "List everything", "Read anything"])

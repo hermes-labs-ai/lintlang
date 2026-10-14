@@ -33,15 +33,15 @@ class TestCLI:
         assert "clean" not in summary
 
     def test_scan_clean_config(self):
-        exit_code = main(["scan", str(SAMPLES_DIR / "clean_config.yaml")])
+        exit_code = main(["scan", "--no-gate", str(SAMPLES_DIR / "clean_config.yaml")])
         assert exit_code == 0
 
     def test_scan_bad_config(self):
-        exit_code = main(["scan", str(SAMPLES_DIR / "bad_tool_descriptions.yaml")])
+        exit_code = main(["scan", "--no-gate", str(SAMPLES_DIR / "bad_tool_descriptions.yaml")])
         assert exit_code == 0
 
     def test_scan_with_pattern_filter(self):
-        exit_code = main(["scan", str(SAMPLES_DIR / "bad_tool_descriptions.yaml"), "--patterns", "H1"])
+        exit_code = main(["scan", "--no-gate", str(SAMPLES_DIR / "bad_tool_descriptions.yaml"), "--patterns", "H1"])
         assert exit_code == 0
 
     def test_scan_help_does_not_expose_embeddings(self, capsys):
@@ -56,7 +56,7 @@ class TestCLI:
         with pytest.raises(SystemExit) as exc_info:
             main(
                 [
-                    "scan",
+                    "scan", "--no-gate",
                     str(SAMPLES_DIR / "clean_config.yaml"),
                     "--enable-embeddings",
                 ]
@@ -69,7 +69,7 @@ class TestCLI:
         py_file.parent.mkdir()
         py_file.write_text("CONFIDENCE_THRESHOLD = 0.75\n")
 
-        exit_code = main(["scan", str(py_file), "--format", "json"])
+        exit_code = main(["scan", "--no-gate", str(py_file), "--format", "json"])
 
         assert exit_code == 0
         captured = capsys.readouterr()
@@ -78,7 +78,7 @@ class TestCLI:
         assert any(finding["pattern_id"] == "P1" for finding in result["structural_findings"])
 
     def test_scan_json_format(self, capsys):
-        exit_code = main(["scan", str(SAMPLES_DIR / "clean_config.yaml"), "--format", "json"])
+        exit_code = main(["scan", "--no-gate", str(SAMPLES_DIR / "clean_config.yaml"), "--format", "json"])
         assert exit_code == 0
         captured = capsys.readouterr()
         data = json.loads(captured.out)
@@ -91,7 +91,7 @@ class TestCLI:
         assert "dimensions" in data[0]["herm"]
 
     def test_scan_sarif_emits_sarif_2_1_0_document(self, capsys):
-        exit_code = main(["scan", str(SAMPLES_DIR / "clean_config.yaml"), "--format", "sarif"])
+        exit_code = main(["scan", "--no-gate", str(SAMPLES_DIR / "clean_config.yaml"), "--format", "sarif"])
 
         assert exit_code == 0
         captured = capsys.readouterr()
@@ -114,7 +114,7 @@ class TestCLI:
         private_value = "PRIVATE_PROMPT_EVIDENCE"
         source.write_text(f"system_prompt: [{private_value}\n", encoding="utf-8")
 
-        exit_code = main(["scan", str(source), "--format", "sarif"])
+        exit_code = main(["scan", "--no-gate", str(source), "--format", "sarif"])
 
         assert exit_code == 1
         captured = capsys.readouterr()
@@ -140,7 +140,7 @@ class TestCLI:
         )
         monkeypatch.chdir(configs)
 
-        exit_code = main(["scan", "agent.yaml", "--format", "sarif"])
+        exit_code = main(["scan", "--no-gate", "agent.yaml", "--format", "sarif"])
 
         assert exit_code == 0
         document = json.loads(capsys.readouterr().out)
@@ -154,18 +154,18 @@ class TestCLI:
         monkeypatch.chdir(tmp_path)
         source = tmp_path / "agent.yaml"
         source.write_text(
-            "system_prompt: Keep trying until it works. Respond in JSON and Markdown.\n",
+            "system_prompt: Use the conversation history when you answer. " + "Operational guidance. " * 30 + "Keep trying until it works.\n",
             encoding="utf-8",
         )
 
         exit_code = main(
             [
-                "scan",
+                "scan", "--no-gate",
                 str(source),
                 "--format",
                 "sarif",
                 "--patterns",
-                "H6",
+                "H4",
                 "--min-severity",
                 "medium",
                 "--no-suggestions",
@@ -177,8 +177,8 @@ class TestCLI:
         assert exit_code == 1
         document = json.loads(capsys.readouterr().out)
         run = document["runs"][0]
-        assert [rule["id"] for rule in run["tool"]["driver"]["rules"]] == ["H6"]
-        assert {result["ruleId"] for result in run["results"]} == {"H6"}
+        assert [rule["id"] for rule in run["tool"]["driver"]["rules"]] == ["H4"]
+        assert {result["ruleId"] for result in run["results"]} == {"H4"}
         assert all(result["level"] == "warning" for result in run["results"])
         assert all("Suggested action:" not in result["message"]["text"] for result in run["results"])
 
@@ -194,7 +194,7 @@ class TestCLI:
 
         exit_code = main(
             [
-                "scan",
+                "scan", "--no-gate",
                 str(source_dir),
                 "--format",
                 "sarif",
@@ -225,7 +225,7 @@ class TestCLI:
         outside.write_text("system_prompt: Keep trying until it works.\n", encoding="utf-8")
         monkeypatch.chdir(repository)
 
-        exit_code = main(["scan", str(outside), "--format", "sarif"])
+        exit_code = main(["scan", "--no-gate", str(outside), "--format", "sarif"])
 
         assert exit_code == 1
         captured = capsys.readouterr()
@@ -251,7 +251,7 @@ class TestCLI:
         outside.write_text("system_prompt: Respond in JSON and Markdown.\n", encoding="utf-8")
         monkeypatch.chdir(repository)
 
-        exit_code = main(["scan", str(inside), str(outside), "--format", "sarif"])
+        exit_code = main(["scan", "--no-gate", str(inside), str(outside), "--format", "sarif"])
 
         assert exit_code == 1
         captured = capsys.readouterr()
@@ -270,7 +270,7 @@ class TestCLI:
         ("source_text", "expected"),
         [
             ("system_prompt: You are helpful.", {None: 0, "fail": 0, "review": 0}),
-            ("system_prompt: Respond in JSON and Markdown.", {None: 0, "fail": 0, "review": 1}),
+            ("system_prompt: Use the conversation history when you answer. " + "Operational guidance. " * 30, {None: 0, "fail": 0, "review": 1}),
             ("system_prompt: Keep trying until it works.", {None: 0, "fail": 1, "review": 1}),
             (None, {None: 1, "fail": 1, "review": 1}),
         ],
@@ -289,7 +289,7 @@ class TestCLI:
         source = tmp_path / "agent.yaml"
         if source_text is not None:
             source.write_text(source_text, encoding="utf-8")
-        args = ["scan", str(source), "--format", output_format]
+        args = ["scan", "--no-gate", str(source), "--format", output_format]
         if fail_on is not None:
             args.extend(["--fail-on", fail_on])
 
@@ -302,20 +302,20 @@ class TestCLI:
 
     def test_scan_json_verdict_values(self, capsys):
         """Clean config should have PASS verdict in JSON."""
-        main(["scan", str(SAMPLES_DIR / "clean_config.yaml"), "--format", "json"])
+        main(["scan", "--no-gate", str(SAMPLES_DIR / "clean_config.yaml"), "--format", "json"])
         captured = capsys.readouterr()
         data = json.loads(captured.out)
         assert data[0]["verdict"] == "PASS"
 
     def test_scan_json_bad_config_verdict(self, capsys):
         """Bad config should have FAIL or REVIEW verdict."""
-        main(["scan", str(SAMPLES_DIR / "bad_tool_descriptions.yaml"), "--format", "json"])
+        main(["scan", "--no-gate", str(SAMPLES_DIR / "bad_tool_descriptions.yaml"), "--format", "json"])
         captured = capsys.readouterr()
         data = json.loads(captured.out)
         assert data[0]["verdict"] in ("FAIL", "REVIEW")
 
     def test_scan_markdown_format(self, capsys):
-        exit_code = main(["scan", str(SAMPLES_DIR / "clean_config.yaml"), "--format", "markdown"])
+        exit_code = main(["scan", "--no-gate", str(SAMPLES_DIR / "clean_config.yaml"), "--format", "markdown"])
         assert exit_code == 0
         captured = capsys.readouterr()
         assert "# Lintlang Report" in captured.out
@@ -323,14 +323,14 @@ class TestCLI:
 
     def test_scan_terminal_shows_verdict(self, capsys):
         """Terminal output should show verdict, not HERM score."""
-        main(["scan", str(SAMPLES_DIR / "clean_config.yaml")])
+        main(["scan", "--no-gate", str(SAMPLES_DIR / "clean_config.yaml")])
         captured = capsys.readouterr()
         assert "PASS" in captured.out
         # HERM score should NOT appear in terminal output
         assert "HERM Score:" not in captured.out
 
     def test_terminal_explains_confidence_coverage_drivers(self, capsys):
-        main(["scan", str(SAMPLES_DIR / "reference_document.txt")])
+        main(["scan", "--no-gate", str(SAMPLES_DIR / "reference_document.txt")])
         output = capsys.readouterr().out
         assert "Confidence: LOW (65% coverage proxy; low <75%)" in output
         assert "Primary driver: Prompt-like framing was not detected" in output
@@ -342,7 +342,7 @@ class TestCLI:
     def test_json_confidence_breakdown_matches_coverage_proxies(self, capsys):
         main(
             [
-                "scan",
+                "scan", "--no-gate",
                 str(SAMPLES_DIR / "reference_document.txt"),
                 "--format",
                 "json",
@@ -365,7 +365,7 @@ class TestCLI:
     def test_markdown_reports_confidence_guidance(self, capsys):
         main(
             [
-                "scan",
+                "scan", "--no-gate",
                 str(SAMPLES_DIR / "reference_document.txt"),
                 "--format",
                 "markdown",
@@ -386,7 +386,7 @@ class TestCLI:
     def test_scan_terminal_redirected_output_has_no_ansi(self, capsys, monkeypatch):
         monkeypatch.setattr(sys.stdout, "isatty", lambda: False)
 
-        exit_code = main(["scan", str(SAMPLES_DIR / "clean_config.yaml")])
+        exit_code = main(["scan", "--no-gate", str(SAMPLES_DIR / "clean_config.yaml")])
 
         assert exit_code == 0
         assert "\033[" not in capsys.readouterr().out
@@ -395,7 +395,7 @@ class TestCLI:
         monkeypatch.setattr(sys.stdout, "isatty", lambda: True)
         monkeypatch.setenv("NO_COLOR", "1")
 
-        exit_code = main(["scan", str(SAMPLES_DIR / "clean_config.yaml")])
+        exit_code = main(["scan", "--no-gate", str(SAMPLES_DIR / "clean_config.yaml")])
 
         assert exit_code == 0
         output = capsys.readouterr().out
@@ -408,7 +408,7 @@ class TestCLI:
 
         exit_code = main(
             [
-                "scan",
+                "scan", "--no-gate",
                 str(SAMPLES_DIR / "clean_config.yaml"),
                 str(SAMPLES_DIR / "bad_tool_descriptions.yaml"),
             ]
@@ -422,26 +422,26 @@ class TestCLI:
 
     def test_fail_on_fail_passes_clean(self):
         """Clean config should pass with --fail-on fail."""
-        exit_code = main(["scan", str(SAMPLES_DIR / "clean_config.yaml"), "--fail-on", "fail"])
+        exit_code = main(["scan", "--no-gate", str(SAMPLES_DIR / "clean_config.yaml"), "--fail-on", "fail"])
         assert exit_code == 0
 
     def test_fail_on_fail_catches_bad(self):
         """Bad config with CRITICAL findings should fail with --fail-on fail."""
-        exit_code = main(["scan", str(SAMPLES_DIR / "bad_tool_descriptions.yaml"), "--fail-on", "fail"])
+        exit_code = main(["scan", "--no-gate", str(SAMPLES_DIR / "bad_tool_descriptions.yaml"), "--fail-on", "fail"])
         assert exit_code == 1
 
     def test_fail_on_review_catches_medium(self):
         """Config with MEDIUM findings should fail with --fail-on review."""
-        exit_code = main(["scan", str(SAMPLES_DIR / "bad_system_prompt.txt"), "--fail-on", "review"])
+        exit_code = main(["scan", "--no-gate", str(SAMPLES_DIR / "bad_system_prompt.txt"), "--fail-on", "review"])
         assert exit_code == 1
 
     def test_legacy_fail_under_still_works(self):
         """Legacy --fail-under should still function."""
-        exit_code = main(["scan", str(SAMPLES_DIR / "bad_agent_config.json"), "--fail-under", "99"])
+        exit_code = main(["scan", "--no-gate", str(SAMPLES_DIR / "bad_agent_config.json"), "--fail-under", "99"])
         assert exit_code == 1
 
     def test_legacy_fail_under_passes(self):
-        exit_code = main(["scan", str(SAMPLES_DIR / "clean_config.yaml"), "--fail-under", "80"])
+        exit_code = main(["scan", "--no-gate", str(SAMPLES_DIR / "clean_config.yaml"), "--fail-under", "80"])
         assert exit_code == 0
 
     @pytest.mark.parametrize(
@@ -453,7 +453,7 @@ class TestCLI:
 
         monkeypatch.setattr("lintlang.cli._cmd_scan", unexpected_scan)
         with pytest.raises(SystemExit) as exc_info:
-            main(["scan", str(SAMPLES_DIR / "clean_config.yaml"), f"--fail-under={value}"])
+            main(["scan", "--no-gate", str(SAMPLES_DIR / "clean_config.yaml"), f"--fail-under={value}"])
         assert exc_info.value.code == 2
         captured = capsys.readouterr()
         assert captured.out == ""
@@ -466,11 +466,11 @@ class TestCLI:
     )
     def test_fail_under_preserves_valid_thresholds(self, value, expected):
         # The fixture scores 98: equality passes, while a higher threshold fails.
-        assert main(["scan", str(SAMPLES_DIR / "clean_config.yaml"), "--fail-under", value]) == expected
+        assert main(["scan", "--no-gate", str(SAMPLES_DIR / "clean_config.yaml"), "--fail-under", value]) == expected
 
     @pytest.mark.parametrize("value", ["0", "-0.0"])
     def test_fail_under_zero_keeps_gate_disabled(self, value):
-        assert main(["scan", str(SAMPLES_DIR / "bad_agent_config.json"), "--fail-under", value]) == 0
+        assert main(["scan", "--no-gate", str(SAMPLES_DIR / "bad_agent_config.json"), "--fail-under", value]) == 0
 
     def test_patterns_command(self):
         exit_code = main(["patterns"])
@@ -483,7 +483,7 @@ class TestCLI:
     def test_multiple_files(self):
         exit_code = main(
             [
-                "scan",
+                "scan", "--no-gate",
                 str(SAMPLES_DIR / "clean_config.yaml"),
                 str(SAMPLES_DIR / "bad_tool_descriptions.yaml"),
             ]
@@ -492,7 +492,7 @@ class TestCLI:
 
     def test_missing_file_returns_error(self):
         """CLI should return 1 when no files are successfully scanned."""
-        exit_code = main(["scan", "/nonexistent/file.yaml"])
+        exit_code = main(["scan", "--no-gate", "/nonexistent/file.yaml"])
         assert exit_code == 1
 
     def test_directory_scan_with_no_matching_files_is_an_input_error(self, tmp_path, capsys):
@@ -505,14 +505,14 @@ class TestCLI:
         (tmp_path / "README.md").write_text("# hi\n")
         (tmp_path / "LICENSE").write_text("MIT\n")
 
-        exit_code = main(["scan", str(tmp_path)])
+        exit_code = main(["scan", "--no-gate", str(tmp_path)])
 
         assert exit_code == 1
         captured = capsys.readouterr()
         assert "Error: No files were inspected" in captured.err
         assert "--allow-empty" in captured.err
 
-        assert main(["scan", str(tmp_path), "--allow-empty"]) == 0
+        assert main(["scan", "--no-gate", str(tmp_path), "--allow-empty"]) == 0
         assert "Error:" not in capsys.readouterr().err
 
     def test_python_scan_with_only_python_excluded_patterns_warns(self, tmp_path, capsys):
@@ -526,7 +526,7 @@ class TestCLI:
         python_file = tmp_path / "pipeline.py"
         python_file.write_text("CONFIDENCE_THRESHOLD = 0.75\n")
 
-        exit_code = main(["scan", str(python_file), "--patterns", "H1", "--fail-on", "fail"])
+        exit_code = main(["scan", "--no-gate", str(python_file), "--patterns", "H1", "--fail-on", "fail"])
 
         assert exit_code == 0
         captured = capsys.readouterr()
@@ -540,7 +540,7 @@ class TestCLI:
         python_file = tmp_path / "pipeline.py"
         python_file.write_text("CONFIDENCE_THRESHOLD = 0.75\n")
 
-        exit_code = main(["scan", str(python_file), "--patterns", "H2"])
+        exit_code = main(["scan", "--no-gate", str(python_file), "--patterns", "H2"])
 
         assert exit_code == 0
         captured = capsys.readouterr()
@@ -549,7 +549,7 @@ class TestCLI:
     def test_non_python_scan_with_excluded_patterns_does_not_warn(self, capsys):
         """The warning only fires for .py inputs — H1/H3/H7 are the normal,
         fully-applicable detectors for YAML/JSON/text config files."""
-        exit_code = main(["scan", str(SAMPLES_DIR / "bad_tool_descriptions.yaml"), "--patterns", "H1"])
+        exit_code = main(["scan", "--no-gate", str(SAMPLES_DIR / "bad_tool_descriptions.yaml"), "--patterns", "H1"])
 
         assert exit_code == 0
         captured = capsys.readouterr()
@@ -557,7 +557,7 @@ class TestCLI:
 
     def test_fail_on_with_missing_file(self):
         """CLI should not silently pass when all files are missing."""
-        exit_code = main(["scan", "/nonexistent/file.yaml", "--fail-on", "fail"])
+        exit_code = main(["scan", "--no-gate", "/nonexistent/file.yaml", "--fail-on", "fail"])
         assert exit_code == 1
 
     def test_fail_on_with_valid_and_missing_file_is_input_error(self, tmp_path, capsys):
@@ -568,7 +568,7 @@ class TestCLI:
 
         exit_code = main(
             [
-                "scan",
+                "scan", "--no-gate",
                 str(valid),
                 str(missing),
                 "--format",
@@ -593,7 +593,7 @@ class TestCLI:
         valid.write_text("system_prompt: You are helpful.")
         missing = tmp_path / "missing.yaml"
 
-        exit_code = main(["scan", str(valid), str(missing)])
+        exit_code = main(["scan", "--no-gate", str(valid), str(missing)])
 
         assert exit_code == 1
         captured = capsys.readouterr()
@@ -612,7 +612,7 @@ class TestCLI:
 
         exit_code = main(
             [
-                "scan",
+                "scan", "--no-gate",
                 str(tmp_path),
                 "--format",
                 "json",
@@ -634,7 +634,7 @@ class TestCLI:
     def test_min_severity_filter(self, capsys):
         exit_code = main(
             [
-                "scan",
+                "scan", "--no-gate",
                 str(SAMPLES_DIR / "bad_system_prompt.txt"),
                 "--min-severity",
                 "high",
@@ -652,7 +652,7 @@ class TestCLI:
 
     def test_json_output_structure(self, capsys):
         """JSON output should have verdict + structural_findings + herm."""
-        exit_code = main(["scan", str(SAMPLES_DIR / "bad_tool_descriptions.yaml"), "--format", "json"])
+        exit_code = main(["scan", "--no-gate", str(SAMPLES_DIR / "bad_tool_descriptions.yaml"), "--format", "json"])
         assert exit_code == 0
         captured = capsys.readouterr()
         data = json.loads(captured.out)
@@ -686,7 +686,7 @@ class TestRepositoryDiscovery:
         self._repository(tmp_path)
         monkeypatch.chdir(tmp_path)
 
-        exit_code = main(["scan", "--discover", "--format", "json"])
+        exit_code = main(["scan", "--no-gate", "--discover", "--format", "json"])
 
         assert exit_code == 0
         data = json.loads(capsys.readouterr().out)
@@ -695,7 +695,7 @@ class TestRepositoryDiscovery:
     def test_discover_accepts_an_explicit_root(self, tmp_path, capsys):
         self._repository(tmp_path)
 
-        exit_code = main(["scan", "--discover", str(tmp_path), "--format", "json"])
+        exit_code = main(["scan", "--no-gate", "--discover", str(tmp_path), "--format", "json"])
 
         assert exit_code == 0
         data = json.loads(capsys.readouterr().out)
@@ -706,7 +706,7 @@ class TestRepositoryDiscovery:
         inspects docs/notes.md, which discovery deliberately never selects."""
         self._repository(tmp_path)
 
-        exit_code = main(["scan", str(tmp_path), "--format", "json"])
+        exit_code = main(["scan", "--no-gate", str(tmp_path), "--format", "json"])
 
         assert exit_code == 0
         data = json.loads(capsys.readouterr().out)
@@ -717,7 +717,7 @@ class TestRepositoryDiscovery:
         self._repository(tmp_path)
         monkeypatch.chdir(tmp_path)
 
-        exit_code = main(["scan", "AGENTS.md", "docs/notes.md", "--discover", "--format", "json"])
+        exit_code = main(["scan", "--no-gate", "AGENTS.md", "docs/notes.md", "--discover", "--format", "json"])
 
         assert exit_code == 0
         data = json.loads(capsys.readouterr().out)
@@ -736,7 +736,7 @@ class TestRepositoryDiscovery:
         (tmp_path / "CLAUDE.md").symlink_to(tmp_path / "AGENTS.md")
         (tmp_path / "LICENSE.md").symlink_to(tmp_path / "README.md")
 
-        exit_code = main(["scan", "--discover", str(tmp_path), "--format", "json"])
+        exit_code = main(["scan", "--no-gate", "--discover", str(tmp_path), "--format", "json"])
 
         assert exit_code == 0
         captured = capsys.readouterr()
@@ -749,7 +749,7 @@ class TestRepositoryDiscovery:
     def test_discover_is_silent_when_no_instruction_symlink_was_skipped(self, tmp_path, capsys):
         self._repository(tmp_path)
 
-        assert main(["scan", "--discover", str(tmp_path), "--format", "json"]) == 0
+        assert main(["scan", "--no-gate", "--discover", str(tmp_path), "--format", "json"]) == 0
         assert "symlink" not in capsys.readouterr().err
 
     def test_discover_symlink_notice_honours_exclude_globs(self, tmp_path, capsys):
@@ -757,13 +757,13 @@ class TestRepositoryDiscovery:
         self._repository(tmp_path)
         (tmp_path / "docs" / "CLAUDE.md").symlink_to(tmp_path / "AGENTS.md")
 
-        exit_code = main(["scan", "--discover", str(tmp_path), "--exclude", "docs/**", "--format", "json"])
+        exit_code = main(["scan", "--no-gate", "--discover", str(tmp_path), "--exclude", "docs/**", "--format", "json"])
 
         assert exit_code == 0
         assert "symlink" not in capsys.readouterr().err
 
     def test_discover_root_must_exist(self, tmp_path, capsys):
-        exit_code = main(["scan", "--discover", str(tmp_path / "absent")])
+        exit_code = main(["scan", "--no-gate", "--discover", str(tmp_path / "absent")])
 
         assert exit_code == 1
         assert "Error:" in capsys.readouterr().err
@@ -771,13 +771,13 @@ class TestRepositoryDiscovery:
     def test_discover_with_no_recognized_files_is_an_empty_scan_error(self, tmp_path, capsys):
         (tmp_path / "README.md").write_text("# Readme\n", encoding="utf-8")
 
-        exit_code = main(["scan", "--discover", str(tmp_path)])
+        exit_code = main(["scan", "--no-gate", "--discover", str(tmp_path)])
 
         assert exit_code == 1
         assert "No files were inspected" in capsys.readouterr().err
 
     def test_scan_without_files_or_discover_fails_clearly(self, capsys):
-        exit_code = main(["scan"])
+        exit_code = main(["scan", "--no-gate"])
 
         assert exit_code != 0
         captured = capsys.readouterr()
@@ -790,7 +790,7 @@ class TestRepositoryDiscovery:
         target = tmp_path / "AGENTS.md"
         target.write_text("You are an agent.\n", encoding="utf-8")
 
-        exit_code = main(["scan", "--discover", str(target)])
+        exit_code = main(["scan", "--no-gate", "--discover", str(target)])
 
         assert exit_code == 1
         captured = capsys.readouterr()
@@ -807,7 +807,7 @@ class TestRepositoryDiscovery:
         (fixtures / "AGENTS.md").write_text("Loop over the queue indefinitely.\n", encoding="utf-8")
         monkeypatch.chdir(tmp_path)
 
-        exit_code = main(["scan", "--discover", "--exclude", "tests/**", "--format", "json"])
+        exit_code = main(["scan", "--no-gate", "--discover", "--exclude", "tests/**", "--format", "json"])
 
         assert exit_code == 0
         data = json.loads(capsys.readouterr().out)
@@ -822,7 +822,7 @@ class TestRepositoryDiscovery:
         (tmp_path / ".lintlangignore").write_text("vendor/**\n", encoding="utf-8")
         monkeypatch.chdir(tmp_path)
 
-        exit_code = main(["scan", "--discover", "--format", "json"])
+        exit_code = main(["scan", "--no-gate", "--discover", "--format", "json"])
 
         assert exit_code == 0
         data = json.loads(capsys.readouterr().out)
@@ -834,7 +834,7 @@ class TestRepositoryDiscovery:
         path name the same document; rejecting is the smaller contract."""
         self._repository(tmp_path)
 
-        exit_code = main(["scan", "-", "--stdin-filename", "AGENTS.md", "--discover", str(tmp_path)])
+        exit_code = main(["scan", "--no-gate", "-", "--stdin-filename", "AGENTS.md", "--discover", str(tmp_path)])
 
         assert exit_code == 2
         assert "cannot be combined with --discover" in capsys.readouterr().err
@@ -848,7 +848,7 @@ class TestEmptyScanIsNonzero:
         (tmp_path / "README.md").write_text("# hi\n", encoding="utf-8")
         (tmp_path / "LICENSE").write_text("MIT\n", encoding="utf-8")
 
-        exit_code = main(["scan", str(tmp_path)])
+        exit_code = main(["scan", "--no-gate", str(tmp_path)])
 
         assert exit_code == 1
         captured = capsys.readouterr()
@@ -858,7 +858,7 @@ class TestEmptyScanIsNonzero:
     def test_empty_scan_json_reports_the_error(self, tmp_path, capsys):
         (tmp_path / "README.md").write_text("# hi\n", encoding="utf-8")
 
-        exit_code = main(["scan", str(tmp_path), "--format", "json"])
+        exit_code = main(["scan", "--no-gate", str(tmp_path), "--format", "json"])
 
         assert exit_code == 1
         data = json.loads(capsys.readouterr().out)
@@ -874,7 +874,7 @@ class TestEmptyScanIsNonzero:
     def test_empty_scan_sarif_is_unsuccessful_and_nonzero(self, tmp_path, capsys):
         (tmp_path / "README.md").write_text("# hi\n", encoding="utf-8")
 
-        exit_code = main(["scan", str(tmp_path), "--format", "sarif"])
+        exit_code = main(["scan", "--no-gate", str(tmp_path), "--format", "sarif"])
 
         assert exit_code == 1
         document = json.loads(capsys.readouterr().out)
@@ -885,7 +885,7 @@ class TestEmptyScanIsNonzero:
     def test_allow_empty_restores_exit_zero(self, tmp_path, capsys):
         (tmp_path / "README.md").write_text("# hi\n", encoding="utf-8")
 
-        exit_code = main(["scan", str(tmp_path), "--allow-empty", "--format", "json"])
+        exit_code = main(["scan", "--no-gate", str(tmp_path), "--allow-empty", "--format", "json"])
 
         assert exit_code == 0
         captured = capsys.readouterr()
@@ -899,7 +899,7 @@ class TestEmptyScanIsNonzero:
         so SARIF must not declare the run unsuccessful at exit 0."""
         (tmp_path / "README.md").write_text("# hi\n", encoding="utf-8")
 
-        exit_code = main(["scan", str(tmp_path), "--allow-empty", "--format", "sarif"])
+        exit_code = main(["scan", "--no-gate", str(tmp_path), "--allow-empty", "--format", "sarif"])
 
         assert exit_code == 0
         document = json.loads(capsys.readouterr().out)
@@ -911,7 +911,7 @@ class TestEmptyScanIsNonzero:
         (tmp_path / "README.md").write_text("# hi\n", encoding="utf-8")
         baseline = tmp_path / "baseline.json"
 
-        exit_code = main(["scan", str(tmp_path), "--format", "json", "--write-baseline", str(baseline)])
+        exit_code = main(["scan", "--no-gate", str(tmp_path), "--format", "json", "--write-baseline", str(baseline)])
 
         assert exit_code == 1
         captured = capsys.readouterr()
@@ -924,7 +924,7 @@ class TestEmptyScanIsNonzero:
         utf16_file = tmp_path / "agent.yaml"
         utf16_file.write_bytes(b"\xff\xfe" + "system_prompt: You are helpful.\n".encode("utf-16-le"))
 
-        exit_code = main(["scan", str(utf16_file), "--format", "json"])
+        exit_code = main(["scan", "--no-gate", str(utf16_file), "--format", "json"])
 
         assert exit_code == 1
         captured = capsys.readouterr()
@@ -941,7 +941,7 @@ class TestEmptyScanIsNonzero:
         bad_file = tmp_path / "bad.json"
         bad_file.write_bytes(b"\x80\x81\x82\xff")
 
-        exit_code = main(["scan", str(bad_file), "--format", "json"])
+        exit_code = main(["scan", "--no-gate", str(bad_file), "--format", "json"])
 
         assert exit_code == 1
         captured = capsys.readouterr()

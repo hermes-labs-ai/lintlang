@@ -1,0 +1,178 @@
+{
+  "all_gate_scores_match_frozen_candidate": true,
+  "boundary": "Default gate removes DISMISS findings from delivered output. KEEP blocks, ESCALATE is advisory. Identity and score agreement with the frozen receipt establishes unchanged behavior on these files, not production precision or safety. Raw paths, evidence, labels by identity, and source text stay private.",
+  "by_rule_and_decision": {
+    "H1.7": {
+      "KEEP": {
+        "TP": 1
+      }
+    },
+    "H1.8": {
+      "DISMISS": {
+        "FP": 36,
+        "TP": 5
+      },
+      "ESCALATE": {
+        "FP": 58,
+        "TP": 141
+      },
+      "KEEP": {
+        "FP": 172,
+        "TP": 126
+      }
+    },
+    "H1.9": {
+      "DISMISS": {
+        "FP": 1
+      },
+      "ESCALATE": {
+        "TP": 1
+      }
+    },
+    "H2": {
+      "DISMISS": {
+        "FP": 1
+      }
+    },
+    "H4": {
+      "DISMISS": {
+        "FP": 7,
+        "TP": 6
+      },
+      "ESCALATE": {
+        "FP": 1
+      }
+    },
+    "H4.5": {
+      "DISMISS": {
+        "FP": 1,
+        "TP": 2
+      },
+      "ESCALATE": {
+        "FP": 7,
+        "TP": 36
+      },
+      "KEEP": {
+        "TP": 58
+      }
+    },
+    "H5": {
+      "KEEP": {
+        "FP": 310,
+        "TP": 1,
+        "UNRESOLVED": 1
+      }
+    }
+  },
+  "cli_format_probes": {
+    "boundary": "Two representative files, not a subprocess per corpus file. GitLab omits unlocated findings and returns 1 in that case.",
+    "checks": [
+      {
+        "formats": [
+          {
+            "actual_exit": 1,
+            "delivered": 1,
+            "expected_exit": 1,
+            "format": "json"
+          },
+          {
+            "actual_exit": 1,
+            "delivered": 1,
+            "expected_exit": 1,
+            "format": "sarif"
+          },
+          {
+            "actual_exit": 1,
+            "delivered": 1,
+            "expected_exit": 1,
+            "format": "gitlab"
+          }
+        ],
+        "raw_findings": 2,
+        "source_sha256": "74bc3006fb15eef9cea6bf70a4e9cc45ec118ef00733d1c8226c9dc428f8d658",
+        "suppressed": 1,
+        "verdict": "FAIL"
+      },
+      {
+        "formats": [
+          {
+            "actual_exit": 0,
+            "delivered": 1,
+            "expected_exit": 0,
+            "format": "json"
+          },
+          {
+            "actual_exit": 0,
+            "delivered": 1,
+            "expected_exit": 0,
+            "format": "sarif"
+          },
+          {
+            "actual_exit": 0,
+            "delivered": 1,
+            "expected_exit": 0,
+            "format": "gitlab"
+          }
+        ],
+        "raw_findings": 1,
+        "source_sha256": "c686864b036c198a8ba00c663c38979e078f84837c393d9b593875aedb50f40f",
+        "suppressed": 0,
+        "verdict": "REVIEW"
+      }
+    ],
+    "files": 2
+  },
+  "corpus_source_hashes_verified": 1599,
+  "corpus_sources_unchanged_during_replay": true,
+  "decisions_by_label": {
+    "DISMISS": {
+      "FP": 46,
+      "TP": 13
+    },
+    "ESCALATE": {
+      "FP": 66,
+      "TP": 178
+    },
+    "KEEP": {
+      "FP": 482,
+      "TP": 186,
+      "UNRESOLVED": 1
+    }
+  },
+  "default_delivered_findings": 913,
+  "default_gate_status_by_file": {
+    "evaluated": 1599
+  },
+  "default_thresholds": {
+    "dismiss": 0.15,
+    "keep": 0.85
+  },
+  "delivery_matches_frozen_candidate_gated_excluding_dismiss": true,
+  "detector_source_tree_sha256": "8c7b135845a0ab4b6dbef66492bc580de0006c94998e1dc73c521ec673cb8add",
+  "files": 1599,
+  "files_with_raw_findings": 814,
+  "keep_precision_on_resolved_labels": 0.27844311377245506,
+  "keep_precision_target": 0.99,
+  "label_file_sha256": "10ebab44730f469d14ed22dbe191ca493b4944421db5d3b6d051bbc42ad9c444",
+  "manifest_sha256": "e693f3f61a4e78390d67174e32d9a04aa0e96708d5cd116de518ec073624731c",
+  "model_and_detector_files_unchanged_during_replay": true,
+  "model_artifact_sha256": {
+    "src/lintlang/gate/artifacts/model.json": "aa50b46bb26311602884801e3c68f750ccc87ed39f0206d12031817df2d98c8d",
+    "src/lintlang/gate/artifacts/scaler.json": "a3d1962a849f069ecd3040c2a2d7c39762a33dd34fe04d9ad1286ec8c4b6d928",
+    "src/lintlang/gate/artifacts/thresholds.json": "0d26d190c226a71477bd5be72eb52d54584f38a158e0094d120de1bb85c064e3"
+  },
+  "raw_detector_source_unchanged_during_replay": true,
+  "raw_findings": 972,
+  "raw_identity_matches_frozen_candidate": true,
+  "release_readiness": "BLOCKED_KEEP_PRECISION_BELOW_99_PERCENT",
+  "scope": "Frozen 0.8.8 development corpus; AI-review labels are not independent population truth.",
+  "status": "MATCH_FROZEN_DEFAULT_GATE",
+  "suppressed_findings": 59,
+  "suppressed_labeled_fp": 46,
+  "suppressed_labeled_tp": 13,
+  "verdicts_by_file": {
+    "FAIL": 564,
+    "PASS": 832,
+    "REVIEW": 203
+  }
+}

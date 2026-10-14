@@ -18,7 +18,7 @@ def project(tmp_path, monkeypatch):
 
 
 def scan(capsys, *args):
-    status = main(["scan", *args, "--format", "json"])
+    status = main(["scan", "--no-gate", *args, "--format", "json"])
     output = capsys.readouterr()
     return status, json.loads(output.out), output.err
 
@@ -121,13 +121,13 @@ def test_baseline_error_json_uses_the_result_schema(project, capsys):
 @pytest.mark.parametrize("output_format", ["terminal", "markdown"])
 def test_human_output_states_verdict_scope(project, capsys, output_format):
     baseline(capsys)
-    assert main(["scan", "agent.yaml", "--baseline", "baseline.json", "--format", output_format]) == 0
+    assert main(["scan", "--no-gate", "agent.yaml", "--baseline", "baseline.json", "--format", output_format]) == 0
     assert "verdict covers remaining findings" in capsys.readouterr().out
 
 
 def test_sarif_reports_baseline_scope_and_empty_results(project, capsys):
     baseline(capsys)
-    assert main(["scan", "agent.yaml", "--baseline", "baseline.json", "--format", "sarif"]) == 0
+    assert main(["scan", "--no-gate", "agent.yaml", "--baseline", "baseline.json", "--format", "sarif"]) == 0
     run = json.loads(capsys.readouterr().out)["runs"][0]
     assert run["results"] == []
     assert run["properties"]["lintlangBaseline"]["suppressed"] > 0

@@ -34,6 +34,8 @@ def test_current_model_fields_are_preserved() -> None:
             "sub_id",
             "source_region",
             "offset",
+            "gate_decision",
+            "gate_probability",
         ),
         "SkillMeta": (
             "name",
@@ -108,5 +110,5 @@ def test_h1_reexports_are_identical() -> None:
 
 
 def test_registry_keeps_h1_identity_and_order() -> None:
-    assert tuple(patterns.PATTERNS) == ("H1", "H2", "H3", "H4", "H5", "H6", "H7")
+    assert tuple(patterns.PATTERNS) == ("H1", "H2", "H3", "H4", "H7")
     assert patterns.PATTERNS["H1"]["detect"] is h1.detect_h1

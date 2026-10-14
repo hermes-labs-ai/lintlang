@@ -109,3 +109,21 @@ def test_version_sync_does_not_rewrite_unrelated_historical_pins():
     assert "lintlang@v0.5.0" in updated
     assert "rev: v0.5.0" in updated
     assert "lintlang==0.3.1" in updated
+
+
+def test_version_sync_preserves_old_release_docs_and_updates_current_draft(tmp_path):
+    sync = load_sync_script()
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    historical = docs / "release-0.8.8.md"
+    current = docs / "release-0.9.0.md"
+    historical_text = "# Historical 0.8.8 candidate\n\nExcerpt from `lintlang 0.8.8`.\n"
+    historical.write_text(historical_text, encoding="utf-8")
+    current.write_text("# Unpublished current draft\n\nExcerpt from `lintlang 0.8.8`.\n", encoding="utf-8")
+
+    assert sync.main(["--version", "0.9.0", "--root", str(tmp_path)]) == 0
+    assert historical.read_text(encoding="utf-8") == historical_text
+    assert current.read_text(encoding="utf-8") == (
+        "# Unpublished current draft\n\nExcerpt from `lintlang 0.9.0`.\n"
+    )
+    assert sync.main(["--version", "0.9.0", "--root", str(tmp_path), "--check"]) == 0

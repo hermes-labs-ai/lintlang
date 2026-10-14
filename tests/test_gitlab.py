@@ -100,7 +100,7 @@ def test_cli_multifile_report_keeps_json_clean_and_input_error_nonzero(tmp_path,
     (tmp_path / ".git").mkdir()
     source = tmp_path / "pipeline.py"
     source.write_text("CONFIDENCE_THRESHOLD = 0.75\n")
-    status = main(["scan", "pipeline.py", "missing.yaml", "--format", "gitlab"])
+    status = main(["scan", "--no-gate", "pipeline.py", "missing.yaml", "--format", "gitlab"])
     captured = capsys.readouterr()
     assert status == 1
     report = json.loads(captured.out)
@@ -120,11 +120,11 @@ def test_cli_unlocated_finding_still_trips_gate(tmp_path, monkeypatch, capsys):
         "lintlang.cli.scan_file",
         lambda path, **kwargs: _result(path, _finding(line=None)),
     )
-    assert main(["scan", "agent.yaml", "--format", "gitlab"]) == 1
+    assert main(["scan", "--no-gate", "agent.yaml", "--format", "gitlab"]) == 1
     advisory = capsys.readouterr()
     assert json.loads(advisory.out) == []
     assert "omitted" in advisory.err
-    status = main(["scan", "agent.yaml", "--format", "gitlab", "--fail-on", "review"])
+    status = main(["scan", "--no-gate", "agent.yaml", "--format", "gitlab", "--fail-on", "review"])
     captured = capsys.readouterr()
     assert status == 1
     assert json.loads(captured.out) == []
@@ -136,13 +136,13 @@ def test_cli_empty_and_baseline_errors_return_array(tmp_path, monkeypatch, capsy
     monkeypatch.chdir(tmp_path)
     (tmp_path / ".git").mkdir()
     (tmp_path / "empty").mkdir()
-    assert main(["scan", "empty", "--format", "gitlab"]) == 1
+    assert main(["scan", "--no-gate", "empty", "--format", "gitlab"]) == 1
     assert json.loads(capsys.readouterr().out) == []
-    assert main(["scan", "empty", "--format", "gitlab", "--allow-empty"]) == 0
+    assert main(["scan", "--no-gate", "empty", "--format", "gitlab", "--allow-empty"]) == 0
     assert json.loads(capsys.readouterr().out) == []
     source = tmp_path / "agent.md"
     source.write_text("Keep trying until it works.\n")
-    assert main(["scan", "agent.md", "--format", "gitlab", "--baseline", "missing.json"]) == 1
+    assert main(["scan", "--no-gate", "agent.md", "--format", "gitlab", "--baseline", "missing.json"]) == 1
     captured = capsys.readouterr()
     assert json.loads(captured.out) == []
     assert "Baseline:" in captured.err
@@ -153,9 +153,9 @@ def test_cli_baseline_suppresses_reported_findings(tmp_path, monkeypatch, capsys
     (tmp_path / ".git").mkdir()
     source = tmp_path / "pipeline.py"
     source.write_text("CONFIDENCE_THRESHOLD = 0.75\n")
-    assert main(["scan", "pipeline.py", "--format", "gitlab", "--write-baseline", "base.json"]) == 0
+    assert main(["scan", "--no-gate", "pipeline.py", "--format", "gitlab", "--write-baseline", "base.json"]) == 0
     assert json.loads(capsys.readouterr().out)
-    assert main(["scan", "pipeline.py", "--format", "gitlab", "--baseline", "base.json"]) == 0
+    assert main(["scan", "--no-gate", "pipeline.py", "--format", "gitlab", "--baseline", "base.json"]) == 0
     assert json.loads(capsys.readouterr().out) == []
 
 
@@ -165,7 +165,7 @@ def test_cli_subdirectory_invocation_uses_repository_relative_path(tmp_path, mon
     nested.mkdir()
     (nested / "pipeline.py").write_text("CONFIDENCE_THRESHOLD = 0.75\n")
     monkeypatch.chdir(nested)
-    assert main(["scan", "pipeline.py", "--format", "gitlab"]) == 0
+    assert main(["scan", "--no-gate", "pipeline.py", "--format", "gitlab"]) == 0
     report = json.loads(capsys.readouterr().out)
     assert report
     assert all(item["location"]["path"] == "configs/pipeline.py" for item in report)
@@ -178,7 +178,7 @@ def test_cli_rejects_outside_repo_path_without_leaking_absolute_path(tmp_path, m
     source = tmp_path / "outside.py"
     source.write_text("CONFIDENCE_THRESHOLD = 0.75\n")
     monkeypatch.chdir(root)
-    assert main(["scan", str(source), "--format", "gitlab"]) == 1
+    assert main(["scan", "--no-gate", str(source), "--format", "gitlab"]) == 1
     captured = capsys.readouterr()
     assert json.loads(captured.out) == []
     assert "output error" in captured.err

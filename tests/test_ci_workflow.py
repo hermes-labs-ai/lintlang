@@ -23,7 +23,7 @@ def test_ci_checkout_credentials_are_not_available_to_repository_code():
         if step.get("uses", "").startswith("actions/checkout@")
     ]
 
-    assert len(checkout_steps) == 2
+    assert len(checkout_steps) == 3
     assert all(step.get("with", {}).get("persist-credentials") is False for step in checkout_steps)
 
 
@@ -37,4 +37,22 @@ def test_lintlang_reusable_workflow_is_pinned_and_keeps_sarif_permission():
     assert LINTLANG_WORKFLOW["permissions"] == {
         "contents": "read",
         "security-events": "write",
+    }
+
+
+def test_local_action_smoke_covers_raw_and_default_gate_without_changing_released_pin():
+    steps = CI_WORKFLOW["jobs"]["action-smoke"]["steps"]
+    local = [step for step in steps if step.get("uses") == "./"]
+    assert local[0]["with"] == {"path": "samples/clean_config.yaml"}
+    assert local[1]["with"] == {"path": "samples/bad_tool_descriptions.yaml", "gate": "false"}
+    assert local[2]["with"] == {
+        "path": "samples/bad_tool_descriptions.yaml", "gate": "false", "fail-on": "fail",
+    }
+    assert local[3]["with"] == {"path": "samples/bad_system_prompt.txt"}
+    assert local[3]["continue-on-error"] is True
+
+    released = [step for step in steps if step.get("uses", "").startswith("hermes-labs-ai/lintlang@")]
+    assert len(released) == 2
+    assert {step["uses"] for step in released} == {
+        "hermes-labs-ai/lintlang@6115fb5b86611b81e18144a9d9ec7111b68978f5"
     }

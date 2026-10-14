@@ -1,3 +1,4 @@
+import contextlib
 import re
 import shutil
 import sys
@@ -19,18 +20,36 @@ _LOCAL_PATH = re.compile(r"/(?:Users|home)/[A-Za-z0-9._-]+/")
 _PRIVATE_REFERENCES = ("ai-infra", "Documents/HAL", "Documents/Codex")
 
 
+def _copy_build_source(source: Path) -> None:
+    repo_root = Path(__file__).parents[1]
+    standard_ignore = shutil.ignore_patterns(
+        ".git", ".venv", "venv", "build", "dist", "*.egg-info"
+    )
+
+    def ignore(directory: str, names: list[str]) -> set[str]:
+        ignored = standard_ignore(directory, names)
+        if Path(directory) == repo_root / ".hermes":
+            # Local corpora can contain gigabytes and dangling checkout links.
+            # Exercise their exclusion with explicit sentinels below instead.
+            ignored.add("local")
+        return ignored
+
+    shutil.copytree(repo_root, source, symlinks=True, ignore=ignore)
+    local = source / ".hermes" / "local"
+    local.mkdir(parents=True, exist_ok=True)
+    (local / "private-build-sentinel.txt").write_text(
+        "/home/packaging-fixture/private/ ai-infra Documents/HAL Documents/Codex"
+    )
+    # Preserve privacy coverage on systems without symlink permission.
+    with contextlib.suppress(OSError):
+        (local / "dangling-research-link").symlink_to("absent-research-target")
+
+
 def test_common_virtualenv_directories_are_excluded_from_source_builds(
     tmp_path: Path, monkeypatch,
 ) -> None:
-    repo_root = Path(__file__).parents[1]
     source = tmp_path / "source"
-    shutil.copytree(
-        repo_root,
-        source,
-        ignore=shutil.ignore_patterns(
-            ".git", ".venv", "venv", "build", "dist", "*.egg-info"
-        ),
-    )
+    _copy_build_source(source)
     virtualenv_bin = source / "venv" / "bin"
     virtualenv_bin.mkdir(parents=True)
     interpreter = virtualenv_bin / "python"
@@ -61,15 +80,8 @@ def test_common_virtualenv_directories_are_excluded_from_source_builds(
 
 def _sdist_members(tmp_path: Path, monkeypatch) -> dict[str, str]:
     """Build an sdist from the working tree and return {name: text}."""
-    repo_root = Path(__file__).parents[1]
     source = tmp_path / "source"
-    shutil.copytree(
-        repo_root,
-        source,
-        ignore=shutil.ignore_patterns(
-            ".git", ".venv", "venv", "build", "dist", "*.egg-info"
-        ),
-    )
+    _copy_build_source(source)
     output = tmp_path / "dist"
     output.mkdir()
     monkeypatch.chdir(source)

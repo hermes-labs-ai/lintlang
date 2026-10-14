@@ -30,8 +30,8 @@ def names(data) -> list[str]:
 )
 def test_framework_config_extraction_boundary(fixture, inspected, exit_code, verdict, capsys):
     path = Path(__file__).resolve().parents[1] / "samples" / "framework-configs" / fixture
-    assert scan_file(path).inspected == inspected
-    assert main(["scan", str(path), "--format", "json"]) == exit_code
+    assert scan_file(path, gate=False).inspected == inspected
+    assert main(["scan", "--no-gate", str(path), "--format", "json"]) == exit_code
     output = capsys.readouterr()
     row = json.loads(output.out)[0]
     assert row["inspected"] == inspected
@@ -150,10 +150,10 @@ class TestShapes:
             )
         )
 
-        result = scan_file(path)
+        result = scan_file(path, gate=False)
 
         assert result.inspected["tools"] == 2
-        assert [finding.code for finding in result.structural_findings].count("H1.1") == 1
+        assert not any(finding.code == "H1.1" for finding in result.structural_findings)
 
 
 class TestHardNegatives:
@@ -182,44 +182,44 @@ class TestHardNegatives:
         other = {"name": "search", "description": "Full-text query over the wiki pages of one space", "inputSchema": {}}
         path = tmp_path / "mcp.json"
         path.write_text(json.dumps({"mcpServers": {"jira": {"tools": [tool]}, "wiki": {"tools": [other]}}}))
-        assert [f.code for f in scan_file(path).structural_findings if f.code == "H1.4"] == []
+        assert [f.code for f in scan_file(path, gate=False).structural_findings if f.code == "H1.4"] == []
 
 
 class TestNeverSilentlyClean:
     def test_result_says_what_it_inspected(self, tmp_path):
         path = tmp_path / "tools.json"
         path.write_text(json.dumps([{"name": "a", "description": "", "inputSchema": SCHEMA}]))
-        result = scan_file(path)
+        result = scan_file(path, gate=False)
         assert result.inspected == {"tools": 1, "tools_described": 0, "tools_with_schema": 1}
-        assert compute_verdict(result) == "FAIL"
+        assert compute_verdict(result) == "PASS"
 
     def test_file_with_nothing_to_inspect_is_skipped_not_pass(self, tmp_path):
         path = tmp_path / "package.json"
         path.write_text('{"name": "pkg", "version": "1.0.0"}')
-        result = scan_file(path)
+        result = scan_file(path, gate=False)
         assert compute_verdict(result) == "SKIPPED"
         assert result.skipped
 
     def test_python_file_without_prompts_is_skipped(self, tmp_path):
         path = tmp_path / "app.py"
         path.write_text("print('hello')\n")
-        assert compute_verdict(scan_file(path)) == "SKIPPED"
+        assert compute_verdict(scan_file(path, gate=False)) == "SKIPPED"
 
     def test_scan_that_inspected_nothing_exits_nonzero(self, tmp_path, capsys):
         path = tmp_path / "sbom.json"
         path.write_text('{"bomFormat": "CycloneDX", "components": []}')
-        assert main(["scan", str(path)]) == 1
+        assert main(["scan", "--no-gate", str(path)]) == 1
         assert "software bill of materials" in capsys.readouterr().err
-        assert main(["scan", str(path), "--allow-empty"]) == 1
+        assert main(["scan", "--no-gate", str(path), "--allow-empty"]) == 1
         assert "software bill of materials" in capsys.readouterr().err
-        assert main(["scan", str(path), "--allow-uninspected"]) == 0
+        assert main(["scan", "--no-gate", str(path), "--allow-uninspected"]) == 0
 
     def test_named_file_with_unreadable_tool_like_content_is_an_error(self, tmp_path, capsys):
         path = tmp_path / "registry.json"
         path.write_text(json.dumps([{"name": "a", "description": "does a"}, {"name": "b", "description": "does b"}]))
         good = tmp_path / "AGENTS.md"
         good.write_text("Run the tests before committing.\n")
-        assert main(["scan", str(good), str(path), "--format", "json"]) == 1
+        assert main(["scan", "--no-gate", str(good), str(path), "--format", "json"]) == 1
         rows = {row["file"]: row for row in json.loads(capsys.readouterr().out)}
         assert rows[str(path)]["verdict"] == "ERROR"
         assert "2 named, described objects" in rows[str(path)]["input_error"]
@@ -230,7 +230,7 @@ class TestNeverSilentlyClean:
         good.write_text("Run the tests before committing.\n")
         other = tmp_path / "package.json"
         other.write_text('{"name": "pkg"}')
-        assert main(["scan", str(good), str(other), "--format", "json"]) == 0
+        assert main(["scan", "--no-gate", str(good), str(other), "--format", "json"]) == 0
         rows = {row["file"]: row for row in json.loads(capsys.readouterr().out)}
         assert rows[str(other)]["verdict"] == "SKIPPED"
         assert rows[str(other)]["herm"] is None
@@ -241,14 +241,14 @@ class TestNeverSilentlyClean:
     def test_boolean_property_schema_does_not_crash(self, tmp_path):
         path = tmp_path / "tools.json"
         path.write_text(json.dumps({"tools": [{"name": "a", "description": "Reads one record by its identifier", "inputSchema": {"type": "object", "properties": {"x": True}}}]}))
-        assert scan_file(path).input_error is None
+        assert scan_file(path, gate=False).input_error is None
 
 
 class TestToolCheckPrecision:
     def _codes(self, tmp_path, tools):
         path = tmp_path / "tools.json"
         path.write_text(json.dumps({"tools": tools}))
-        return [f.code for f in scan_file(path).structural_findings]
+        return [f.code for f in scan_file(path, gate=False).structural_findings]
 
     def test_precise_verbs_are_not_vague(self, tmp_path):
         tools = [
@@ -285,7 +285,7 @@ class TestToolCheckPrecision:
         schema = {"type": "object", "properties": {"id": {"description": "Row id", "anyOf": [{"type": "string"}, {"type": "number"}]}}}
         path = tmp_path / "t.json"
         path.write_text(json.dumps({"tools": [{"name": "read_row", "description": "Read one row of the orders table by id", "inputSchema": schema}]}))
-        assert not [f for f in scan_file(path).structural_findings if "anyOf" in f.description]
+        assert not [f for f in scan_file(path, gate=False).structural_findings if "anyOf" in f.description]
 
 
 def test_document_that_is_one_tool():
@@ -298,7 +298,7 @@ def test_prompts_under_nested_config_keys_are_read(tmp_path):
         "agent:\n  templates:\n    system_template: |-\n      You are a helpful assistant that can interact with a computer.\n"
         "    instance_template: |-\n      If the tests fail, keep trying until they pass, whatever it takes to get there.\n"
     )
-    result = scan_file(path)
+    result = scan_file(path, gate=False)
     assert result.inspected["nested_prompts"] == 2
     assert any(f.pattern_id == "H2" for f in result.structural_findings)
 
@@ -306,20 +306,20 @@ def test_prompts_under_nested_config_keys_are_read(tmp_path):
 def test_jsonc_and_tagged_yaml_parse(tmp_path):
     jsonc = tmp_path / "t.json"
     jsonc.write_text('{\n // comment\n "tools": [{"name": "a", "description": "Reads one record by identifier", "inputSchema": {},},],\n}\n')
-    assert scan_file(jsonc).inspected["tools"] == 1
+    assert scan_file(jsonc, gate=False).inspected["tools"] == 1
     tagged = tmp_path / "mkdocs.yml"
     tagged.write_text("a: !!python/name:foo.bar\nb: !Ref x\n")
-    assert compute_verdict(scan_file(tagged)) == "SKIPPED"
+    assert compute_verdict(scan_file(tagged, gate=False)) == "SKIPPED"
 
 
 def test_tool_findings_carry_the_line_of_the_tool(tmp_path):
     path = tmp_path / "tools.json"
     path.write_text(json.dumps({"tools": [
         {"name": "alpha", "description": "Reads one record from the orders table by id", "inputSchema": {}},
-        {"name": "beta", "description": "", "inputSchema": {}},
+        {"name": "beta", "description": "Get data", "inputSchema": {}},
     ]}, indent=2))
-    finding = next(f for f in scan_file(path).structural_findings if f.code == "H1.1")
-    assert finding.source_region.start_line == 9
+    finding = next(f for f in scan_file(path, gate=False).structural_findings if f.code == "H1.2")
+    assert finding.source_region.start_line == 10
 
 
 def test_python_literal_tool_definitions_are_read(tmp_path):
@@ -328,7 +328,7 @@ def test_python_literal_tool_definitions_are_read(tmp_path):
         "tools = [\n    Tool(name='checkout', description='Switches', inputSchema={'type': 'object'}),\n"
         "    Tool(name='log', description='Show the commit log of the repository, newest first', inputSchema=Log.schema()),\n]\n"
     )
-    result = scan_file(path)
+    result = scan_file(path, gate=False)
     assert result.inspected["tools"] == 2
     assert result.inspected["tools_with_schema"] == 1
     assert result.notes == [

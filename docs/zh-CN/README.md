@@ -69,21 +69,21 @@ uvx lintlang scan agent.yaml
 - 每条结果都会说明 LintLang 实际检查了什么。
 - 没有识别到任何面向智能体的结构的内容，会报告为 `SKIPPED`，绝不会报告为 `PASS`。
 - 工具之间的比较只发生在同一个被解析的输入内；扫描目录时，不会把不同文件里的工具合并到同一个选择命名空间。
-- 默认情况下，检查结果仅供参考，不会让命令失败。
+- 未发布候选版默认启用分类门禁：KEEP 阻断，ESCALATE 仅供审阅，DISMISS 隐藏。精确率验收未通过，发布仍被阻止。
 - 扫描干净只表示：所选的静态检查在被识别的内容中没有发现所覆盖的缺陷。
 
 ## 在 CI 中作为门禁
 
-遇到 HIGH 或 CRITICAL 级别的发现时让命令失败：
+使用原始检测结果，遇到 HIGH 或 CRITICAL 级别的发现时让命令失败：
 
 ```bash
-lintlang scan . --fail-on fail
+lintlang scan . --no-gate --fail-on fail
 ```
 
 把 MEDIUM 级别也纳入门禁：
 
 ```bash
-lintlang scan . --fail-on review
+lintlang scan . --no-gate --fail-on review
 ```
 
 生成固定版本的 GitHub Actions 工作流，扫描整个仓库目录：

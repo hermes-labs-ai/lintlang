@@ -304,7 +304,7 @@ Rule nine. Rule ten. Rule eleven. Rule twelve.
 def run_pipeline():
     pass
 ''')
-        result = scan_python_file(py_file)
+        result = scan_python_file(py_file, gate=False)
         assert result.file == str(py_file)
         assert len(result.structural_findings) > 0
         # Should find P1 (uncalibrated threshold)
@@ -322,7 +322,7 @@ def add(a, b):
 
 MAX_RETRIES = 5
 """)
-        result = scan_python_file(py_file)
+        result = scan_python_file(py_file, gate=False)
         assert len(result.structural_findings) == 0
 
     def test_scan_python_has_no_network_path(self, tmp_path, monkeypatch):
@@ -336,7 +336,7 @@ MAX_RETRIES = 5
             raise AssertionError("Python scanning attempted a network request")
 
         monkeypatch.setattr("urllib.request.urlopen", reject_network)
-        result = scan_python_file(py_file)
+        result = scan_python_file(py_file, gate=False)
 
         assert result.input_error is None
         assert all(finding.pattern_id != "P3" for finding in result.structural_findings)
@@ -344,7 +344,7 @@ MAX_RETRIES = 5
     def test_scan_python_syntax_error(self, tmp_path):
         py_file = tmp_path / "broken.py"
         py_file.write_text("def broken(:\n  pass")
-        result = scan_python_file(py_file)
+        result = scan_python_file(py_file, gate=False)
         assert result.input_error is not None
         assert "Python parse error" in result.input_error
         assert not any(f.pattern_id == "ERR" for f in result.structural_findings)

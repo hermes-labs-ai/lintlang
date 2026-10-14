@@ -14,8 +14,8 @@ minimum_version = ""
 
 [lintlang]
 enabled = true
-argv = ["lintlang", "scan", "--format", "json", "--fail-on", "review", "{files}"]
-trigger_globs = ["**/AGENTS.md", "**/CLAUDE.md", "**/prompts/**", "**/*.prompt", ".codex/**", ".claude/**"]
+argv = ["python3", "scripts/lintlang_gate_targets.py", "{files}"]
+trigger_globs = ["**/AGENTS.md", "**/CLAUDE.md", "**/GEMINI.md", "**/SKILL.md", "**/agent.yaml", "**/agent.yml", "**/agent.json", ".github/copilot-instructions.md", ".github/instructions/**", "**/*.prompt"]
 timeout_seconds = 4.0
 blocking_threshold = "MEDIUM"
 
