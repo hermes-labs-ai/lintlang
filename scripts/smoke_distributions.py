@@ -27,9 +27,12 @@ path.write_text('tools:\n  - name: broken\n    description: "Get data"\n')
 raw, gated = scan_file(path, gate=False), scan_file(path)
 assert any(f.code == "H1.2" for f in raw.structural_findings)
 assert compute_verdict(raw) == "FAIL"
-assert gated.structural_findings == []
-assert gated.raw_findings_count == gated.suppressed_count == len(raw.structural_findings)
-assert compute_verdict(gated) == "PASS"
+# Severity floor: the gate never DISMISSes HIGH/CRITICAL findings; they stay visible as advisory ESCALATE.
+assert [f.code for f in gated.structural_findings] == [f.code for f in raw.structural_findings]
+assert all(f.gate_decision == "ESCALATE" for f in gated.structural_findings)
+assert gated.raw_findings_count == len(raw.structural_findings)
+assert gated.suppressed_count == 0
+assert compute_verdict(gated) == "REVIEW"
 assert gated.gate_status == "evaluated"
 kept_path = Path("audit/SKILL.md")
 kept_path.parent.mkdir()
@@ -45,7 +48,7 @@ english = scan_file(english_path, gate=False)
 assert english.inspected["skill_description"] == 1
 assert english.structural_findings == []
 assert compute_verdict(english) == "PASS"
-print(json.dumps({"version": lintlang.__version__, "raw_findings": len(raw.structural_findings), "kept_findings": len(kept.structural_findings), "english_h18_skipped": True}))
+print(json.dumps({"version": lintlang.__version__, "raw_findings": len(raw.structural_findings), "escalated_findings": len(gated.structural_findings), "kept_findings": len(kept.structural_findings), "english_h18_skipped": True}))
 '''
 
 
@@ -71,14 +74,17 @@ def main() -> None:
             )
             assert raw_result.returncode == 1, raw_result.stderr
             assert any(finding["code"] == "H1.2" for finding in json.loads(raw_result.stdout)[0]["structural_findings"])
-            suppressed_result = subprocess.run(
+            escalated_result = subprocess.run(
                 [str(python), "-I", "-m", "lintlang", "scan", "bad.yaml", "--format", "json"],
                 cwd=root, capture_output=True, text=True,
             )
-            assert suppressed_result.returncode == 0, suppressed_result.stderr
-            suppressed = json.loads(suppressed_result.stdout)[0]
-            assert suppressed["structural_findings"] == []
-            assert suppressed["gate"]["raw_findings"] == suppressed["gate"]["suppressed"] > 0
+            # Severity floor: HIGH H1.2 stays visible as advisory ESCALATE, so the default gate exits 0 with REVIEW.
+            assert escalated_result.returncode == 0, escalated_result.stderr
+            escalated = json.loads(escalated_result.stdout)[0]
+            assert escalated["verdict"] == "REVIEW"
+            assert [finding["gate_decision"] for finding in escalated["structural_findings"]] == ["ESCALATE"]
+            assert escalated["gate"]["raw_findings"] == 1
+            assert escalated["gate"]["suppressed"] == 0
             english_result = subprocess.run(
                 [str(python), "-I", "-m", "lintlang", "scan", "english-audit/SKILL.md", "--no-gate", "--format", "json"],
                 cwd=root, capture_output=True, text=True,
