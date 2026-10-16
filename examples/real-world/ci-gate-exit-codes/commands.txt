@@ -1,0 +1,10 @@
+# HIGH finding in a 16-tool excerpt of a real manifest: the gate trips
+scan ../okta-tool-manifest/input.json --min-severity high --fail-on fail
+# same manifest, MEDIUM findings only reach the stricter gate
+scan ../okta-tool-manifest/input.json --min-severity medium --patterns H1 --fail-on review
+# the SKILL.md from ../skill-empty-description: broken, then fixed
+scan ../skill-empty-description/broken/release-notes-drafter/SKILL.md --fail-on fail
+scan ../skill-empty-description/fixed/release-notes-drafter/SKILL.md --fail-on fail
+# an input shape LintLang cannot read: an input error, not a pass
+scan input-unrecognized-shape.json --fail-on fail
+scan input-unrecognized-shape.json --allow-uninspected --fail-on fail
