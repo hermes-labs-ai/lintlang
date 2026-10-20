@@ -72,7 +72,7 @@ jobs:
         run: test "$ACTION_OUTCOME" = "failure"
 
       - name: Released Action writes clean SARIF
-        uses: hermes-labs-ai/lintlang@6aace2a175483757c64d7aa2105346d1cc34b857 # v0.7.1
+        uses: hermes-labs-ai/lintlang@6115fb5b86611b81e18144a9d9ec7111b68978f5 # v0.8.2
         with:
           path: samples/clean_config.yaml
           sarif-file: lintlang-clean.sarif
@@ -80,7 +80,7 @@ jobs:
       - name: Released Action writes failing SARIF
         id: released-failing-scan
         continue-on-error: true
-        uses: hermes-labs-ai/lintlang@6aace2a175483757c64d7aa2105346d1cc34b857 # v0.7.1
+        uses: hermes-labs-ai/lintlang@6115fb5b86611b81e18144a9d9ec7111b68978f5 # v0.8.2
         with:
           path: samples/bad_tool_descriptions.yaml
           sarif-file: lintlang-bad.sarif
