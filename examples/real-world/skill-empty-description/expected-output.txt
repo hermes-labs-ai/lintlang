@@ -1,0 +1,75 @@
+$ lintlang scan broken/release-notes-drafter/SKILL.md
+
+  LINTLANG v0.8.1
+  broken/release-notes-drafter/SKILL.md
+  ──────────────────────────────────────────────────
+
+  ❌ FAIL — 1 HIGH
+  Inspected: skill front matter, instruction text (8 lines)
+  Confidence: LOW (65% coverage proxy; low <75%)
+    Primary driver: Prompt-like framing was not detected in the text. (-25 percentage points)
+      If this file is intended as agent instructions, make its role or purpose explicit. Reference material may naturally remain lower-confidence on this proxy.
+    Driver: No user-input or untrusted-input boundary language was detected. (-10 percentage points)
+      If these instructions govern user-controlled content, describe that boundary explicitly; otherwise no change is implied.
+    HERM confidence is a heuristic coverage label, not a statistical probability, finding-certainty estimate, or structural PASS/REVIEW/FAIL verdict.
+
+  H1: Tool Description Ambiguity
+
+    ! [HIGH] H1.1 broken/release-notes-drafter/SKILL.md:3  frontmatter.description
+      Skill 'release-notes-drafter' has front matter but no description. The description is the only text a model sees when deciding whether to load this skill.
+      → Add a 'description:' that says what the skill does AND when to use it.
+
+  ──────────────────────────────────────────────────
+  lintlang v0.8.1 | H1-H7 structural analysis | Zero LLM calls
+
+[exit 0]
+
+$ lintlang scan broken/release-notes-drafter/SKILL.md --fail-on fail
+
+  LINTLANG v0.8.1
+  broken/release-notes-drafter/SKILL.md
+  ──────────────────────────────────────────────────
+
+  ❌ FAIL — 1 HIGH
+  Inspected: skill front matter, instruction text (8 lines)
+  Confidence: LOW (65% coverage proxy; low <75%)
+    Primary driver: Prompt-like framing was not detected in the text. (-25 percentage points)
+      If this file is intended as agent instructions, make its role or purpose explicit. Reference material may naturally remain lower-confidence on this proxy.
+    Driver: No user-input or untrusted-input boundary language was detected. (-10 percentage points)
+      If these instructions govern user-controlled content, describe that boundary explicitly; otherwise no change is implied.
+    HERM confidence is a heuristic coverage label, not a statistical probability, finding-certainty estimate, or structural PASS/REVIEW/FAIL verdict.
+
+  H1: Tool Description Ambiguity
+
+    ! [HIGH] H1.1 broken/release-notes-drafter/SKILL.md:3  frontmatter.description
+      Skill 'release-notes-drafter' has front matter but no description. The description is the only text a model sees when deciding whether to load this skill.
+      → Add a 'description:' that says what the skill does AND when to use it.
+
+  ──────────────────────────────────────────────────
+  lintlang v0.8.1 | H1-H7 structural analysis | Zero LLM calls
+
+
+Verdict: FAIL — broken/release-notes-drafter/SKILL.md has CRITICAL/HIGH findings
+[exit 1]
+
+$ lintlang scan fixed/release-notes-drafter/SKILL.md --fail-on fail
+
+  LINTLANG v0.8.1
+  fixed/release-notes-drafter/SKILL.md
+  ──────────────────────────────────────────────────
+
+  ✅ PASS — 0 findings
+  Inspected: skill front matter, instruction text (8 lines)
+  Confidence: LOW (65% coverage proxy; low <75%)
+    Primary driver: Prompt-like framing was not detected in the text. (-25 percentage points)
+      If this file is intended as agent instructions, make its role or purpose explicit. Reference material may naturally remain lower-confidence on this proxy.
+    Driver: No user-input or untrusted-input boundary language was detected. (-10 percentage points)
+      If these instructions govern user-controlled content, describe that boundary explicitly; otherwise no change is implied.
+    HERM confidence is a heuristic coverage label, not a statistical probability, finding-certainty estimate, or structural PASS/REVIEW/FAIL verdict.
+
+  No structural issues found.
+
+  ──────────────────────────────────────────────────
+  lintlang v0.8.1 | H1-H7 structural analysis | Zero LLM calls
+
+[exit 0]
