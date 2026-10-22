@@ -63,6 +63,8 @@ class TestIsRecognizedInstructionPath:
             ".cursor/rules/style.mdc",
             ".cursor/rules/nested/review.mdc",
             "packages/worker/.cursor/rules/style.mdc",
+            ".claude/agents/reviewer.md",
+            "packages/worker/.claude/agents/reviewer.md",
             "/abs/repo/AGENTS.md",
         ),
     )
@@ -88,6 +90,9 @@ class TestIsRecognizedInstructionPath:
             ".cursor/rules/style.md",
             ".cursor/rules/nested/style.txt",
             ".cursor/rules/.mdc",
+            ".claude/agents/reviewer.mdc",
+            ".claude/agents/assets/template.md",
+            ".claude/agents/nested/reviewer.md",
             "src/lintlang/cli.py",
         ),
     )
@@ -118,7 +123,7 @@ class TestIsRecognizedInstructionPath:
         strict=True,
         reason="documented limitation: these editor and host instruction layouts are not discovery targets yet",
     )
-    @pytest.mark.parametrize("path", (".claude/agents/reviewer.md", ".windsurfrules"))
+    @pytest.mark.parametrize("path", (".windsurfrules",))
     def test_documented_omissions_should_be_recognized(self, path):
         """DESIRED BEHAVIOUR, not today's behaviour.
 

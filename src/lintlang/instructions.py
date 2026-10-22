@@ -17,7 +17,9 @@ Only exact, documented instruction surfaces:
   that layout, not every Markdown file that happens to live there
 * ``*.mdc`` files directly or indirectly under a ``.cursor/rules`` directory
   — ordinary Markdown in that directory is not an instruction surface
-
+* ``*.md`` files directly in a ``.claude/agents`` directory (Claude Code
+  agent definitions) — files in its subdirectories are not instruction
+  surfaces
 Case policy
 -----------
 Basenames and layout segments are matched **case-sensitively, exactly as the
@@ -37,10 +39,14 @@ module never changes it.
 Editor and host boundaries
 --------------------------
 Cursor project rules are recognized when they use the documented ``.mdc``
-spelling under ``.cursor/rules``. Other editor and host layouts remain
-deliberately unrecognized: ``.claude/agents`` and ``.windsurfrules``. The
-Cursor rule decision is intentionally narrow: ordinary Markdown in that
-directory is not an instruction surface.
+spelling under ``.cursor/rules``. Claude Code agent definitions are
+recognized when they are Markdown files directly in a ``.claude/agents``
+directory (``.claude/agents/*.md``): a file sitting in a subdirectory of
+that directory (an asset, template, example, or nested helper) is not an
+agent definition and is not promoted. Other editor and host layouts remain
+deliberately unrecognized: ``.windsurfrules``. The Cursor rule decision is
+intentionally narrow: ordinary Markdown in that directory is not an
+instruction surface.
 """
 
 from __future__ import annotations
@@ -55,6 +61,7 @@ __all__ = [
     "RECOGNIZED_INSTRUCTION_RELATIVE_PATHS",
     "RECOGNIZED_INSTRUCTION_DIRECTORIES",
     "RECOGNIZED_INSTRUCTION_DIRECTORY_SUFFIXES",
+    "RECOGNIZED_INSTRUCTION_CLAUDE_AGENT_SUFFIXES",
     "RECOGNIZED_INSTRUCTION_CURSOR_RULE_SUFFIXES",
     "discover_instruction_files",
     "is_recognized_instruction_path",
@@ -85,6 +92,11 @@ RECOGNIZED_INSTRUCTION_DIRECTORIES = frozenset({".github/instructions"})
 #: directory is not an instruction file; ``.instructions.md`` is the spelling
 #: the layout documents.
 RECOGNIZED_INSTRUCTION_DIRECTORY_SUFFIXES = frozenset({".instructions.md"})
+
+#: Filename suffixes accepted directly inside a .claude/agents directory.
+#: Claude Code agent definitions are Markdown; ordinary files and assets
+#: in subdirectories stay out of discovery.
+RECOGNIZED_INSTRUCTION_CLAUDE_AGENT_SUFFIXES = frozenset({".md"})
 
 #: Filename suffixes accepted recursively inside .cursor/rules.
 #: Cursor project rules use .mdc; ordinary Markdown stays out of discovery.
@@ -143,6 +155,19 @@ def is_recognized_instruction_path(path: str | os.PathLike[str]) -> bool:
             for index in range(len(ancestors) - width + 1):
                 if ancestors[index : index + width] == directory:
                     return True
+
+    if (
+        any(
+            len(name) > len(suffix) and name.endswith(suffix)
+            for suffix in RECOGNIZED_INSTRUCTION_CLAUDE_AGENT_SUFFIXES
+        )
+        and len(parts) >= 3
+        and parts[-3:-1] == (".claude", "agents")
+    ):
+        # Only direct children of a .claude/agents directory are agent
+        # definitions; files in subdirectories (assets, templates, ...) are
+        # not promoted.
+        return True
 
     if any(
         len(name) > len(suffix) and name.endswith(suffix)

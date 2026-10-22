@@ -91,7 +91,7 @@ def main(argv: list[str] | None = None) -> int:
             "(default: '.'): AGENTS.md, CLAUDE.md, GEMINI.md, SKILL.md, "
             "agent.yaml/.yml/.json, .github/copilot-instructions.md, "
             "*.instructions.md under .github/instructions/, and *.mdc under "
-            ".cursor/rules/. Symlinks are not "
+            ".cursor/rules/, and *.md directly in .claude/agents/. Symlinks are not "
             "followed; a skipped one is named on stderr. Explicit inputs still "
             "win and are unioned with the discovered set."
         ),

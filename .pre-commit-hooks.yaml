@@ -3,6 +3,6 @@
   description: Statically lint selected AI agent configs, tool definitions, and prompts.
   entry: lintlang scan
   language: python
-  files: '(^|/)(AGENTS|CLAUDE|GEMINI|SKILL)\.md$|(^|/)agent\.(yaml|yml|json)$|(^|/)\.github/copilot-instructions\.md$|(^|/)\.github/instructions/.*[^/]\.instructions\.md$|(^|/)\.cursor/rules/.+\.mdc$'
+  files: '(^|/)(AGENTS|CLAUDE|GEMINI|SKILL)\.md$|(^|/)agent\.(yaml|yml|json)$|(^|/)\.github/copilot-instructions\.md$|(^|/)\.github/instructions/.*[^/]\.instructions\.md$|(^|/)\.cursor/rules/.+\.mdc$|(^|/)\.claude/agents/[^/]+\.md$'
 
   verbose: true
