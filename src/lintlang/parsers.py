@@ -63,12 +63,13 @@ def _looks_like_bomless_wide_encoding(raw: bytes) -> bool:
 
 
 def decode_file_bytes(raw: bytes) -> str:
-    """Decode raw bytes as UTF-8 with actionable decode errors.
+    """Decode UTF-8, accepting one optional leading byte-order mark.
 
     ASCII-heavy UTF-16/UTF-32 without a byte-order mark decodes as valid UTF-8.
     Detect its repeated NUL-byte density without rejecting isolated U+0000 bytes
     in otherwise valid UTF-8 text.
     """
+    raw = raw.removeprefix(b"\xef\xbb\xbf")
     try:
         decoded = raw.decode("utf-8")
     except UnicodeDecodeError as error:

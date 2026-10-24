@@ -92,6 +92,9 @@ exit (2). One invocation takes one unambiguous source of files.
 case is an input/coverage error (see below).
 
 Scan arguments are files or directories, resolved from the invocation directory.
+Repository scans accept UTF-8 with or without one file-leading byte-order mark,
+including Python extraction and standard input. The mark is removed before
+parsing; embedded U+FEFF characters and the source file's bytes are preserved.
 `--patterns`/`-p` selects H1-H7 families, not individual sub-codes such as H1.6.
 `lintlang patterns` lists those structural families. P1/P2 are Python-specific
 checks; they still run in Python extraction mode when an H-series filter is set.

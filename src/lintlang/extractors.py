@@ -427,7 +427,7 @@ def extract_from_python(source: str, source_file: str = "") -> ExtractionResult:
 def extract_from_python_file(path: str | Path) -> ExtractionResult:
     """Extract LLM prompts and thresholds from a Python file."""
     path = Path(path)
-    source = path.read_text(encoding="utf-8", errors="ignore")
+    source = path.read_text(encoding="utf-8-sig", errors="ignore")
     return extract_from_python(source, source_file=str(path))
 
 
