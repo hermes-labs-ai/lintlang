@@ -63,11 +63,11 @@ def test_supported_utf8_bom_preserves_parsed_content(tmp_path, filename, source)
     assert scan_file(path).input_error is None
 
 
-def test_json_utf8_bom_keeps_existing_parser_rejection(tmp_path):
+def test_json_utf8_bom_preserves_parsed_content(tmp_path):
+    source = '{"system_prompt": "Be concise."}'
     path = tmp_path / "agent.json"
-    path.write_bytes(b'\xef\xbb\xbf{"system_prompt": "Be concise."}')
-    with pytest.raises(json.JSONDecodeError, match="BOM"):
-        parse_file(path)
+    path.write_bytes(b"\xef\xbb\xbf" + source.encode())
+    assert parse_file(path) == parse_source(source, path)
 
 
 @pytest.mark.parametrize("input_kind", ["file", "directory", "stdin"])
@@ -245,3 +245,75 @@ def test_python_file_keeps_existing_tolerant_extraction(tmp_path, scan):
     result = scan(path)
     assert result.input_error is None
     assert any(f.pattern_id == "P1" for f in result.structural_findings)
+
+
+@pytest.mark.parametrize("source", ["", "café 日本語\r\n", "text\ufeffinside", "\ufeffsecond mark"])
+def test_decoder_removes_only_one_file_leading_utf8_bom(source):
+    assert decode_file_bytes(b"\xef\xbb\xbf" + source.encode()) == source
+
+
+@pytest.mark.parametrize(
+    ("filename", "source"),
+    [
+        ("agent.json", '{"system_prompt": "Keep trying until it works."}\n'),
+        ("agent.yaml", "system_prompt: Keep trying until it works.\n"),
+        ("prompt.txt", "You are a helpful assistant.\nKeep trying until it works.\n"),
+        ("SKILL.md", "---\nname: lookup\ndescription: Search café records.\n---\nKeep trying until it works.\n"),
+        ("pipeline.py", "CONFIDENCE_THRESHOLD = 0.75\n"),
+    ],
+    ids=["json", "yaml", "text", "skill", "python"],
+)
+@pytest.mark.parametrize("input_kind", ["file", "directory", "byte-stdin", "text-stdin"])
+@pytest.mark.parametrize("output_format", ["json", "sarif"])
+def test_utf8_bom_cli_preserves_findings_locations_and_exit(
+    tmp_path, monkeypatch, capsys, filename, source, input_kind, output_format
+):
+    monkeypatch.chdir(tmp_path)
+    raw = source.replace("\n", "\r\n").encode()
+    path = tmp_path / filename
+
+    def run(data):
+        if input_kind.endswith("stdin"):
+            stream = (SimpleNamespace(buffer=io.BytesIO(data)) if input_kind == "byte-stdin"
+                      else io.StringIO(data.decode()))
+            monkeypatch.setattr("sys.stdin", stream)
+            inputs = ["-", "--stdin-filename", filename]
+        else:
+            path.write_bytes(data)
+            inputs = [filename if input_kind == "file" else "."]
+        exit_code = main(["scan", *inputs, "--format", output_format, "--fail-on", "review"])
+        return exit_code, capsys.readouterr()
+
+    expected_exit, expected = run(raw)
+    assert expected_exit != 0
+    if output_format == "json":
+        [result] = json.loads(expected.out)
+        assert result["input_error"] is None
+        assert result["structural_findings"]
+    else:
+        [run_result] = json.loads(expected.out)["runs"]
+        assert run_result["results"]
+        assert all(f["locations"] for f in run_result["results"])
+
+    actual_exit, actual = run(b"\xef\xbb\xbf" + raw)
+    assert actual_exit == expected_exit
+    assert actual == expected
+    if not input_kind.endswith("stdin"):
+        assert path.read_bytes() == b"\xef\xbb\xbf" + raw
+
+
+@pytest.mark.parametrize("raw", [b"x\x00xxx", b"system_prompt: \x80\xff", b"\xff\xfeA\x00"])
+def test_utf8_bom_does_not_hide_invalid_or_wide_encoding(raw):
+    with pytest.raises(UnicodeDecodeErrorWithHint):
+        decode_file_bytes(b"\xef\xbb\xbf" + raw)
+
+
+def test_utf8_bom_sample_is_inspected():
+    from pathlib import Path
+
+    path = Path(__file__).parent.parent / "samples" / "bom_tools.json"
+    assert path.read_bytes().startswith(b"\xef\xbb\xbf")
+    result = scan_file(path, explicit=True)
+    assert result.input_error is None
+    assert result.inspected["tools"] == 1
+    assert any(f.pattern_id == "H1" for f in result.structural_findings)

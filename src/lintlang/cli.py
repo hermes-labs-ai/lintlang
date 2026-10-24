@@ -407,7 +407,7 @@ def _cmd_scan(args: argparse.Namespace) -> int:
             try:
                 stream = getattr(sys.stdin, "buffer", sys.stdin)
                 data = stream.read()
-                text = decode_file_bytes(data) if isinstance(data, bytes) else data
+                text = decode_file_bytes(data) if isinstance(data, bytes) else data.removeprefix("\ufeff")
             except UnicodeDecodeError as error:
                 results[str(virtual)] = input_error_result(virtual, str(error))
                 continue
