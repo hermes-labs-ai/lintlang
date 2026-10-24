@@ -3,7 +3,7 @@ set -euo pipefail
 
 source dev-container-features-test-lib
 
-check "installed command reports the requested release" bash -c "lintlang --version | grep -Fx 'lintlang 0.7.0'"
+check "installed command reports the requested release" bash -c "lintlang --version | grep -Fx 'lintlang 0.8.3'"
 
 cat > /tmp/lintlang-clean.yaml <<'YAML'
 system_prompt: |
