@@ -45,7 +45,7 @@ file directly. For subsequent tracked changes, use
 The generated workflow runs on pull requests and pushes to `main`. Change that
 branch deliberately if your default branch differs. It uses immutable Action
 commits, a read-only scan job, SARIF artifact preservation, and a separate upload
-job. The current template pins the released LintLang v0.7.0 Action by its full
+job. The current template pins the released LintLang v0.8.3 Action by its full
 commit SHA. The Action runs the scanner from that release. Existing generated
 workflows require review before replacing their older pin.
 
