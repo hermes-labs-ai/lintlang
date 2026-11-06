@@ -62,7 +62,7 @@ this does not exclude every JSON report or historical baseline in that directory
 Add the optional `baseline` input to your existing LintLang Action step:
 
 ```yaml
-- uses: hermes-labs-ai/lintlang@175a9a19414aff9a1752d3b9850d6cf58d59fb32 # v0.7.0
+- uses: hermes-labs-ai/lintlang@645f57879ff5dbe3bbff37e9696834fb00371194 # v0.8.3
   with:
     path: AGENTS.md
     baseline: .lintlang-baseline.json
