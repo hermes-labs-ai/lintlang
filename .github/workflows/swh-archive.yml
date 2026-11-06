@@ -1,7 +1,7 @@
 name: Archive to Software Heritage
 
 on:
-  # release-sync.yml creates the GitHub Release with the workflow token, and
+  # publish.yml creates the GitHub Release with the workflow token, and
   # GitHub does not fire release events for token-created releases, so the
   # tag push is the trigger that actually runs. Save Code Now archives the
   # whole origin, so a duplicate request on a manual release is harmless.

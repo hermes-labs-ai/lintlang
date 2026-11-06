@@ -2,7 +2,7 @@
   "name": "lintlang",
   "displayName": "LintLang",
   "description": "Audit agent configs, system prompts, and tool definitions on demand with deterministic local static analysis.",
-  "version": "0.8.1",
+  "version": "0.8.3",
   "author": {
     "name": "Hermes Labs",
     "email": "roli@hermes-labs.ai"
@@ -23,5 +23,8 @@
     "linting",
     "developer-tools"
   ],
-  "skills": "skills/*/SKILL.md"
+  "skills": "skills/",
+  "hooks": {
+    "hooks": {}
+  }
 }

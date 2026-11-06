@@ -32,21 +32,21 @@ rewrites a file or blocks a tool call.
 
 2. **Resolve a runner, in this order.** Stop at the first that works.
 
-   - `lintlang --version` prints `lintlang` 0.8.1 or newer → use `lintlang`.
+   - `lintlang --version` prints `lintlang` 0.8.3 or newer → use `lintlang`.
      A newer installed release is fine — report which version produced the
      result, because counts and codes can differ between releases.
    - Otherwise, if `uvx` is available, use the pinned release with no install
      and no PATH change:
 
      ```bash
-     uvx --from lintlang==0.8.1 lintlang --version
+     uvx --from lintlang==0.8.3 lintlang --version
      ```
 
-     Keep the `==0.8.1` pin so an unreviewed newer release is never fetched.
+     Keep the `==0.8.3` pin so an unreviewed newer release is never fetched.
      This downloads the package into uv's cache once; the scan itself still
      makes no network call.
    - Otherwise stop and relay the install line:
-     `python -m pip install lintlang==0.8.1`. Do not install anything
+     `python -m pip install lintlang==0.8.3`. Do not install anything
      persistently on the user's machine yourself.
 
    A different installed version still works — say which version produced the
@@ -62,7 +62,7 @@ rewrites a file or blocks a tool call.
    If step 2 selected `uvx`, run the pinned package instead:
 
    ```bash
-   uvx --from lintlang==0.8.1 lintlang scan --format json -- <file> [<file> ...]
+   uvx --from lintlang==0.8.3 lintlang scan --format json -- <file> [<file> ...]
    ```
 
    The `--` keeps a path that begins with `-` from being read as a flag. JSON
@@ -153,7 +153,7 @@ YAML
 lintlang scan --fail-on fail -- "${TMPDIR:-/tmp}/lintlang-check.yaml"
 ```
 
-On `lintlang 0.8.1` that reports `FAIL` and exits `1`, with `H1.1
+On `lintlang 0.8.3` that reports `FAIL` and exits `1`, with `H1.1
 tool:process_ticket` — "Tool 'process_ticket' has no description." The seeded
 finding is the expected outcome: it shows the detector fired, not that the
 install is broken. Delete the file afterwards.

@@ -19,6 +19,12 @@ HOOKS = yaml.safe_load((REPO_ROOT / ".pre-commit-hooks.yaml").read_text(encoding
 CHECKOUT_V7_SHA = "3d3c42e5aac5ba805825da76410c181273ba90b1"
 LINTLANG_ACTION_VERSION = "v0.7.0"
 LINTLANG_V070_SHA = "175a9a19414aff9a1752d3b9850d6cf58d59fb32"
+PROJECT_VERSION_MATCH = re.search(
+    r'(?m)^version\s*=\s*"([^"]+)"',
+    (REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8"),
+)
+assert PROJECT_VERSION_MATCH is not None
+PROJECT_VERSION = PROJECT_VERSION_MATCH.group(1)
 
 
 def test_precommit_hook_is_explicit_and_advisory_by_default():
@@ -51,6 +57,8 @@ RECOGNIZED_PATHS = [
     ".github/copilot-instructions.md",
     ".github/instructions/foo.instructions.md",
     ".github/instructions/nested/foo.instructions.md",
+    ".cursor/rules/style.mdc",
+    ".cursor/rules/nested/review.mdc",
 ]
 
 # Paths that must NOT be selected by the hook's `files:` regex.
@@ -67,6 +75,9 @@ UNRECOGNIZED_PATHS = [
     ".github/instructions/foo.md",
     ".github/instructions/README.md",
     ".github/instructions/.instructions.md",
+    ".cursor/rules/README.md",
+    ".cursor/rules/style.md",
+    ".cursor/rules/.mdc",
     "pyproject.toml",
 ]
 
@@ -118,6 +129,12 @@ class TestHookInvokedAsPreCommitWouldInvokeIt:
             "Review the diff. Summarize each change in one sentence.\n", encoding="utf-8"
         )
         (instructions / "notes.md").write_text("Scratch notes.\n", encoding="utf-8")
+        cursor_rules = root / ".cursor" / "rules"
+        cursor_rules.mkdir(parents=True)
+        (cursor_rules / "review.mdc").write_text(
+            "Review changed code with the project conventions.\n", encoding="utf-8"
+        )
+        (cursor_rules / "README.md").write_text("Cursor notes.\n", encoding="utf-8")
 
     @classmethod
     def _selected_filenames(cls, root: Path) -> list[str]:
@@ -155,7 +172,7 @@ class TestHookInvokedAsPreCommitWouldInvokeIt:
         self._repository(tmp_path)
         filenames = self._selected_filenames(tmp_path)
 
-        assert filenames == [".github/instructions/review.instructions.md", "AGENTS.md"]
+        assert filenames == [".cursor/rules/review.mdc", ".github/instructions/review.instructions.md", "AGENTS.md"]
 
         completed = self._run(tmp_path, [], filenames)
 
@@ -215,7 +232,7 @@ def test_reference_docs_show_exercised_install_and_hook_paths():
     assert "pipx install lintlang" in reference
     assert "pipx ensurepath" in reference
     assert "repo: https://github.com/hermes-labs-ai/lintlang" in integration
-    assert "rev: v0.8.1" in integration
+    assert f"rev: v{PROJECT_VERSION}" in integration
     assert "id: lintlang" in integration
     assert "args: [AGENTS.md, --fail-on, fail]" in integration
     assert "pre-commit install" in integration

@@ -53,12 +53,18 @@ jobs:
         with:
           path: samples/clean_config.yaml
 
-      - name: Action fails on a failing fixture
+      - name: Action remains advisory on a failing fixture by default
+        uses: ./
+        with:
+          path: samples/bad_tool_descriptions.yaml
+
+      - name: Action fails on a failing fixture with explicit enforcement
         id: failing-scan
         continue-on-error: true
         uses: ./
         with:
           path: samples/bad_tool_descriptions.yaml
+          fail-on: fail
 
       - name: Assert failing fixture returned failure
         env:

@@ -50,22 +50,26 @@ def test_release_tag_verifier_accepts_only_matching_v_prefixed_version(tmp_path)
 def test_publish_workflow_builds_checked_out_release_tag_with_immutable_actions():
     workflow = yaml.safe_load(WORKFLOW_PATH.read_text(encoding="utf-8"))
     triggers = workflow[True]
-    assert triggers["release"] == {"types": ["published"]}
-    assert triggers["workflow_dispatch"]["inputs"]["tag"]["required"] is True
-    assert set(workflow["jobs"]) == {"build", "publish"}
+    assert triggers["push"] == {"tags": ["v*"]}
+    inputs = triggers["workflow_dispatch"]["inputs"]
+    assert inputs["tag"]["required"] is True
+    assert set(workflow["jobs"]) == {"build", "github-release", "publish"}
     build = workflow["jobs"]["build"]
+    github_release = workflow["jobs"]["github-release"]
     publish = workflow["jobs"]["publish"]
     assert build["permissions"] == {"contents": "read"}
-    release_tag = "${{ github.event.release.tag_name || inputs.tag }}"
+    release_tag = "${{ inputs.tag || github.ref_name }}"
     assert build["env"] == {"RELEASE_TAG": release_tag}
     assert "environment" not in build
-    assert publish["needs"] == "build"
+    assert github_release["needs"] == "build"
+    assert github_release["permissions"] == {"contents": "write"}
+    assert publish["needs"] == "github-release"
     assert publish["environment"] == "pypi"
-    assert publish["permissions"] == {"id-token": "write"}
+    assert publish["permissions"] == {"actions": "read", "id-token": "write"}
     steps = build["steps"]
     action_steps = [
         step
-        for job in (build, publish)
+        for job in (build, github_release, publish)
         for step in job["steps"]
         if "uses" in step
     ]
@@ -74,9 +78,8 @@ def test_publish_workflow_builds_checked_out_release_tag_with_immutable_actions(
     checkout = next(step for step in action_steps if step["uses"].startswith("actions/checkout@"))
     assert checkout["uses"] == f"actions/checkout@{CHECKOUT_V7_SHA}"
     assert steps.index(checkout) < steps.index(verify := next(
-        step for step in steps if step.get("name") == "Verify release tag and commit"
+        step for step in steps if step.get("name") == "Verify tag and documentation parity"
     ))
-    assert steps.index(checkout) < steps.index(next(step for step in steps if step.get("name") == "Build package"))
     assert checkout["with"] == {
         "ref": release_tag,
         "fetch-depth": 0,
@@ -87,24 +90,39 @@ def test_publish_workflow_builds_checked_out_release_tag_with_immutable_actions(
     assert "scripts/sync-version-docs.py" in verify["run"]
     assert "--check" in verify["run"]
     assert "git rev-list -n 1" in verify["run"]
+    assert "git merge-base --is-ancestor HEAD origin/main" in verify["run"]
     assert any(step.get("run") == "python -m build" for step in steps)
-    assert any(step.get("run") == "python -m twine check dist/*" for step in steps)
+    assert any(step.get("run") == "python -m twine check --strict dist/*" for step in steps)
 
-    upload = next(step for step in build["steps"] if step.get("uses", "").startswith("actions/upload-artifact@"))
-    download = next(
-        step for step in publish["steps"] if step.get("uses", "").startswith("actions/download-artifact@")
+    uploads = [
+        step for step in build["steps"] if step.get("uses", "").startswith("actions/upload-artifact@")
+    ]
+    assert len(uploads) == 2
+    assert {step["with"]["name"] for step in uploads} == {
+        "release-distributions",
+        "release-metadata",
+    }
+    assert all(step["uses"] == f"actions/upload-artifact@{UPLOAD_ARTIFACT_V7_SHA}" for step in uploads)
+    assert all(step["with"]["overwrite"] is True for step in uploads)
+
+    downloads = [
+        step
+        for job in (github_release, publish)
+        for step in job["steps"]
+        if step.get("uses", "").startswith("actions/download-artifact@")
+    ]
+    assert len(downloads) == 3
+    assert all(download["uses"] == f"actions/download-artifact@{DOWNLOAD_ARTIFACT_V8_SHA}" for download in downloads)
+    assert [download["with"]["name"] for download in downloads].count("release-distributions") == 2
+    assert [download["with"]["name"] for download in downloads].count("release-metadata") == 1
+
+    release_run = next(
+        step["run"] for step in github_release["steps"] if step.get("name") == "Publish GitHub Release with curated notes"
     )
-    assert upload["uses"] == f"actions/upload-artifact@{UPLOAD_ARTIFACT_V7_SHA}"
-    assert upload["with"] == {
-        "name": "release-distributions",
-        "path": "dist/",
-        "if-no-files-found": "error",
-    }
-    assert download["uses"] == f"actions/download-artifact@{DOWNLOAD_ARTIFACT_V8_SHA}"
-    assert download["with"] == {
-        "name": "release-distributions",
-        "path": "dist/",
-    }
+    assert "--notes-file dist/release-notes.md" in release_run
+    assert "--generate-notes" not in release_run
+    assert "--draft=false" in release_run
+    assert "dist/*.whl dist/*.tar.gz" in release_run
 
 
 def test_ci_workflow_uses_immutable_checkout_v7():

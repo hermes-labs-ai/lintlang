@@ -81,7 +81,7 @@ def test_owning_guides_match_baseline_and_scan_default_contracts():
     reference = _prose("llms-full.txt")
     assert "baseline support is included in released lintlang 0.6.0" in baseline
     assert "no verdict-failure threshold by default" in reference
-    assert "Action" in github and "its default is `fail`" in github
+    assert "Action" in github and "advisory by default" in github
     assert "directory with no eligible files" in github
     assert "is an input/coverage error" in github and "exits 1" in github
     assert "`--allow-empty`" in github

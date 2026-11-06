@@ -14,7 +14,7 @@ unchanged until you pass `--baseline`.
 later. Install the release:
 
 ```bash
-python -m pip install lintlang==0.7.1
+python -m pip install lintlang==0.8.3
 ```
 
 ## Create and review the starting set

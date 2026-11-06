@@ -238,6 +238,17 @@ def _handler_module():
     return module
 
 
+def test_hook_minimum_version_tracks_pinned_version() -> None:
+    """The >= acceptance floor must move in lockstep with PINNED_VERSION.
+
+    A release bump that updates PINNED_VERSION but not _MINIMUM_VERSION leaves
+    the hook and the on-demand skill disagreeing about the version floor.
+    """
+    handler = _handler_module()
+    pinned = tuple(int(part) for part in handler.PINNED_VERSION.split("."))
+    assert pinned == handler._MINIMUM_VERSION
+
+
 def test_hook_reports_input_error_even_with_skipped_metadata(tmp_path: Path) -> None:
     handler = _handler_module()
     target = tmp_path / "agent.yaml"

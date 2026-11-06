@@ -11,9 +11,9 @@ inputs:
     description: File or directory containing agent instructions to scan.
     required: true
   fail-on:
-    description: Verdict threshold that makes the action fail (fail or review).
+    description: "Verdict threshold that fails the workflow. Leave empty (the default) for advisory mode: the scan reports findings but never fails on verdicts. Set to 'fail' to fail on FAIL verdicts, or 'review' to fail on FAIL or REVIEW verdicts."
     required: false
-    default: fail
+    default: ""
   baseline:
     description: Optional existing baseline file. Only unmatched findings affect the verdict; CI never creates a baseline.
     required: false
@@ -47,7 +47,11 @@ runs:
         LINTLANG_FAIL_ON: ${{ inputs.fail-on }}
         LINTLANG_BASELINE: ${{ inputs.baseline }}
       run: |
-        LINTLANG_ARGS=(scan "$LINTLANG_PATH" --fail-on "$LINTLANG_FAIL_ON")
+        LINTLANG_ARGS=(scan "$LINTLANG_PATH")
+        LINTLANG_FAIL_ON_TRIMMED="$(python -c 'import sys; print(sys.argv[1].strip())' "$LINTLANG_FAIL_ON")"
+        if [ -n "$LINTLANG_FAIL_ON_TRIMMED" ]; then
+          LINTLANG_ARGS+=(--fail-on "$LINTLANG_FAIL_ON_TRIMMED")
+        fi
         if [ -n "$LINTLANG_BASELINE" ]; then
           LINTLANG_ARGS+=(--baseline "$LINTLANG_BASELINE")
         fi
@@ -68,7 +72,11 @@ runs:
           echo "Error: inputs path and sarif-file must differ." >&2
           exit 1
         fi
-        LINTLANG_ARGS=(scan "$LINTLANG_PATH" --format sarif --fail-on "$LINTLANG_FAIL_ON")
+        LINTLANG_ARGS=(scan "$LINTLANG_PATH" --format sarif)
+        LINTLANG_FAIL_ON_TRIMMED="$(python -c 'import sys; print(sys.argv[1].strip())' "$LINTLANG_FAIL_ON")"
+        if [ -n "$LINTLANG_FAIL_ON_TRIMMED" ]; then
+          LINTLANG_ARGS+=(--fail-on "$LINTLANG_FAIL_ON_TRIMMED")
+        fi
         if [ -n "$LINTLANG_BASELINE" ]; then
           LINTLANG_BASELINE_REAL="$(python -c 'import os, sys; print(os.path.realpath(sys.argv[1]))' "$LINTLANG_BASELINE")"
           if [ "$LINTLANG_BASELINE_REAL" = "$LINTLANG_SARIF_REAL" ]; then

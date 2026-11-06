@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import math
 import os
 import sys
 from pathlib import Path
@@ -10,6 +11,7 @@ from pathlib import Path
 from . import __version__
 from .github_init import configure_init_parser, run_init
 from .herm import confidence_breakdown
+from .parsers import decode_file_bytes
 from .patterns import PATTERNS as _PATTERNS
 from .preflight_cli import configure_preflight_parser, run_preflight
 from .report import compute_verdict, format_markdown, format_summary_table, format_terminal, strip_ansi
@@ -22,6 +24,18 @@ from .scanner import (
     scan_file,
     scan_source,
 )
+
+
+def _quality_threshold(value: str) -> float:
+    """Parse the legacy quality gate without accepting unusable thresholds."""
+    message = "must be a finite number between 0 and 100 (inclusive)"
+    try:
+        threshold = float(value)
+    except ValueError:
+        raise argparse.ArgumentTypeError(message) from None
+    if not math.isfinite(threshold) or not 0 <= threshold <= 100:
+        raise argparse.ArgumentTypeError(message)
+    return threshold
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -75,8 +89,9 @@ def main(argv: list[str] | None = None) -> int:
         help=(
             "Also scan recognized agent instruction files found under ROOT "
             "(default: '.'): AGENTS.md, CLAUDE.md, GEMINI.md, SKILL.md, "
-            "agent.yaml/.yml/.json, .github/copilot-instructions.md, and "
-            "*.instructions.md under .github/instructions/. Symlinks are not "
+            "agent.yaml/.yml/.json, .github/copilot-instructions.md, "
+            "*.instructions.md under .github/instructions/, and *.mdc under "
+            ".cursor/rules/. Symlinks are not "
             "followed; a skipped one is named on stderr. Explicit inputs still "
             "win and are unioned with the discovered set."
         ),
@@ -152,9 +167,9 @@ def main(argv: list[str] | None = None) -> int:
     )
     scan_parser.add_argument(
         "--fail-under",
-        type=float,
+        type=_quality_threshold,
         default=0.0,
-        help="Exit with code 1 if quality score is below this threshold (legacy; prefer --fail-on)",
+        help="Exit with code 1 if quality score is below this finite 0-100 threshold; 0 disables (legacy; prefer --fail-on)",
     )
     scan_parser.add_argument(
         "--fail-on",
@@ -392,7 +407,10 @@ def _cmd_scan(args: argparse.Namespace) -> int:
             try:
                 stream = getattr(sys.stdin, "buffer", sys.stdin)
                 data = stream.read()
-                text = data.decode("utf-8") if isinstance(data, bytes) else data
+                text = decode_file_bytes(data) if isinstance(data, bytes) else data
+            except UnicodeDecodeError as error:
+                results[str(virtual)] = input_error_result(virtual, str(error))
+                continue
             except (OSError, UnicodeError) as error:
                 results[str(virtual)] = input_error_result(virtual, f"Failed to read standard input: {error}")
                 continue

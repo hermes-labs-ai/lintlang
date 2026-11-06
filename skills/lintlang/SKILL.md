@@ -1,6 +1,6 @@
 ---
 name: lintlang
-description: Lint AI agent instruction files (SKILL.md, CLAUDE.md, AGENTS.md, GEMINI.md), tool definitions, system prompts, and agent configs with the deterministic LintLang CLI. Use when writing, editing, or reviewing agent instructions to catch ambiguous tool descriptions, missing stop conditions, schema/description mismatches, conflicting directives, or prompts embedded in Python before they reach runtime. Zero-LLM static analysis; no model calls and no network calls during a scan.
+description: Lint AI agent instruction files (SKILL.md, CLAUDE.md, AGENTS.md, GEMINI.md), tool definitions, system prompts, and agent configs with the deterministic LintLang CLI. Use when writing, editing, or reviewing agent instructions to catch ambiguous tool descriptions, missing stop conditions, schema/description mismatches, mixed output formats, or prompts embedded in Python before they reach runtime. Zero-LLM static analysis; no model calls and no network calls during a scan.
 version: 1.0.0
 compatibility: Needs the lintlang CLI on PATH, or uvx / Python 3.10+ with pip to fetch it. Scans run fully offline once the CLI is present.
 metadata:
@@ -24,7 +24,7 @@ telemetry, no network access during a scan.
 
 Invoke this skill when writing, editing, or reviewing agent instructions and
 you need to catch ambiguous tool descriptions, missing stop conditions,
-schema/description mismatches, conflicting directives, or prompts embedded in
+schema/description mismatches, mixed output formats, or prompts embedded in
 Python — before they reach a runtime agent.
 
 ## Resolve a runner, in this order
@@ -32,19 +32,19 @@ Python — before they reach a runtime agent.
 Stop at the first that works.
 
 1. `lintlang --version` prints a version (this skill is verified against
-   `lintlang 0.8.1`) → use `lintlang`.
+   `lintlang 0.8.3`) → use `lintlang`.
 2. Otherwise, if `uvx` is available, run the pinned release with no install
    and no PATH change:
 
    ```bash
-   uvx --from lintlang==0.8.1 lintlang --version
+   uvx --from lintlang==0.8.3 lintlang --version
    ```
 
-   Keep the `==0.8.1` pin so an unreviewed newer release is never fetched.
+   Keep the `==0.8.3` pin so an unreviewed newer release is never fetched.
    The download happens once into uv's cache; the scan itself still makes no
    network call.
 3. Otherwise stop and relay the install line:
-   `python -m pip install lintlang==0.8.1` (Python 3.10+). Do not install
+   `python -m pip install lintlang==0.8.3` (Python 3.10+). Do not install
    anything persistently on the user's machine yourself.
 
 A different installed version still works — say which version produced the
@@ -57,7 +57,8 @@ do not guess, and do not silently sweep a whole repository. For a repo-wide
 check, `lintlang scan --discover [ROOT]` finds recognized instruction files
 itself (`AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `SKILL.md`, `agent.yaml` /
 `.yml` / `.json`, `.github/copilot-instructions.md`, `*.instructions.md`
-under `.github/instructions/`); name the discovered set before scanning it.
+under `.github/instructions/`, and `*.mdc` under `.cursor/rules/`); name the
+discovered set before scanning it.
 
 Scan once, with JSON output, using the runner from above:
 
@@ -68,7 +69,7 @@ lintlang scan --format json -- <file> [<file> ...]
 or, with the pinned uvx runner:
 
 ```bash
-uvx --from lintlang==0.8.1 lintlang scan --format json -- <file> [<file> ...]
+uvx --from lintlang==0.8.3 lintlang scan --format json -- <file> [<file> ...]
 ```
 
 The `--` keeps a path that begins with `-` from being read as a flag. For
@@ -148,7 +149,7 @@ YAML
 lintlang scan --fail-on fail -- "${TMPDIR:-/tmp}/lintlang-check.yaml"
 ```
 
-On `lintlang 0.8.1` that reports `FAIL` and exits `1`, with `H1.1
+On `lintlang 0.8.3` that reports `FAIL` and exits `1`, with `H1.1
 tool:process_ticket` — "Tool 'process_ticket' has no description." The
 seeded finding is the expected outcome: it shows the detector fired, not
 that the install is broken. Delete the file afterwards.

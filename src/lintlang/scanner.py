@@ -9,7 +9,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from .herm import HermResult, score_text
-from .parsers import parse_source
+from .parsers import parse_source, read_file_text
 from .patterns import PATTERNS, AgentConfig, Finding, SourceRegion, is_localization_reference
 
 # Pipeline detectors (P-series) — registered lazily to avoid circular imports
@@ -439,10 +439,12 @@ def scan_file(path: str | Path, patterns: list[str] | None = None, explicit: boo
     try:
         if path.suffix == ".py":
             return _enforce_explicit(scan_python_file(path, patterns=patterns), explicit)
-        text = path.read_text(encoding="utf-8")
+        text = read_file_text(path)
         config = parse_source(text, path)
         result = scan_config(config, patterns=patterns)
         return _enforce_explicit(result, explicit)
+    except UnicodeDecodeError as error:
+        return input_error_result(path, str(error))
     except Exception as error:
         return input_error_result(path, f"Failed to parse: {error}")
 
@@ -582,7 +584,7 @@ def _scan_walked_file(filepath: Path, patterns: list[str] | None) -> ScanResult:
         from .extractors import PROMPT_SIGNALS
 
         try:
-            text = filepath.read_text(encoding="utf-8")
+            text = read_file_text(filepath)
         except (OSError, UnicodeError):
             return scan_file(filepath, patterns=patterns)
         if not any(pattern.search(text) for pattern, _ in PROMPT_SIGNALS):

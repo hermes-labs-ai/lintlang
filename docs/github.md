@@ -92,11 +92,13 @@ so a deliberate replacement remains reviewable.
 | CLI without `--fail-on` | None by verdict; findings are advisory |
 | CLI `--fail-on fail` | HIGH or CRITICAL |
 | CLI `--fail-on review` | MEDIUM, HIGH, or CRITICAL |
-| First-party Action with omitted `fail-on` | HIGH or CRITICAL; its default is `fail` |
+| First-party Action with omitted `fail-on` | None by verdict; findings are advisory |
 
-The Action always supplies its `fail-on` input to the CLI. For an advisory CI
-scan, run the CLI without a verdict threshold rather than inventing an Action
-value such as `none`. The legacy CLI `--fail-under` quality gate is separate;
+The Action passes `--fail-on` to the CLI only when the `fail-on` input is
+non-empty; the empty default keeps the scan advisory by default, exactly like the CLI
+without a verdict threshold. Set `fail-on: fail` to enforce on HIGH or
+CRITICAL findings, or `fail-on: review` to enforce on MEDIUM and above. The
+legacy CLI `--fail-under` quality gate is separate;
 see [exit behavior](../llms-full.txt#verdicts-and-exit-behavior).
 
 Missing, unreadable, malformed, or otherwise uninspectable requested inputs stay

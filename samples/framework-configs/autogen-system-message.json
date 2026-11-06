@@ -1,0 +1,4 @@
+{
+  "name": "assistant",
+  "system_message": "You are a helpful assistant. Be thorough. Be brief."
+}

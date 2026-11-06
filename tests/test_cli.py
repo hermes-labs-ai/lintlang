@@ -186,7 +186,7 @@ class TestCLI:
         monkeypatch.chdir(tmp_path)
         source_dir = tmp_path / "configs"
         source_dir.mkdir()
-        (source_dir / "clean.yaml").write_text("system_prompt: You are helpful.\n", encoding="utf-8")
+        (source_dir / "clean.yaml").write_bytes((SAMPLES_DIR / "clean_config.yaml").read_bytes())
         (source_dir / "excluded.yaml").write_text(
             "system_prompt: Keep trying until it works.\n",
             encoding="utf-8",
@@ -201,7 +201,7 @@ class TestCLI:
                 "--exclude",
                 "excluded.yaml",
                 "--fail-under",
-                "101",
+                "100",
             ]
         )
 
@@ -443,6 +443,34 @@ class TestCLI:
     def test_legacy_fail_under_passes(self):
         exit_code = main(["scan", str(SAMPLES_DIR / "clean_config.yaml"), "--fail-under", "80"])
         assert exit_code == 0
+
+    @pytest.mark.parametrize(
+        "value", ["nan", "NaN", "inf", "+inf", "-inf", "1e309", "-5", "-0.001", "100.001", "150", "abc", ""]
+    )
+    def test_fail_under_rejects_invalid_values_before_scanning(self, value, monkeypatch, capsys):
+        def unexpected_scan(args):
+            pytest.fail("Invalid threshold reached the scanner")
+
+        monkeypatch.setattr("lintlang.cli._cmd_scan", unexpected_scan)
+        with pytest.raises(SystemExit) as exc_info:
+            main(["scan", str(SAMPLES_DIR / "clean_config.yaml"), f"--fail-under={value}"])
+        assert exc_info.value.code == 2
+        captured = capsys.readouterr()
+        assert captured.out == ""
+        assert "--fail-under" in captured.err
+        assert "finite number between 0 and 100" in captured.err
+
+    @pytest.mark.parametrize(
+        ("value", "expected"),
+        [("0", 0), ("-0.0", 0), ("80", 0), ("80.5", 0), ("8e1", 0), ("98", 0), ("98.001", 1), ("100", 1)],
+    )
+    def test_fail_under_preserves_valid_thresholds(self, value, expected):
+        # The fixture scores 98: equality passes, while a higher threshold fails.
+        assert main(["scan", str(SAMPLES_DIR / "clean_config.yaml"), "--fail-under", value]) == expected
+
+    @pytest.mark.parametrize("value", ["0", "-0.0"])
+    def test_fail_under_zero_keeps_gate_disabled(self, value):
+        assert main(["scan", str(SAMPLES_DIR / "bad_agent_config.json"), "--fail-under", value]) == 0
 
     def test_patterns_command(self):
         exit_code = main(["patterns"])
@@ -891,3 +919,36 @@ class TestEmptyScanIsNonzero:
         assert "No files were successfully scanned" in captured.err
         assert f"baseline {baseline} was not written." in captured.err
         assert not baseline.exists()
+
+    def test_scan_utf16_file_with_bom_exits_1_with_actionable_error(self, tmp_path, capsys):
+        utf16_file = tmp_path / "agent.yaml"
+        utf16_file.write_bytes(b"\xff\xfe" + "system_prompt: You are helpful.\n".encode("utf-16-le"))
+
+        exit_code = main(["scan", str(utf16_file), "--format", "json"])
+
+        assert exit_code == 1
+        captured = capsys.readouterr()
+        data = json.loads(captured.out)
+        assert len(data) == 1
+        assert data[0]["verdict"] == "ERROR"
+        err = data[0]["input_error"]
+        assert "LintLang reads UTF-8" in err
+        assert "appears to be UTF-16 encoded" in err
+        assert "save or convert the file as UTF-8" in err
+        assert "appears to be UTF-16 encoded" in captured.err
+
+    def test_scan_arbitrary_non_utf8_bytes_exits_1_with_actionable_error(self, tmp_path, capsys):
+        bad_file = tmp_path / "bad.json"
+        bad_file.write_bytes(b"\x80\x81\x82\xff")
+
+        exit_code = main(["scan", str(bad_file), "--format", "json"])
+
+        assert exit_code == 1
+        captured = capsys.readouterr()
+        data = json.loads(captured.out)
+        assert len(data) == 1
+        assert data[0]["verdict"] == "ERROR"
+        err = data[0]["input_error"]
+        assert "File is not valid UTF-8" in err
+        assert "LintLang requires UTF-8 encoding" in err
+        assert "File is not valid UTF-8" in captured.err

@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import re
+from datetime import date, datetime
 from pathlib import Path
 
 import yaml
@@ -21,10 +22,86 @@ from .patterns import AgentConfig, SkillMeta, ToolDef, is_localization_reference
 from .source_map import SourceMap
 
 
+class UnicodeDecodeErrorWithHint(UnicodeDecodeError, ValueError):
+    """UnicodeDecodeError carrying an actionable remediation message."""
+
+    def __init__(self, message: str, original: UnicodeDecodeError):
+        super().__init__(
+            original.encoding,
+            original.object,
+            original.start,
+            original.end,
+            original.reason,
+        )
+        self.message = message
+
+    def __str__(self) -> str:
+        return self.message
+
+
+_WIDE_ENCODING_SAMPLE_BYTES = 8192
+_WIDE_ENCODING_MIN_NUL_RATIO = 0.20
+
+
+def _looks_like_bomless_wide_encoding(raw: bytes) -> bool:
+    """Return whether valid UTF-8 bytes have a UTF-16/32 NUL signature.
+
+    ASCII-heavy UTF-16 and UTF-32 without a BOM are also valid UTF-8 because
+    their zero high bytes decode as U+0000. Inspecting a bounded prefix is
+    sufficient: a genuinely wide-encoded document has the pattern from its
+    first code unit, while an isolated NUL in otherwise valid UTF-8 content is
+    not an encoding signal.
+    """
+    sample = raw[:_WIDE_ENCODING_SAMPLE_BYTES]
+    if not sample:
+        return False
+
+    # ASCII-heavy UTF-16 and UTF-32 are at least 50% and 75% NUL bytes,
+    # respectively. Twenty percent leaves room for mixed text while keeping a
+    # sparse accidental U+0000 well below the encoding threshold.
+    return sample.count(0) / len(sample) >= _WIDE_ENCODING_MIN_NUL_RATIO
+
+
+def decode_file_bytes(raw: bytes) -> str:
+    """Decode raw bytes as UTF-8 with actionable decode errors.
+
+    ASCII-heavy UTF-16/UTF-32 without a byte-order mark decodes as valid UTF-8.
+    Detect its repeated NUL-byte density without rejecting isolated U+0000 bytes
+    in otherwise valid UTF-8 text.
+    """
+    try:
+        decoded = raw.decode("utf-8")
+    except UnicodeDecodeError as error:
+        if raw.startswith((b"\xff\xfe", b"\xfe\xff")):
+            message = (
+                "LintLang reads UTF-8 and the file appears to be UTF-16 encoded. "
+                "Please save or convert the file as UTF-8."
+            )
+        else:
+            message = "File is not valid UTF-8. LintLang requires UTF-8 encoding."
+        raise UnicodeDecodeErrorWithHint(message, error) from error
+    if _looks_like_bomless_wide_encoding(raw):
+        nul_offset = raw.index(0)
+        raise UnicodeDecodeErrorWithHint(
+            "LintLang reads UTF-8 and the file appears to be UTF-16 or UTF-32 "
+            "without a byte-order mark. Please save or convert the file as UTF-8.",
+            UnicodeDecodeError(
+                "utf-8", raw, nul_offset, nul_offset + 1, "wide-encoding NUL-byte pattern"
+            ),
+        )
+    return decoded
+
+
+def read_file_text(path: str | Path) -> str:
+    """Read UTF-8 text with the universal newlines used by ``Path.read_text``."""
+    path = Path(path)
+    return decode_file_bytes(path.read_bytes()).replace("\r\n", "\n").replace("\r", "\n")
+
+
 def parse_file(path: str | Path) -> AgentConfig:
     """Parse a file into an AgentConfig based on extension."""
     path = Path(path)
-    return parse_source(path.read_text(encoding="utf-8"), path)
+    return parse_source(read_file_text(path), path)
 
 
 def parse_source(text: str, path: str | Path) -> AgentConfig:
@@ -438,7 +515,8 @@ def _nested_prompts(data: object, path: str = "", depth: int = 0) -> list[tuple[
 
 def _validate_root_tool_names(data: dict) -> None:
     """Reject a root tool whose ``name`` is not a string, naming its location."""
-    tools_data = data.get("tools", data.get("functions", []))
+    key = "tools" if "tools" in data else "functions"
+    tools_data = data.get(key, [])
     if not isinstance(tools_data, list):
         return
     for index, td in enumerate(tools_data):
@@ -454,8 +532,11 @@ def _validate_root_tool_names(data: dict) -> None:
             type(None): "null",
             list: "array",
             dict: "object",
+            date: "timestamp",
+            datetime: "timestamp",
+            bytes: "binary",
         }.get(type(name), type(name).__name__)
-        raise ValueError(f"tools[{index}].name must be a string, got {yaml_type}")
+        raise ValueError(f"{key}[{index}].name must be a string, got {yaml_type}")
 
 
 def _localized_descriptions(value: object, path: str) -> list[str]:

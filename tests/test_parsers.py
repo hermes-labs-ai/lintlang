@@ -51,6 +51,38 @@ tools:
       type: object
 """)
 
+    def test_non_string_tool_name_under_functions_key_names_that_key(self):
+        with pytest.raises(
+            ValueError,
+            match=r"functions\[1\]\.name must be a string, got integer",
+        ):
+            parse_yaml("""
+functions:
+  - name: lookup
+    description: "Look up status"
+  - name: 42
+    description: "Look up status"
+""")
+
+    @pytest.mark.parametrize(
+        ("raw_name", "yaml_type"),
+        [
+            ("2024-01-01", "timestamp"),
+            ("2024-01-01T10:00:00", "timestamp"),
+            ("!!binary aGk=", "binary"),
+        ],
+    )
+    def test_non_string_tool_name_reports_yaml_type(self, raw_name, yaml_type):
+        with pytest.raises(
+            ValueError,
+            match=rf"tools\[0\]\.name must be a string, got {yaml_type}$",
+        ):
+            parse_yaml(f"""
+tools:
+  - name: {raw_name}
+    description: "Look up status"
+""")
+
 
 class TestParseJson:
     def test_openai_function_format(self):
@@ -131,3 +163,37 @@ class TestParseFile:
     def test_text_extension(self):
         config = parse_file(SAMPLES_DIR / "bad_system_prompt.txt")
         assert "helpful AI assistant" in config.system_prompt
+
+    def test_utf16_with_bom_rejected_with_actionable_error(self, tmp_path):
+        utf16_le = tmp_path / "prompt_le.txt"
+        utf16_le.write_bytes(b"\xff\xfe" + "You are a helpful assistant.\n".encode("utf-16-le"))
+
+        with pytest.raises(UnicodeDecodeError) as exc_info:
+            parse_file(utf16_le)
+
+        err_msg = str(exc_info.value)
+        assert "LintLang reads UTF-8" in err_msg
+        assert "appears to be UTF-16 encoded" in err_msg
+        assert "save or convert the file as UTF-8" in err_msg
+
+        # Also test UTF-16 BE BOM
+        utf16_be = tmp_path / "prompt_be.txt"
+        utf16_be.write_bytes(b"\xfe\xff" + "You are a helpful assistant.\n".encode("utf-16-be"))
+
+        with pytest.raises(UnicodeDecodeError) as exc_info_be:
+            parse_file(utf16_be)
+
+        err_msg_be = str(exc_info_be.value)
+        assert "LintLang reads UTF-8" in err_msg_be
+        assert "appears to be UTF-16 encoded" in err_msg_be
+
+    def test_arbitrary_non_utf8_bytes_rejected_with_clear_error(self, tmp_path):
+        bad_file = tmp_path / "bad.yaml"
+        bad_file.write_bytes(b"\x80\x81\x82\xff\xfe_not_bom")
+
+        with pytest.raises(UnicodeDecodeError) as exc_info:
+            parse_file(bad_file)
+
+        err_msg = str(exc_info.value)
+        assert "File is not valid UTF-8" in err_msg
+        assert "LintLang requires UTF-8 encoding" in err_msg

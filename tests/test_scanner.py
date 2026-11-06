@@ -76,6 +76,29 @@ class TestScanFile:
         assert result.input_error.startswith("Failed to parse:")
         assert compute_verdict(result) == "ERROR"
 
+    def test_utf16_file_returns_error_result(self, tmp_path):
+        utf16_file = tmp_path / "utf16.yaml"
+        utf16_file.write_bytes(b"\xff\xfe" + "system_prompt: hello\n".encode("utf-16-le"))
+
+        result = scan_file(utf16_file)
+
+        assert compute_verdict(result) == "ERROR"
+        assert result.input_error is not None
+        assert "LintLang reads UTF-8" in result.input_error
+        assert "appears to be UTF-16 encoded" in result.input_error
+        assert "save or convert the file as UTF-8" in result.input_error
+
+    def test_invalid_utf8_file_returns_error_result(self, tmp_path):
+        invalid_file = tmp_path / "invalid.yaml"
+        invalid_file.write_bytes(b"\x80\x81\x82\xff")
+
+        result = scan_file(invalid_file)
+
+        assert compute_verdict(result) == "ERROR"
+        assert result.input_error is not None
+        assert "File is not valid UTF-8" in result.input_error
+        assert "LintLang requires UTF-8 encoding" in result.input_error
+
     def test_python_file_uses_ast_scanner(self, tmp_path):
         python_file = tmp_path / "pipeline.py"
         python_file.write_text("CONFIDENCE_THRESHOLD = 0.75\n")

@@ -13,6 +13,7 @@ import pytest
 
 from lintlang.instructions import (
     RECOGNIZED_INSTRUCTION_BASENAMES,
+    RECOGNIZED_INSTRUCTION_CURSOR_RULE_SUFFIXES,
     RECOGNIZED_INSTRUCTION_DIRECTORIES,
     RECOGNIZED_INSTRUCTION_DIRECTORY_SUFFIXES,
     RECOGNIZED_INSTRUCTION_RELATIVE_PATHS,
@@ -39,6 +40,7 @@ class TestRecognizedConstants:
         ) == RECOGNIZED_INSTRUCTION_RELATIVE_PATHS
         assert frozenset({".github/instructions"}) == RECOGNIZED_INSTRUCTION_DIRECTORIES
         assert frozenset({".instructions.md"}) == RECOGNIZED_INSTRUCTION_DIRECTORY_SUFFIXES
+        assert frozenset({".mdc"}) == RECOGNIZED_INSTRUCTION_CURSOR_RULE_SUFFIXES
 
 
 class TestIsRecognizedInstructionPath:
@@ -58,6 +60,9 @@ class TestIsRecognizedInstructionPath:
             ".github/instructions/review.instructions.md",
             ".github/instructions/nested/review.instructions.md",
             "packages/worker/.github/instructions/style.instructions.md",
+            ".cursor/rules/style.mdc",
+            ".cursor/rules/nested/review.mdc",
+            "packages/worker/.cursor/rules/style.mdc",
             "/abs/repo/AGENTS.md",
         ),
     )
@@ -79,6 +84,10 @@ class TestIsRecognizedInstructionPath:
             ".github/workflows/lintlang.yml",
             ".github/instructions/notes.txt",
             "integrations/opencode/lintlang.js",
+            ".cursor/rules/README.md",
+            ".cursor/rules/style.md",
+            ".cursor/rules/nested/style.txt",
+            ".cursor/rules/.mdc",
             "src/lintlang/cli.py",
         ),
     )
@@ -109,18 +118,13 @@ class TestIsRecognizedInstructionPath:
         strict=True,
         reason="documented limitation: these editor and host instruction layouts are not discovery targets yet",
     )
-    @pytest.mark.parametrize("path", (".cursor/rules/style.md", ".claude/agents/reviewer.md", ".windsurfrules"))
+    @pytest.mark.parametrize("path", (".claude/agents/reviewer.md", ".windsurfrules"))
     def test_documented_omissions_should_be_recognized(self, path):
         """DESIRED BEHAVIOUR, not today's behaviour.
 
-        Each of these is an agent instruction surface a real project keeps, so
-        discovery should find it. It does not: every one of them needs its own
-        file-shape decision first, and adding a surface widens discovery, the
-        pre-commit file filter, and the initializer at once. The module
-        docstring records why; passing such a file as an explicit scan argument
-        works today and remains canonical. The day a layout is added, this test
-        passes, strict xfail turns that into a suite failure, and the marker
-        comes off with the decision.
+        These remaining editor/host instruction surfaces still need their own
+        file-shape decisions. Passing such a file as an explicit scan argument
+        works today and remains canonical.
         """
         assert is_recognized_instruction_path(path) is True
 
@@ -162,10 +166,19 @@ class TestDiscoverInstructionFiles:
         (github / "instructions").mkdir(parents=True)
         (github / "copilot-instructions.md").write_text("# Copilot\n", encoding="utf-8")
         (github / "instructions" / "review.instructions.md").write_text("# R\n", encoding="utf-8")
+        cursor = tmp_path / ".cursor" / "rules"
+        cursor.mkdir(parents=True)
+        (cursor / "style.mdc").write_text("# Cursor rule\n", encoding="utf-8")
+        nested_cursor = cursor / "nested"
+        nested_cursor.mkdir()
+        (nested_cursor / "review.mdc").write_text("# Nested rule\n", encoding="utf-8")
+        (cursor / "README.md").write_text("# Not a rule\n", encoding="utf-8")
 
         found = discover_instruction_files(tmp_path)
 
         assert found == [
+            tmp_path / ".cursor" / "rules" / "nested" / "review.mdc",
+            tmp_path / ".cursor" / "rules" / "style.mdc",
             tmp_path / ".github" / "copilot-instructions.md",
             tmp_path / ".github" / "instructions" / "review.instructions.md",
             tmp_path / "AGENTS.md",

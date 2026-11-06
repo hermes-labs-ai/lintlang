@@ -38,11 +38,11 @@ def _action_env(tmp_path: Path, source: Path, baseline: Path | None = None, **ex
     }
 
 
-def _run_action(output_format: str, tmp_path: Path, env: dict[str, str]) -> subprocess.CompletedProcess[str]:
+def _run_action(output_format: str, tmp_path: Path, env: dict[str, str], cwd: Path | None = None) -> subprocess.CompletedProcess[str]:
     scan = ACTION["runs"]["steps"][3 if output_format == "sarif" else 2]
     return subprocess.run(
         ["bash", "-e", "-o", "pipefail", "-c", scan["run"]],
-        cwd=tmp_path,
+        cwd=tmp_path if cwd is None else cwd,
         env=env,
         text=True,
         capture_output=True,
@@ -73,7 +73,7 @@ def test_marketplace_metadata_and_inputs_are_minimal():
     inputs = ACTION["inputs"]
     assert set(inputs) == {"path", "fail-on", "baseline", "python-version", "sarif-file"}
     assert inputs["path"]["required"] is True
-    assert inputs["fail-on"]["default"] == "fail"
+    assert inputs["fail-on"]["default"] == ""
     assert inputs["baseline"]["required"] is False
     assert inputs["baseline"]["default"] == ""
     assert inputs["python-version"]["default"] == "3.12"
@@ -98,7 +98,8 @@ def test_selected_action_ref_is_installed_and_inputs_are_not_shell_interpolated(
         "LINTLANG_FAIL_ON": "${{ inputs.fail-on }}",
         "LINTLANG_BASELINE": "${{ inputs.baseline }}",
     }
-    assert 'LINTLANG_ARGS=(scan "$LINTLANG_PATH" --fail-on "$LINTLANG_FAIL_ON")' in scan["run"]
+    assert 'LINTLANG_ARGS=(scan "$LINTLANG_PATH")' in scan["run"]
+    assert 'LINTLANG_ARGS=(scan "$LINTLANG_PATH" --format sarif)' in sarif_scan["run"]
     assert sarif_scan["if"] == "inputs.sarif-file != ''"
     assert sarif_scan["env"] == {
         "LINTLANG_PATH": "${{ inputs.path }}",
@@ -107,6 +108,9 @@ def test_selected_action_ref_is_installed_and_inputs_are_not_shell_interpolated(
         "LINTLANG_SARIF_FILE": "${{ inputs.sarif-file }}",
     }
     for step in (scan, sarif_scan):
+        assert 'LINTLANG_FAIL_ON_TRIMMED="$(python -c \'import sys; print(sys.argv[1].strip())\' "$LINTLANG_FAIL_ON")"' in step["run"]
+        assert 'if [ -n "$LINTLANG_FAIL_ON_TRIMMED" ]; then' in step["run"]
+        assert 'LINTLANG_ARGS+=(--fail-on "$LINTLANG_FAIL_ON_TRIMMED")' in step["run"]
         assert 'LINTLANG_ARGS+=(--baseline "$LINTLANG_BASELINE")' in step["run"]
         assert 'lintlang "${LINTLANG_ARGS[@]}"' in step["run"]
         assert "--write-baseline" not in step["run"]
@@ -115,7 +119,7 @@ def test_selected_action_ref_is_installed_and_inputs_are_not_shell_interpolated(
     assert "${{" not in sarif_scan["run"]
 
 
-def test_default_action_command_preserves_clean_and_failing_fixtures(tmp_path):
+def test_explicit_fail_on_blocks_failing_fixture(tmp_path):
     lintlang_bin = _real_lintlang_path(tmp_path)
     scan = ACTION["runs"]["steps"][2]
     base_env = {
@@ -138,6 +142,111 @@ def test_default_action_command_preserves_clean_and_failing_fixtures(tmp_path):
         outcomes.append(completed.returncode)
 
     assert outcomes == [0, 1]
+
+
+def _write_review_only_fixture(tmp_path: Path) -> Path:
+    """A skill whose only finding is MEDIUM H1.9 (name/directory mismatch)."""
+    skill_dir = tmp_path / "skills" / "wrong-dir"
+    skill_dir.mkdir(parents=True)
+    (skill_dir / "SKILL.md").write_text(
+        "---\n"
+        "name: right-name\n"
+        "description: A skill that does the thing when the user asks for the thing to be done properly.\n"
+        "---\n"
+        "\n"
+        "# Right Name\n"
+        "\n"
+        "Do the thing.\n",
+        encoding="utf-8",
+    )
+    return tmp_path
+
+
+@pytest.mark.parametrize("output_format", ["terminal", "sarif"])
+@pytest.mark.parametrize(
+    ("fail_on", "fixture", "expected"),
+    [
+        # Advisory default: empty input never fails on verdicts.
+        ("", "bad", 0),
+        ("", "review-only", 0),
+        # Whitespace-only input trims to empty: still advisory, exit 0.
+        (" ", "bad", 0),
+        ("\t", "bad", 0),
+        (" \t\n ", "bad", 0),
+        # 'fail' blocks only on FAIL verdicts.
+        ("fail", "bad", 1),
+        ("fail", "review-only", 0),
+        (" \tfail\n ", "bad", 1),
+        # 'review' blocks on FAIL or REVIEW verdicts.
+        ("review", "bad", 1),
+        ("review", "review-only", 1),
+        (" \treview\n ", "review-only", 1),
+    ],
+)
+def test_fail_on_thresholds(tmp_path, output_format, fail_on, fixture, expected):
+    lintlang_bin = _real_lintlang_path(tmp_path)
+    if fixture == "bad":
+        # Keep the scan inside the repo so SARIF source-root checks pass.
+        source = "samples/bad_tool_descriptions.yaml"
+        cwd = REPO_ROOT
+    else:
+        source = str(_write_review_only_fixture(tmp_path))
+        cwd = tmp_path
+    env = {
+        **os.environ,
+        "PATH": f"{lintlang_bin}{os.pathsep}{os.environ['PATH']}",
+        "PYTHONPATH": str(REPO_ROOT / "src"),
+        "LINTLANG_PATH": source,
+        "LINTLANG_FAIL_ON": fail_on,
+        "LINTLANG_BASELINE": "",
+        "LINTLANG_SARIF_FILE": str(tmp_path / "report.sarif"),
+    }
+    completed = _run_action(output_format, tmp_path, env, cwd=cwd)
+    assert completed.returncode == expected, completed.stdout + completed.stderr
+    if output_format == "sarif":
+        # The report is written even when the verdict is advisory or blocking.
+        document = json.loads((tmp_path / "report.sarif").read_text(encoding="utf-8"))
+        assert document["version"] == "2.1.0"
+        assert document["runs"][0]["results"]
+
+
+@pytest.mark.parametrize("output_format", ["terminal", "sarif"])
+@pytest.mark.parametrize("fail_on", ["f ail", "re\tview", "fail review", "invalid"])
+def test_action_rejects_malformed_fail_on(tmp_path, output_format, fail_on):
+    source = tmp_path / "agent.yaml"
+    source.write_text("system_prompt: Be concise.\n", encoding="utf-8")
+    env = _action_env(
+        tmp_path,
+        source,
+        LINTLANG_FAIL_ON=fail_on,
+        LINTLANG_SARIF_FILE=str(tmp_path / "report.sarif"),
+    )
+
+    completed = _run_action(output_format, tmp_path, env)
+
+    assert completed.returncode == 2
+    assert "invalid choice" in completed.stderr
+
+
+@pytest.mark.parametrize("output_format", ["terminal", "sarif"])
+@pytest.mark.parametrize("input_state", ["missing", "malformed"])
+def test_advisory_action_preserves_input_errors(tmp_path, output_format, input_state):
+    source = tmp_path / "agent.yaml"
+    if input_state == "malformed":
+        source.write_text("tools: [\n", encoding="utf-8")
+    env = _action_env(
+        tmp_path,
+        source,
+        LINTLANG_FAIL_ON="",
+        LINTLANG_SARIF_FILE=str(tmp_path / "report.sarif"),
+    )
+
+    completed = _run_action(output_format, tmp_path, env)
+
+    assert completed.returncode == 1
+    if output_format == "sarif":
+        document = json.loads((tmp_path / "report.sarif").read_text(encoding="utf-8"))
+        assert document["runs"][0]["invocations"][0]["executionSuccessful"] is False
 
 
 def test_sarif_step_writes_real_report_before_preserving_failing_verdict(tmp_path):
@@ -296,8 +405,9 @@ def test_action_baseline_passes_known_findings_and_fails_new_findings(tmp_path, 
 
 @pytest.mark.parametrize("output_format", ["terminal", "sarif"])
 @pytest.mark.parametrize("baseline_state", ["missing", "invalid"])
+@pytest.mark.parametrize("fail_on", ["", "fail"])
 def test_action_rejects_missing_or_invalid_baseline_without_creating_or_changing_it(
-    tmp_path, output_format, baseline_state
+    tmp_path, output_format, baseline_state, fail_on
 ):
     source = tmp_path / "agent.yaml"
     original = b"system_prompt: Be concise.\n"
@@ -306,7 +416,13 @@ def test_action_rejects_missing_or_invalid_baseline_without_creating_or_changing
     invalid_bytes = b'{"not": "a lintlang baseline"}\n'
     if baseline_state == "invalid":
         baseline.write_bytes(invalid_bytes)
-    env = _action_env(tmp_path, source, baseline, LINTLANG_SARIF_FILE=str(tmp_path / "report.sarif"))
+    env = _action_env(
+        tmp_path,
+        source,
+        baseline,
+        LINTLANG_FAIL_ON=fail_on,
+        LINTLANG_SARIF_FILE=str(tmp_path / "report.sarif"),
+    )
 
     completed = _run_action(output_format, tmp_path, env)
 
