@@ -1,0 +1,115 @@
+$ lintlang scan input.json --fail-on review
+
+  LINTLANG v0.8.1
+  input.json
+  ──────────────────────────────────────────────────
+
+  ⚠️ REVIEW — 18 MEDIUM
+  Inspected: 15 tools (15 described, 15 with a schema)
+  Confidence: LOW (65% coverage proxy; low <75%)
+    Primary driver: Prompt-like framing was not detected in the text. (-25 percentage points)
+      If this file is intended as agent instructions, make its role or purpose explicit. Reference material may naturally remain lower-confidence on this proxy.
+    Driver: No user-input or untrusted-input boundary language was detected. (-10 percentage points)
+      If these instructions govern user-controlled content, describe that boundary explicitly; otherwise no change is implied.
+    HERM confidence is a heuristic coverage label, not a statistical probability, finding-certainty estimate, or structural PASS/REVIEW/FAIL verdict.
+
+  H3: Schema-Intent Mismatch
+
+    ~ [MEDIUM] input.json:46  tool:update_conversation_context.parameters.session_id
+      Parameter 'session_id' in tool 'update_conversation_context' has no description.
+      → Add a description explaining what this parameter means semantically, not just its type.
+
+    ~ [MEDIUM] input.json:47  tool:update_conversation_context.parameters.interaction_type
+      Parameter 'interaction_type' in tool 'update_conversation_context' has no description.
+      → Add a description explaining what this parameter means semantically, not just its type.
+
+    ~ [MEDIUM] input.json:48  tool:update_conversation_context.parameters.content
+      Parameter 'content' in tool 'update_conversation_context' has no description.
+      → Add a description explaining what this parameter means semantically, not just its type.
+
+    ~ [MEDIUM] input.json:59  tool:semantic_search_session.parameters.session_id
+      Parameter 'session_id' in tool 'semantic_search_session' has no description.
+      → Add a description explaining what this parameter means semantically, not just its type.
+
+    ~ [MEDIUM] input.json:60  tool:semantic_search_session.parameters.query
+      Parameter 'query' in tool 'semantic_search_session' has no description.
+      → Add a description explaining what this parameter means semantically, not just its type.
+
+    + 13 more H3 [MEDIUM] tool:get_structured_summary.parameters.session_id, tool:semantic_search.parameters.query, tool:semantic_search.parameters.scope_type, tool:semantic_search.parameters.scope_id, tool:create_workspace.parameters.name, tool:create_workspace.parameters.description, ...
+      (--show-all lists every finding)
+
+  ──────────────────────────────────────────────────
+  lintlang v0.8.1 | H1-H7 structural analysis | Zero LLM calls
+
+
+Verdict: issues found — use --min-severity to filter
+[exit 1]
+
+$ lintlang scan input.json --write-baseline .lintlang-baseline.json
+
+  LINTLANG v0.8.1
+  input.json
+  ──────────────────────────────────────────────────
+
+  ⚠️ REVIEW — 18 MEDIUM
+  Inspected: 15 tools (15 described, 15 with a schema)
+  Confidence: LOW (65% coverage proxy; low <75%)
+    Primary driver: Prompt-like framing was not detected in the text. (-25 percentage points)
+      If this file is intended as agent instructions, make its role or purpose explicit. Reference material may naturally remain lower-confidence on this proxy.
+    Driver: No user-input or untrusted-input boundary language was detected. (-10 percentage points)
+      If these instructions govern user-controlled content, describe that boundary explicitly; otherwise no change is implied.
+    HERM confidence is a heuristic coverage label, not a statistical probability, finding-certainty estimate, or structural PASS/REVIEW/FAIL verdict.
+
+  H3: Schema-Intent Mismatch
+
+    ~ [MEDIUM] input.json:46  tool:update_conversation_context.parameters.session_id
+      Parameter 'session_id' in tool 'update_conversation_context' has no description.
+      → Add a description explaining what this parameter means semantically, not just its type.
+
+    ~ [MEDIUM] input.json:47  tool:update_conversation_context.parameters.interaction_type
+      Parameter 'interaction_type' in tool 'update_conversation_context' has no description.
+      → Add a description explaining what this parameter means semantically, not just its type.
+
+    ~ [MEDIUM] input.json:48  tool:update_conversation_context.parameters.content
+      Parameter 'content' in tool 'update_conversation_context' has no description.
+      → Add a description explaining what this parameter means semantically, not just its type.
+
+    ~ [MEDIUM] input.json:59  tool:semantic_search_session.parameters.session_id
+      Parameter 'session_id' in tool 'semantic_search_session' has no description.
+      → Add a description explaining what this parameter means semantically, not just its type.
+
+    ~ [MEDIUM] input.json:60  tool:semantic_search_session.parameters.query
+      Parameter 'query' in tool 'semantic_search_session' has no description.
+      → Add a description explaining what this parameter means semantically, not just its type.
+
+    + 13 more H3 [MEDIUM] tool:get_structured_summary.parameters.session_id, tool:semantic_search.parameters.query, tool:semantic_search.parameters.scope_type, tool:semantic_search.parameters.scope_id, tool:create_workspace.parameters.name, tool:create_workspace.parameters.description, ...
+      (--show-all lists every finding)
+
+  ──────────────────────────────────────────────────
+  lintlang v0.8.1 | H1-H7 structural analysis | Zero LLM calls
+
+Baseline written to .lintlang-baseline.json: 18 finding(s). Review before committing.
+[exit 0]
+
+$ lintlang scan input.json --baseline .lintlang-baseline.json --fail-on review
+
+  LINTLANG v0.8.1
+  input.json
+  ──────────────────────────────────────────────────
+
+  ✅ PASS — 0 findings
+  Inspected: 15 tools (15 described, 15 with a schema)
+  Confidence: LOW (65% coverage proxy; low <75%)
+    Primary driver: Prompt-like framing was not detected in the text. (-25 percentage points)
+      If this file is intended as agent instructions, make its role or purpose explicit. Reference material may naturally remain lower-confidence on this proxy.
+    Driver: No user-input or untrusted-input boundary language was detected. (-10 percentage points)
+      If these instructions govern user-controlled content, describe that boundary explicitly; otherwise no change is implied.
+    HERM confidence is a heuristic coverage label, not a statistical probability, finding-certainty estimate, or structural PASS/REVIEW/FAIL verdict.
+  Baseline: 18 recorded finding(s) acknowledged; verdict covers remaining findings.
+
+  No structural issues found.
+
+  ──────────────────────────────────────────────────
+  lintlang v0.8.1 | H1-H7 structural analysis | Zero LLM calls
+
+[exit 0]
