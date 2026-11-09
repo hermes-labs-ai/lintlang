@@ -19,7 +19,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
@@ -72,7 +72,7 @@ jobs:
         run: test "$ACTION_OUTCOME" = "failure"
 
       - name: Released Action writes clean SARIF
-        uses: hermes-labs-ai/lintlang@6aace2a175483757c64d7aa2105346d1cc34b857 # v0.7.1
+        uses: hermes-labs-ai/lintlang@645f57879ff5dbe3bbff37e9696834fb00371194 # v0.8.3
         with:
           path: samples/clean_config.yaml
           sarif-file: lintlang-clean.sarif
@@ -80,7 +80,7 @@ jobs:
       - name: Released Action writes failing SARIF
         id: released-failing-scan
         continue-on-error: true
-        uses: hermes-labs-ai/lintlang@6aace2a175483757c64d7aa2105346d1cc34b857 # v0.7.1
+        uses: hermes-labs-ai/lintlang@645f57879ff5dbe3bbff37e9696834fb00371194 # v0.8.3
         with:
           path: samples/bad_tool_descriptions.yaml
           sarif-file: lintlang-bad.sarif
